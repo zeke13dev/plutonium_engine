@@ -73,12 +73,11 @@ impl Camera {
             if dy_top < 0.0 {
                 self.position.y += dy_top;
             }
-
         } else {
             // If no boundary is set, simply update the position
             self.position = new_pos;
         }
-    } 
+    }
 
     pub fn new(position: Position) -> Self {
         Self {

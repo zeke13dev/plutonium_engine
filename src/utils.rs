@@ -1,4 +1,7 @@
-use std::{hash::{Hash, Hasher}, ops::Mul};
+use std::{
+    hash::{Hash, Hasher},
+    ops::Mul,
+};
 
 pub struct DrawingContext<'a> {
     pub rpass: &'a mut wgpu::RenderPass<'a>,
@@ -31,7 +34,6 @@ pub struct Size {
     pub height: f32,
 }
 
-
 impl Mul<f32> for Size {
     type Output = Size;
 
@@ -42,7 +44,6 @@ impl Mul<f32> for Size {
         }
     }
 }
-
 
 #[derive(Debug, Clone, Copy)]
 pub struct Position {

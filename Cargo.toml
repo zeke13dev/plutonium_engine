@@ -1,9 +1,16 @@
 [package]
 name = "plutonium"
 version = "0.1.0"
+authors = ["Zeke Barnett <coding@zeke13.com>"]
+description = "A brief description of your crate"
+license = "Apache-2.0"
+repository = "https://github.com/zeke13dev/plutonium"
+homepage = "https://zeke13.com" # not quite open yet; stay tuned!
+documentation = "https://docs.rs/plutonium"
+readme = "README.md"
+keywords = ["wgpu", "rendering", "svg", "graphics engine"]
+categories = ["graphics", "rendering"]
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 image = "0.25.1"

@@ -11,19 +11,22 @@ pub struct TextureAtlas {
 
 impl TextureAtlas {
     pub fn new(device: &wgpu::Device, tile_size: Size, atlas_size: Size) -> Self {
-        let uv_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<UVTransform>() as u64),
-                },
-                count: None,
-            }],
-            label: Some("UV Bind Group Layout"),
-        });
+        let uv_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(
+                            std::mem::size_of::<UVTransform>() as u64
+                        ),
+                    },
+                    count: None,
+                }],
+                label: Some("UV Bind Group Layout"),
+            });
 
         let num_tiles = (atlas_size.width as usize / tile_size.width as usize)
             * (atlas_size.height as usize / tile_size.height as usize);
