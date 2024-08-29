@@ -1,7 +1,7 @@
 [package]
 name = "plutonium"
 version = "0.1.0"
-authors = ["Zeke Barnett <coding@zeke13.com>"]
+authors = ["Zeke Barnett coding@zeke13.com"]
 description = "A brief description of your crate"
 license = "Apache-2.0"
 repository = "https://github.com/zeke13dev/plutonium"
