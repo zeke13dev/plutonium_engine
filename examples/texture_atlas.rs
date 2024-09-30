@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use plutonium::{
+use plutonium_engine::{
     utils::{Position, Size},
     PlutoniumEngine,
 };
@@ -16,6 +16,7 @@ struct TextureSvgExample<'a> {
     window: Option<Arc<Window>>,
     engine: Option<PlutoniumEngine<'a>>,
     _surface: Option<Surface<'a>>,
+    scale_factor: f32, // Added field to store the scale factor
 }
 
 impl<'a> TextureSvgExample<'a> {
@@ -24,6 +25,7 @@ impl<'a> TextureSvgExample<'a> {
             window: None,
             _surface: None,
             engine: None,
+            scale_factor: 1.0, // Initialize with default scale factor
         }
     }
 }
@@ -39,17 +41,21 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
             let surface = instance.create_surface(window_arc.clone()).unwrap();
             let mut engine = PlutoniumEngine::new(surface, instance, size);
 
-            // actual example stuff
+            // Manually set the scale factor for the tiles
+            self.scale_factor = 0.5; // For example, scale down to half size
+
+            // Load and create the texture atlas with the manual scale factor
             engine.create_texture_svg(
                 "atlas",
                 "examples/media/map_atlas.svg",
                 Position { x: 0.0, y: 0.0 },
-                1.0,
+                self.scale_factor,
                 Some(Size {
                     width: 512.0,
                     height: 512.0,
                 }),
             );
+
             window_arc.request_redraw();
 
             self.engine = Some(engine);
@@ -68,18 +74,44 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                let _window = self.window.as_ref();
                 if let Some(engine) = &mut self.engine {
-                    // Clear the queue before each frame
+                    // Clear the render queue before each frame
                     engine.clear_render_queue();
                     engine.update();
 
-                    // Queue the tiles for rendering
-                    engine.queue_tile("atlas", 0, Position { x: 0.0, y: 0.0 });
-                    engine.queue_tile("atlas", 1, Position { x: 512.0, y: 0.0 });
-                    engine.queue_tile("atlas", 0, Position { x: 512.0, y: 512.0 });
-                    engine.queue_tile("atlas", 1, Position { x: 0.0, y: 512.0 });
+                    // Queue the tiles from the atlas for rendering, adjusting for the scale factor
+                    let scaled_tile_size = Size {
+                        width: 512.0 * self.scale_factor,
+                        height: 512.0 * self.scale_factor,
+                    };
 
+                    engine.queue_tile("atlas", 0, Position { x: 0.0, y: 0.0 });
+                    engine.queue_tile(
+                        "atlas",
+                        1,
+                        Position {
+                            x: scaled_tile_size.width,
+                            y: 0.0,
+                        },
+                    );
+                    engine.queue_tile(
+                        "atlas",
+                        0,
+                        Position {
+                            x: scaled_tile_size.width,
+                            y: scaled_tile_size.height,
+                        },
+                    );
+                    engine.queue_tile(
+                        "atlas",
+                        1,
+                        Position {
+                            x: 0.0,
+                            y: scaled_tile_size.height,
+                        },
+                    );
+
+                    // Submit the render queue
                     engine.render().unwrap();
                 }
             }

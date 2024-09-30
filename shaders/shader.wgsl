@@ -14,6 +14,7 @@ struct VertexOutput {
 fn vs_main(@location(0) position: vec2<f32>, @location(1) tex_coords: vec2<f32>) -> VertexOutput {
     var output: VertexOutput;
     output.position = transformUniform.transform * vec4<f32>(position, 0.0, 1.0);
+
     output.tex_coords = tex_coords;
     return output;
 }

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use plutonium::{
+use plutonium_engine::{
     utils::{Position, Rectangle, Size},
     PlutoniumEngine,
 };
@@ -121,13 +121,13 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
             WindowEvent::RedrawRequested => {
                 let _window = self.window.as_ref();
                 if let Some(engine) = &mut self.engine {
-                    // Clear the tile queue before each frame
+                    // Clear the render queue before each frame
                     engine.clear_render_queue();
 
                     // activate camera since the camera is deactivated later in the call
                     engine.activate_camera();
 
-                    // queue the tiles for rendering
+                    // Queue the tiles for rendering
                     engine.update();
                     engine.queue_tile("atlas", 0, Position { x: 0.0, y: 0.0 });
                     engine.queue_tile(
@@ -154,11 +154,11 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
                             y: 512.0 * 0.5,
                         },
                     );
-                    engine.queue_texture("player");
+                    engine.queue_texture("player", Some(self.player_position));
 
                     // deactivate camera to absolutely render the boundary
                     engine.deactivate_camera();
-                    engine.queue_texture("boundary");
+                    engine.queue_texture("boundary", Some(Position { x: 0.0, y: 0.0 }));
 
                     // submit the queue for rendering
                     engine.render().unwrap();

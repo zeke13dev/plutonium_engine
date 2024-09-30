@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use plutonium::{utils::Position, PlutoniumEngine};
+use plutonium_engine::{utils::Position, PlutoniumEngine};
 use wgpu::Surface;
 use winit::{
     application::ApplicationHandler,
@@ -42,7 +42,7 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
             let surface = instance.create_surface(window_arc.clone()).unwrap();
             let mut engine = PlutoniumEngine::new(surface, instance, size);
 
-            // actual example stuff
+            // Create the player texture
             engine.create_texture_svg(
                 "player",
                 "examples/media/player.svg",
@@ -94,12 +94,11 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
                 }
             }
             WindowEvent::RedrawRequested => {
-                let _window = self.window.as_ref();
                 if let Some(engine) = &mut self.engine {
-                    // Clear the queue before each frame
+                    // Clear the render queue before each frame
                     engine.clear_render_queue();
                     engine.update();
-                    engine.queue_texture("player");
+                    engine.queue_texture("player", Some(self.player_position));
                     engine.render().unwrap();
                 }
             }

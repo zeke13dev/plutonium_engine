@@ -51,6 +51,12 @@ pub struct Position {
     pub y: f32,
 }
 
+impl Default for Position {
+    fn default() -> Self {
+        Position { x: 0.0, y: 0.0 }
+    }
+}
+
 impl PartialEq for Position {
     fn eq(&self, other: &Self) -> bool {
         self == other
