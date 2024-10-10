@@ -1,5 +1,6 @@
 extern crate image;
 pub mod camera;
+pub mod text_input;
 pub mod texture_atlas;
 pub mod texture_svg;
 pub mod utils;
@@ -114,34 +115,29 @@ impl<'a> PlutoniumEngine<'a> {
 
             // Generate the transformation matrix based on the position and camera
             let position = position.unwrap_or_default();
-            let transform_uniform = texture.get_transform_uniform(
-                self.viewport_size,
-                position,
-                self.camera.get_pos(),
-            );
+            let transform_uniform =
+                texture.get_transform_uniform(self.viewport_size, position, self.camera.get_pos());
 
-            let transform_uniform_buffer = self.device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: Some("Transform Uniform Buffer"),
-                    contents: bytemuck::cast_slice(&[transform_uniform]),
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                },
-            );
+            let transform_uniform_buffer =
+                self.device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("Transform Uniform Buffer"),
+                        contents: bytemuck::cast_slice(&[transform_uniform]),
+                        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    });
 
-            let transform_bind_group = self.device.create_bind_group(
-                &wgpu::BindGroupDescriptor {
-                    layout: &self.transform_bind_group_layout,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &transform_uniform_buffer,
-                            offset: 0,
-                            size: None,
-                        }),
-                    }],
-                    label: Some("Transform Bind Group"),
-                },
-            );
+            let transform_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &self.transform_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &transform_uniform_buffer,
+                        offset: 0,
+                        size: None,
+                    }),
+                }],
+                label: Some("Transform Bind Group"),
+            });
 
             self.render_queue.push(RenderItem::Texture {
                 texture_index: *texture_index,
@@ -156,34 +152,29 @@ impl<'a> PlutoniumEngine<'a> {
             let texture = &self.textures[*texture_index];
 
             // Generate the transformation matrix based on the position and camera
-            let transform_uniform = texture.get_transform_uniform(
-                self.viewport_size,
-                position,
-                self.camera.get_pos(),
-            );
+            let transform_uniform =
+                texture.get_transform_uniform(self.viewport_size, position, self.camera.get_pos());
 
-            let transform_uniform_buffer = self.device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: Some("Transform Uniform Buffer"),
-                    contents: bytemuck::cast_slice(&[transform_uniform]),
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                },
-            );
+            let transform_uniform_buffer =
+                self.device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("Transform Uniform Buffer"),
+                        contents: bytemuck::cast_slice(&[transform_uniform]),
+                        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    });
 
-            let transform_bind_group = self.device.create_bind_group(
-                &wgpu::BindGroupDescriptor {
-                    layout: &self.transform_bind_group_layout,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &transform_uniform_buffer,
-                            offset: 0,
-                            size: None,
-                        }),
-                    }],
-                    label: Some("Transform Bind Group"),
-                },
-            );
+            let transform_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &self.transform_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &transform_uniform_buffer,
+                        offset: 0,
+                        size: None,
+                    }),
+                }],
+                label: Some("Transform Bind Group"),
+            });
 
             self.render_queue.push(RenderItem::Texture {
                 texture_index: *texture_index,
@@ -196,37 +187,35 @@ impl<'a> PlutoniumEngine<'a> {
     pub fn queue_text(&mut self, key: &str) {
         if let Some(&texture_index) = self.texture_map.get(key) {
             let texture = &self.textures[texture_index];
-    
+
             // Generate the transformation matrix based on the texture's position
             let transform_uniform = texture.get_transform_uniform(
                 self.viewport_size,
                 texture.pos(), // Use the texture's stored position
                 self.camera.get_pos(),
             );
-    
-            let transform_uniform_buffer = self.device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: Some("Transform Uniform Buffer"),
-                    contents: bytemuck::cast_slice(&[transform_uniform]),
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                },
-            );
-    
-            let transform_bind_group = self.device.create_bind_group(
-                &wgpu::BindGroupDescriptor {
-                    layout: &self.transform_bind_group_layout,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &transform_uniform_buffer,
-                            offset: 0,
-                            size: None,
-                        }),
-                    }],
-                    label: Some("Transform Bind Group"),
-                },
-            );
-    
+
+            let transform_uniform_buffer =
+                self.device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("Transform Uniform Buffer"),
+                        contents: bytemuck::cast_slice(&[transform_uniform]),
+                        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    });
+
+            let transform_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &self.transform_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &transform_uniform_buffer,
+                        offset: 0,
+                        size: None,
+                    }),
+                }],
+                label: Some("Transform Bind Group"),
+            });
+
             self.render_queue.push(RenderItem::Texture {
                 texture_index,
                 transform_bind_group,
@@ -480,7 +469,7 @@ impl<'a> PlutoniumEngine<'a> {
                     step_mode: wgpu::VertexStepMode::Vertex,
                     attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2],
                 }],
-                compilation_options: wgpu::PipelineCompilationOptions::default()
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -490,7 +479,7 @@ impl<'a> PlutoniumEngine<'a> {
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
-                compilation_options: wgpu::PipelineCompilationOptions::default()
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
