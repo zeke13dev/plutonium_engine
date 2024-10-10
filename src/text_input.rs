@@ -1,5 +1,7 @@
 use crate::texture_svg::TextureSVG;
 use crate::utils::{Position, Size};
+use crate::PlutoObject;
+use crate::PlutoniumEngine;
 use winit::keyboard::Key;
 
 pub struct TextInput {
@@ -17,11 +19,14 @@ impl TextInput {
             content: "".to_string(),
         }
     }
+}
 
-    // update functions
+impl PlutoObject for TextInput {
+    fn render(&self, engine: &mut PlutoniumEngine) {
+        engine.queue_texture(&self.texture_key, None);
+    }
 
-    /// mouse_pos is only passed if LMB is clicked
-    pub fn update(
+    fn update(
         &mut self,
         texture: &TextureSVG,
         mouse_pos: Option<Position>,
@@ -38,10 +43,5 @@ impl TextInput {
                 }
             }
         }
-    }
-
-    // rendering functions
-    pub fn render() {
-        // to implement
     }
 }

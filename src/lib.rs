@@ -1,14 +1,17 @@
 extern crate image;
+extern crate queues;
 pub mod camera;
 pub mod text_input;
 pub mod texture_atlas;
 pub mod texture_svg;
+pub mod traits;
 pub mod utils;
 
 use camera::Camera;
 use pollster::block_on;
 use std::{borrow::Cow, collections::HashMap};
 use texture_svg::*;
+use traits::PlutoObject;
 use utils::*;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
@@ -32,6 +35,7 @@ pub struct PlutoniumEngine<'a> {
     transform_bind_group_layout: wgpu::BindGroupLayout,
     textures: Vec<TextureSVG>,
     texture_map: HashMap<String, usize>,
+    object_map: HashMap<String, Box<dyn PlutoObject>>,
     render_queue: Vec<RenderItem>,
     viewport_size: Size,
     camera: Camera,
@@ -80,6 +84,11 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     pub fn update(&mut self) {
+        // update objects
+        for obj in self.object_map.values_mut() {
+            obj.update(obj.get_texture_svg(), mouse_info, key);
+        }
+
         let (camera_position, tether_size) = if let Some(tether_target) = &self.camera.tether_target
         {
             if let Some(texture_index) = self.texture_map.get(tether_target) {
@@ -95,6 +104,7 @@ impl<'a> PlutoniumEngine<'a> {
         self.camera.set_pos(camera_position);
         self.camera.set_tether_size(tether_size);
 
+        // update actual location of where object buffers are
         for texture in &mut self.textures {
             texture.update_transform_uniform(
                 &self.device,
@@ -276,7 +286,7 @@ impl<'a> PlutoniumEngine<'a> {
                         let texture = &self.textures[*texture_index];
 
                         // Render the texture, using the precomputed transform
-                        texture.render(
+                        texture.render_hidden(
                             &mut rpass,
                             &self.render_pipeline,
                             *tile_index,
@@ -300,6 +310,7 @@ impl<'a> PlutoniumEngine<'a> {
         position: Position,
     ) {
         let texture_svg = TextureSVG::from_text(
+            &key,
             &self.device,
             &self.queue,
             text,
@@ -325,6 +336,7 @@ impl<'a> PlutoniumEngine<'a> {
         tile_size: Option<Size>,
     ) {
         let svg_texture = TextureSVG::new(
+            key,
             &self.device,
             &self.queue,
             file_path,
@@ -341,6 +353,20 @@ impl<'a> PlutoniumEngine<'a> {
             self.texture_map.insert(key.to_string(), index);
         }
     }
+
+    pub fn get_texture_svg(&self, key: &str) -> Option<&TextureSVG> {
+        if let Some(index) = self.texture_map.get(key) {
+            Some(&self.textures[*index])
+        } else {
+            None
+        }
+    }
+
+    /*
+    pub fn get_object(&self, key: &str) -> Option<&Box<dyn PlutoObject>> {
+        self.object_map.get(key)
+    }
+    */
 
     pub fn new(
         surface: wgpu::Surface<'a>,
@@ -489,6 +515,7 @@ impl<'a> PlutoniumEngine<'a> {
 
         let textures: Vec<TextureSVG> = vec![];
         let texture_map: HashMap<String, usize> = HashMap::new();
+        let object_map: HashMap<String, Box<dyn PlutoObject>> = HashMap::new();
         let viewport_size = Size {
             width: config.width as f32,
             height: config.height as f32,
@@ -507,6 +534,7 @@ impl<'a> PlutoniumEngine<'a> {
             transform_bind_group_layout,
             textures,
             texture_map,
+            object_map,
             render_queue,
             viewport_size,
             camera,

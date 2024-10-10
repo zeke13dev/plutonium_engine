@@ -1,12 +1,14 @@
-use crate::{texture_atlas::TextureAtlas, utils::*};
+use crate::{texture_atlas::TextureAtlas, traits::PlutoObject, utils::*, PlutoniumEngine};
 use resvg::usvg::{Options, Tree};
 use std::{fs, num::NonZeroU64};
 use tiny_skia::{Color, Pixmap};
 use wgpu::util::DeviceExt;
+use winit::keyboard::Key;
 
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct TextureSVG {
+    texture_key: String,
     texture: wgpu::Texture,
     view: wgpu::TextureView,
     bind_group: wgpu::BindGroup,
@@ -42,6 +44,7 @@ impl TextureSVG {
     }
 
     pub fn from_text(
+        texture_key: &str,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         text: &str,
@@ -230,6 +233,7 @@ impl TextureSVG {
         });
 
         Some(Self {
+            texture_key: texture_key.to_string(),
             texture,
             view,
             bind_group,
@@ -258,6 +262,7 @@ impl TextureSVG {
 
     /// Creates a new `TextureSVG` instance.
     pub fn new(
+        texture_key: &str,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         file_path: &str,
@@ -394,6 +399,7 @@ impl TextureSVG {
         });
 
         Some(Self {
+            texture_key: texture_key.to_string(),
             texture,
             view,
             bind_group,
@@ -595,6 +601,34 @@ impl TextureSVG {
         );
     }
 
+    pub fn render_hidden<'a>(
+        &'a self,
+        rpass: &mut wgpu::RenderPass<'a>,
+        render_pipeline: &'a wgpu::RenderPipeline,
+        tile_index: Option<usize>,
+        tile_bind_group: Option<&'a wgpu::BindGroup>,
+    ) {
+        rpass.set_pipeline(render_pipeline);
+        rpass.set_bind_group(0, &self.bind_group, &[]);
+        match tile_bind_group {
+            Some(tile_bind_group) => rpass.set_bind_group(1, tile_bind_group, &[]),
+            None => rpass.set_bind_group(1, &self.transform_bind_group, &[]),
+        }
+
+        let uv_bind_group = if let Some(index) = tile_index {
+            self.uv_bind_groups
+                .get(index)
+                .unwrap_or(&self.uv_bind_group)
+        } else {
+            &self.uv_bind_group
+        };
+
+        rpass.set_bind_group(2, uv_bind_group, &[]);
+        rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..)); // Add this line
+        rpass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        rpass.draw_indexed(0..self.num_indices, 0, 0..1);
+    }
+
     /// gets the transform uniform based on the viewport size and adjusts for position.
     pub fn get_transform_uniform(
         &self,
@@ -661,35 +695,6 @@ impl TextureSVG {
                 tex_coords: tex_coords[3],
             },
         ];
-    }
-
-    /// Renders the texture.
-    pub fn render<'a>(
-        &'a self,
-        rpass: &mut wgpu::RenderPass<'a>,
-        render_pipeline: &'a wgpu::RenderPipeline,
-        tile_index: Option<usize>,
-        tile_bind_group: Option<&'a wgpu::BindGroup>,
-    ) {
-        rpass.set_pipeline(render_pipeline);
-        rpass.set_bind_group(0, &self.bind_group, &[]);
-        match tile_bind_group {
-            Some(tile_bind_group) => rpass.set_bind_group(1, tile_bind_group, &[]),
-            None => rpass.set_bind_group(1, &self.transform_bind_group, &[]),
-        }
-
-        let uv_bind_group = if let Some(index) = tile_index {
-            self.uv_bind_groups
-                .get(index)
-                .unwrap_or(&self.uv_bind_group)
-        } else {
-            &self.uv_bind_group
-        };
-
-        rpass.set_bind_group(2, uv_bind_group, &[]);
-        rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..)); // Add this line
-        rpass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-        rpass.draw_indexed(0..self.num_indices, 0, 0..1);
     }
 
     /// Calculates and returns the UV coordinates of a tile by index.
@@ -838,5 +843,18 @@ impl TextureSVG {
             .contains(*pos);
         }
         self.dimensions.contains(*pos)
+    }
+}
+
+impl PlutoObject for TextureSVG {
+    fn render(&self, engine: &mut PlutoniumEngine) {
+        engine.queue_texture(&self.texture_key, None);
+    }
+    fn update(
+        &mut self,
+        _texture: &TextureSVG,
+        _mouse_pos: Option<Position>,
+        _key_pressed: Option<Key>,
+    ) {
     }
 }
