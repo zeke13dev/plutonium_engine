@@ -1,5 +1,4 @@
 extern crate image;
-extern crate queues;
 pub mod camera;
 pub mod text_input;
 pub mod texture_atlas;
@@ -7,6 +6,7 @@ pub mod texture_svg;
 pub mod traits;
 pub mod utils;
 
+use crate::text_input::TextInput;
 use camera::Camera;
 use pollster::block_on;
 use std::{borrow::Cow, collections::HashMap};
@@ -15,6 +15,7 @@ use traits::PlutoObject;
 use utils::*;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
+use winit::keyboard::Key;
 
 enum RenderItem {
     Texture {
@@ -83,10 +84,14 @@ impl<'a> PlutoniumEngine<'a> {
         };
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self, mouse_info: Option<MouseInfo>, key: &Option<Key>) {
         // update objects
-        for obj in self.object_map.values_mut() {
-            obj.update(obj.get_texture_svg(), mouse_info, key);
+        for (texture_key, obj) in self.object_map.iter_mut() {
+            obj.update(
+                &self.textures[*self.texture_map.get(texture_key).unwrap()],
+                mouse_info,
+                key,
+            );
         }
 
         let (camera_position, tether_size) = if let Some(tether_target) = &self.camera.tether_target
@@ -302,6 +307,28 @@ impl<'a> PlutoniumEngine<'a> {
         Ok(())
     }
 
+    pub fn create_text_input(
+        &mut self,
+        texture_key: &str,
+        svg_path: &str,
+        font_size: f32,
+        scale: f32,
+        font: &str,
+        dimensions: Rectangle,
+        padding: f32,
+    ) {
+        let mut pos = dimensions.pos();
+        pos.x += padding;
+        pos.y += padding;
+        let text_texture_key = format!("text_{}", texture_key);
+        self.create_texture_svg(texture_key, svg_path, dimensions.pos(), scale, None);
+        self.create_text_texture(&text_texture_key, "", font_size, dimensions.pos());
+
+        let text_input = TextInput::new(texture_key, font_size, scale, font, dimensions, padding);
+        self.object_map
+            .insert(texture_key.to_string(), Box::new(text_input));
+    }
+
     pub fn create_text_texture(
         &mut self,
         key: &str,
@@ -362,11 +389,9 @@ impl<'a> PlutoniumEngine<'a> {
         }
     }
 
-    /*
-    pub fn get_object(&self, key: &str) -> Option<&Box<dyn PlutoObject>> {
+    pub fn borrow_obj(&self, key: &str) -> Option<&Box<dyn PlutoObject>> {
         self.object_map.get(key)
     }
-    */
 
     pub fn new(
         surface: wgpu::Surface<'a>,

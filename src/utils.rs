@@ -131,3 +131,11 @@ impl Rectangle {
         }
     }
 }
+
+#[derive(Copy, Clone, Debug)]
+pub struct MouseInfo {
+    pub is_RMB_clicked: bool,
+    pub is_LMB_clicked: bool,
+    pub is_MMB_clicked: bool,
+    pub mouse_pos: Position,
+}

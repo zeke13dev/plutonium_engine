@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use plutonium_engine::{utils::Position, PlutoniumEngine};
+use plutonium_engine::{
+    utils::{MouseInfo, Position},
+    PlutoniumEngine,
+};
 use wgpu::Surface;
 use winit::{
     application::ApplicationHandler,
@@ -15,17 +18,25 @@ struct TextureSvgExample<'a> {
     engine: Option<PlutoniumEngine<'a>>,
     player_position: Position,
     _surface: Option<Surface<'a>>,
+    mouse_info: MouseInfo,
 }
 
 impl<'a> TextureSvgExample<'a> {
     pub fn new() -> Self {
         let player_position = Position { x: 0.0, y: 0.0 };
+        let mouse_info = MouseInfo {
+            is_RMB_clicked: false,
+            is_LMB_clicked: false,
+            is_MMB_clicked: false,
+            mouse_pos: Position { x: 0.0, y: 0.0 },
+        };
 
         Self {
             window: None,
             _surface: None,
             engine: None,
             player_position,
+            mouse_info,
         }
     }
 }
@@ -67,6 +78,10 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
+            WindowEvent::CursorMoved { position, .. } => {
+                self.mouse_info.mouse_pos.x = position.x as f32;
+                self.mouse_info.mouse_pos.y = position.y as f32;
+            }
             WindowEvent::KeyboardInput {
                 event:
                     KeyEvent {
@@ -97,7 +112,7 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
                 if let Some(engine) = &mut self.engine {
                     // Clear the render queue before each frame
                     engine.clear_render_queue();
-                    engine.update();
+                    engine.update(self.mouse_info, &None);
                     engine.queue_texture("player", Some(self.player_position));
                     engine.render().unwrap();
                 }

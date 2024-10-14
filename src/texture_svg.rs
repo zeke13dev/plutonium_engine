@@ -832,6 +832,20 @@ impl TextureSVG {
     /* higher level functions */
 
     /// given an (x, y) returns whether or not those coordinates are contained in the texturesvg
+    /// shrinks the rectangle by padding
+    pub fn padded_contains(&self, pos: &Position, padding: f32) -> bool {
+        if let Some(Size { width, height }) = &self.tile_size {
+            return Rectangle {
+                x: self.dimensions.x - padding,
+                y: self.dimensions.y - padding,
+                width: *width - (2.0 * padding),
+                height: *height - (2.0 * padding),
+            }
+            .contains(*pos);
+        }
+        self.dimensions.contains(*pos)
+    }
+
     pub fn contains(&self, pos: &Position) -> bool {
         if let Some(Size { width, height }) = &self.tile_size {
             return Rectangle {
@@ -850,11 +864,12 @@ impl PlutoObject for TextureSVG {
     fn render(&self, engine: &mut PlutoniumEngine) {
         engine.queue_texture(&self.texture_key, None);
     }
+
     fn update(
         &mut self,
         _texture: &TextureSVG,
-        _mouse_pos: Option<Position>,
-        _key_pressed: Option<Key>,
+        _mouse_pos: Option<MouseInfo>,
+        _key_pressed: &Option<Key>,
     ) {
     }
 }

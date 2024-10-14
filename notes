@@ -1,0 +1,10 @@
+*** lib.rs ***
+- figure out interaction with borrow_obj and obj.render();
+- closures????
+
+*** src/texture_input ***
+- add match expression for input
+
+
+*** src/texture_svg ***
+- correctness of padded_contains

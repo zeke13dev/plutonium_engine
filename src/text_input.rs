@@ -1,43 +1,74 @@
 use crate::texture_svg::TextureSVG;
-use crate::utils::{Position, Size};
+use crate::utils::{MouseInfo, Position, Rectangle, Size};
 use crate::PlutoObject;
 use crate::PlutoniumEngine;
 use winit::keyboard::Key;
 
 pub struct TextInput {
     texture_key: String,
+    text_texture_key: String,
     focused: bool,
     content: String,
+    font: String,
+    font_size: f32,
+    dimensions: Rectangle,
+    padding: f32,
 }
 
 impl TextInput {
     // initializers
-    pub fn new(texture_key: &str, svg_path: &str, size: Size, scale: f32) -> TextInput {
+    pub fn new(
+        texture_key: &str,
+        font_size: f32,
+        scale: f32,
+        font: &str,
+        dimensions: Rectangle,
+        padding: f32,
+    ) -> TextInput {
+        let text_texture_key = format!("text_{}", texture_key);
+
         TextInput {
             texture_key: texture_key.to_string(),
+            text_texture_key,
             focused: false,
             content: "".to_string(),
+            font: font.to_string(),
+            dimensions,
+            font_size,
+            padding,
         }
+    }
+
+    pub fn content(&self) -> &str {
+        &self.content
+    }
+
+    pub fn clear(&mut self) {
+        self.content = "".to_string();
     }
 }
 
 impl PlutoObject for TextInput {
     fn render(&self, engine: &mut PlutoniumEngine) {
         engine.queue_texture(&self.texture_key, None);
+        engine.queue_texture(&self.text_texture_key, None);
     }
 
     fn update(
         &mut self,
         texture: &TextureSVG,
-        mouse_pos: Option<Position>,
-        key_pressed: Option<Key>,
+        mouse_info: Option<MouseInfo>,
+        key_pressed: &Option<Key>,
     ) {
-        if let Some(pos) = mouse_pos {
-            self.focused = texture.contains(&pos);
+        if let Some(mouse) = mouse_info {
+            if mouse.is_LMB_clicked {
+                self.focused = texture.padded_contains(&mouse.mouse_pos, self.padding);
+            }
         }
 
         if let Some(key) = key_pressed {
             if self.focused {
+                // should match for which logical key it is here!
                 if let Some(c) = key.to_text() {
                     &self.content.push_str(c);
                 }
