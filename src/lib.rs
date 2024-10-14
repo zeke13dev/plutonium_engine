@@ -9,6 +9,8 @@ pub mod utils;
 use crate::text_input::TextInput;
 use camera::Camera;
 use pollster::block_on;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::{borrow::Cow, collections::HashMap};
 use texture_svg::*;
 use traits::PlutoObject;
@@ -36,7 +38,7 @@ pub struct PlutoniumEngine<'a> {
     transform_bind_group_layout: wgpu::BindGroupLayout,
     textures: Vec<TextureSVG>,
     texture_map: HashMap<String, usize>,
-    object_map: HashMap<String, Box<dyn PlutoObject>>,
+    object_map: HashMap<String, Rc<RefCell<dyn PlutoObject>>>,
     render_queue: Vec<RenderItem>,
     viewport_size: Size,
     camera: Camera,
@@ -86,12 +88,8 @@ impl<'a> PlutoniumEngine<'a> {
 
     pub fn update(&mut self, mouse_info: Option<MouseInfo>, key: &Option<Key>) {
         // update objects
-        for (texture_key, obj) in self.object_map.iter_mut() {
-            obj.update(
-                &self.textures[*self.texture_map.get(texture_key).unwrap()],
-                mouse_info,
-                key,
-            );
+        for obj in self.object_map.values() {
+            obj.borrow_mut().update(mouse_info, key);
         }
 
         let (camera_position, tether_size) = if let Some(tether_target) = &self.camera.tether_target
@@ -245,6 +243,12 @@ impl<'a> PlutoniumEngine<'a> {
         self.render_queue.clear();
     }
 
+    pub fn render_obj(&mut self, texture_key: &str) {
+        if let Some(obj_rc) = self.object_map.get(texture_key) {
+            obj_rc.clone().borrow().render(self);
+        }
+    }
+
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let frame = self
             .surface
@@ -312,8 +316,7 @@ impl<'a> PlutoniumEngine<'a> {
         texture_key: &str,
         svg_path: &str,
         font_size: f32,
-        scale: f32,
-        font: &str,
+        _font: &str,
         dimensions: Rectangle,
         padding: f32,
     ) {
@@ -321,12 +324,12 @@ impl<'a> PlutoniumEngine<'a> {
         pos.x += padding;
         pos.y += padding;
         let text_texture_key = format!("text_{}", texture_key);
-        self.create_texture_svg(texture_key, svg_path, dimensions.pos(), scale, None);
+        self.create_texture_svg(texture_key, svg_path, dimensions.pos(), 1.0, None);
         self.create_text_texture(&text_texture_key, "", font_size, dimensions.pos());
 
-        let text_input = TextInput::new(texture_key, font_size, scale, font, dimensions, padding);
+        let text_input = TextInput::new(texture_key, 1.0, dimensions, padding);
         self.object_map
-            .insert(texture_key.to_string(), Box::new(text_input));
+            .insert(texture_key.to_string(), Rc::new(RefCell::new(text_input)));
     }
 
     pub fn create_text_texture(
@@ -337,7 +340,7 @@ impl<'a> PlutoniumEngine<'a> {
         position: Position,
     ) {
         let texture_svg = TextureSVG::from_text(
-            &key,
+            key,
             &self.device,
             &self.queue,
             text,
@@ -387,10 +390,6 @@ impl<'a> PlutoniumEngine<'a> {
         } else {
             None
         }
-    }
-
-    pub fn borrow_obj(&self, key: &str) -> Option<&Box<dyn PlutoObject>> {
-        self.object_map.get(key)
     }
 
     pub fn new(
@@ -540,7 +539,7 @@ impl<'a> PlutoniumEngine<'a> {
 
         let textures: Vec<TextureSVG> = vec![];
         let texture_map: HashMap<String, usize> = HashMap::new();
-        let object_map: HashMap<String, Box<dyn PlutoObject>> = HashMap::new();
+        let object_map: HashMap<String, Rc<RefCell<dyn PlutoObject>>> = HashMap::new();
         let viewport_size = Size {
             width: config.width as f32,
             height: config.height as f32,

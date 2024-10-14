@@ -572,18 +572,15 @@ impl TextureSVG {
 
         let tile_size = self.tile_size.unwrap_or(self.dimensions.size());
         self.adjust_vertex_texture_coordinates(tile_size, viewport_size);
-        self.update_vertex_buffer(&device);
+        self.update_vertex_buffer(device);
 
         // Calculate NDC scaling factors
-        let width_ndc = tile_size.width / viewport_width as f32;
-        let height_ndc = tile_size.height / viewport_height as f32;
+        let width_ndc = tile_size.width / viewport_width;
+        let height_ndc = tile_size.height / viewport_height;
 
         // Calculate NDC position
-        let ndc_x = (2.0 * (self.dimensions.x - camera_position.x) as f32)
-            / viewport_size.width as f32
-            - 1.0;
-        let ndc_y = 1.0
-            - (2.0 * (self.dimensions.y - camera_position.y) as f32) / viewport_size.height as f32;
+        let ndc_x = (2.0 * (self.dimensions.x - camera_position.x)) / viewport_size.width - 1.0;
+        let ndc_y = 1.0 - (2.0 * (self.dimensions.y - camera_position.y)) / viewport_size.height;
 
         // Construct transformation matrix in column-major order
         let transform = [
@@ -645,12 +642,12 @@ impl TextureSVG {
             .map(|size| size.height)
             .unwrap_or(self.dimensions.height);
 
-        let width_ndc = tile_width / viewport_size.width as f32;
-        let height_ndc = tile_height / viewport_size.height as f32;
+        let width_ndc = tile_width / viewport_size.width;
+        let height_ndc = tile_height / viewport_size.height;
 
         // Calculate NDC position
-        let ndc_dx = (2.0 * (pos.x - camera_position.x) as f32) / viewport_size.width as f32 - 1.0;
-        let ndc_dy = 1.0 - (2.0 * (pos.y - camera_position.y) as f32) / viewport_size.height as f32;
+        let ndc_dx = (2.0 * (pos.x - camera_position.x)) / viewport_size.width - 1.0;
+        let ndc_dy = 1.0 - (2.0 * (pos.y - camera_position.y)) / viewport_size.height;
 
         let ndc_x = ndc_dx + width_ndc;
         let ndc_y = ndc_dy - height_ndc;
@@ -831,21 +828,6 @@ impl TextureSVG {
 
     /* higher level functions */
 
-    /// given an (x, y) returns whether or not those coordinates are contained in the texturesvg
-    /// shrinks the rectangle by padding
-    pub fn padded_contains(&self, pos: &Position, padding: f32) -> bool {
-        if let Some(Size { width, height }) = &self.tile_size {
-            return Rectangle {
-                x: self.dimensions.x - padding,
-                y: self.dimensions.y - padding,
-                width: *width - (2.0 * padding),
-                height: *height - (2.0 * padding),
-            }
-            .contains(*pos);
-        }
-        self.dimensions.contains(*pos)
-    }
-
     pub fn contains(&self, pos: &Position) -> bool {
         if let Some(Size { width, height }) = &self.tile_size {
             return Rectangle {
@@ -865,11 +847,5 @@ impl PlutoObject for TextureSVG {
         engine.queue_texture(&self.texture_key, None);
     }
 
-    fn update(
-        &mut self,
-        _texture: &TextureSVG,
-        _mouse_pos: Option<MouseInfo>,
-        _key_pressed: &Option<Key>,
-    ) {
-    }
+    fn update(&mut self, _mouse_pos: Option<MouseInfo>, _key_pressed: &Option<Key>) {}
 }

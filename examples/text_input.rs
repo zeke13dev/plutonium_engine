@@ -9,7 +9,6 @@ use winit::{
     application::ApplicationHandler,
     event::{ElementState, KeyEvent, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop},
-    keyboard::Key,
     window::{Window, WindowId},
 };
 
@@ -25,9 +24,9 @@ impl<'a> TextureSvgExample<'a> {
     pub fn new() -> Self {
         let player_position = Position { x: 0.0, y: 0.0 };
         let mouse_info = MouseInfo {
-            is_RMB_clicked: false,
-            is_LMB_clicked: false,
-            is_MMB_clicked: false,
+            is_rmb_clicked: false,
+            is_lmb_clicked: false,
+            is_mmb_clicked: false,
             mouse_pos: Position { x: 0.0, y: 0.0 },
         };
 
@@ -58,11 +57,11 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
                 "input",
                 "examples/media/input.svg",
                 12.0,
-                1.0,
                 "Roboto",
                 Rectangle::new(0.0, 0.0, 53.0, 16.0),
                 5.0,
             );
+
             window_arc.request_redraw();
 
             self.engine = Some(engine);
@@ -102,9 +101,7 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
                     // Clear the render queue before each frame
                     engine.clear_render_queue();
                     engine.update(Some(self.mouse_info), &None);
-                    if let Some(obj) = engine.borrow_obj("input") {
-                        obj.render(engine);
-                    }
+                    engine.render_obj("input");
                     engine.render().unwrap();
                 }
             }

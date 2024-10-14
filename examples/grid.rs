@@ -4,9 +4,8 @@ use plutonium_engine::{utils::Position, PlutoniumEngine};
 use wgpu::Surface;
 use winit::{
     application::ApplicationHandler,
-    event::{ElementState, KeyEvent, WindowEvent},
+    event::WindowEvent,
     event_loop::{ActiveEventLoop, EventLoop},
-    keyboard::Key,
     window::{Window, WindowId},
 };
 

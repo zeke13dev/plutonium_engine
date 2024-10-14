@@ -25,9 +25,9 @@ impl<'a> TextureSvgExample<'a> {
     pub fn new() -> Self {
         let player_position = Position { x: 0.0, y: 0.0 };
         let mouse_info = MouseInfo {
-            is_RMB_clicked: false,
-            is_LMB_clicked: false,
-            is_MMB_clicked: false,
+            is_rmb_clicked: false,
+            is_lmb_clicked: false,
+            is_mmb_clicked: false,
             mouse_pos: Position { x: 0.0, y: 0.0 },
         };
 
@@ -112,7 +112,7 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
                 if let Some(engine) = &mut self.engine {
                     // Clear the render queue before each frame
                     engine.clear_render_queue();
-                    engine.update(self.mouse_info, &None);
+                    engine.update(Some(self.mouse_info), &None);
                     engine.queue_texture("player", Some(self.player_position));
                     engine.render().unwrap();
                 }

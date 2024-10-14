@@ -68,16 +68,13 @@ impl<'a> ApplicationHandler<()> for TextRenderingExample<'a> {
                 ..
             } => {
                 if let Some(engine) = &mut self.engine {
-                    match key.as_ref() {
-                        Key::Character("r") => {
-                            // Clear the render queue and re-queue the text for rendering
-                            engine.clear_render_queue();
-                            let text_position = Position { x: 100.0, y: 100.0 };
-                            engine.queue_texture("greeting", Some(text_position));
+                    if let Key::Character("r") = key.as_ref() {
+                        // Clear the render queue and re-queue the text for rendering
+                        engine.clear_render_queue();
+                        let text_position = Position { x: 100.0, y: 100.0 };
+                        engine.queue_texture("greeting", Some(text_position));
 
-                            self.window.as_ref().unwrap().request_redraw();
-                        }
-                        _ => (),
+                        self.window.as_ref().unwrap().request_redraw();
                     }
                 }
             }

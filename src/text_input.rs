@@ -1,5 +1,4 @@
-use crate::texture_svg::TextureSVG;
-use crate::utils::{MouseInfo, Position, Rectangle, Size};
+use crate::utils::{MouseInfo, Rectangle};
 use crate::PlutoObject;
 use crate::PlutoniumEngine;
 use winit::keyboard::Key;
@@ -9,22 +8,13 @@ pub struct TextInput {
     text_texture_key: String,
     focused: bool,
     content: String,
-    font: String,
-    font_size: f32,
     dimensions: Rectangle,
     padding: f32,
 }
 
 impl TextInput {
     // initializers
-    pub fn new(
-        texture_key: &str,
-        font_size: f32,
-        scale: f32,
-        font: &str,
-        dimensions: Rectangle,
-        padding: f32,
-    ) -> TextInput {
+    pub fn new(texture_key: &str, scale: f32, dimensions: Rectangle, padding: f32) -> TextInput {
         let text_texture_key = format!("text_{}", texture_key);
 
         TextInput {
@@ -32,9 +22,7 @@ impl TextInput {
             text_texture_key,
             focused: false,
             content: "".to_string(),
-            font: font.to_string(),
             dimensions,
-            font_size,
             padding,
         }
     }
@@ -54,15 +42,12 @@ impl PlutoObject for TextInput {
         engine.queue_texture(&self.text_texture_key, None);
     }
 
-    fn update(
-        &mut self,
-        texture: &TextureSVG,
-        mouse_info: Option<MouseInfo>,
-        key_pressed: &Option<Key>,
-    ) {
+    fn update(&mut self, mouse_info: Option<MouseInfo>, key_pressed: &Option<Key>) {
         if let Some(mouse) = mouse_info {
-            if mouse.is_LMB_clicked {
-                self.focused = texture.padded_contains(&mouse.mouse_pos, self.padding);
+            if mouse.is_lmb_clicked {
+                self.focused = self
+                    .dimensions
+                    .padded_contains(mouse.mouse_pos, self.padding);
             }
         }
 
@@ -70,7 +55,7 @@ impl PlutoObject for TextInput {
             if self.focused {
                 // should match for which logical key it is here!
                 if let Some(c) = key.to_text() {
-                    &self.content.push_str(c);
+                    self.content.push_str(c);
                 }
             }
         }
