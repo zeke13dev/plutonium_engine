@@ -25,10 +25,19 @@ impl<'a> TextureSvgExample<'a> {
 
         // Adjust the positions so the squares are flush (touching) each other
         let svg_positions = vec![
-            Position { x: 0.0, y: 0.0 },    // Top-left
-            Position { x: total_size, y: 0.0 },   // Top-right
-            Position { x: 0.0, y: total_size },   // Bottom-left
-            Position { x: total_size, y: total_size },  // Bottom-right
+            Position { x: 0.0, y: 0.0 }, // Top-left
+            Position {
+                x: total_size,
+                y: 0.0,
+            }, // Top-right
+            Position {
+                x: 0.0,
+                y: total_size,
+            }, // Bottom-left
+            Position {
+                x: total_size,
+                y: total_size,
+            }, // Bottom-right
         ];
 
         Self {
@@ -81,13 +90,13 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
             WindowEvent::RedrawRequested => {
                 if let Some(engine) = &mut self.engine {
                     engine.clear_render_queue();
-                    engine.update();
-    
+                    engine.update(None, &None);
+
                     // Queue the same texture at different positions
                     for position in &self.svg_positions {
                         engine.queue_texture("tile_texture", Some(*position));
                     }
-    
+
                     engine.render().unwrap();
                 }
             }

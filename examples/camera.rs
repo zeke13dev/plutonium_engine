@@ -128,7 +128,7 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
                     engine.activate_camera();
 
                     // Queue the tiles for rendering
-                    engine.update();
+                    engine.update(None, &None);
                     engine.queue_tile("atlas", 0, Position { x: 0.0, y: 0.0 });
                     engine.queue_tile(
                         "atlas",

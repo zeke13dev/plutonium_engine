@@ -77,7 +77,7 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
                 if let Some(engine) = &mut self.engine {
                     // Clear the render queue before each frame
                     engine.clear_render_queue();
-                    engine.update();
+                    engine.update(None, &None);
 
                     // Queue the tiles from the atlas for rendering, adjusting for the scale factor
                     let scaled_tile_size = Size {

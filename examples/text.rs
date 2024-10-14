@@ -86,7 +86,7 @@ impl<'a> ApplicationHandler<()> for TextRenderingExample<'a> {
                     // Clear the render queue before each frame
                     engine.clear_render_queue();
 
-                    engine.update();
+                    engine.update(None, &None);
                     // Queue the text for rendering
                     let text_position = Position { x: 0.0, y: 0.0 };
                     engine.queue_texture("greeting", Some(text_position));
