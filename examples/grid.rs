@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use winit::dpi::PhysicalSize;
 
 use plutonium_engine::{utils::Position, PlutoniumEngine};
 use wgpu::Surface;
@@ -58,7 +59,8 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
             let window_arc = Arc::new(window);
             let size = window_arc.as_ref().inner_size();
             let surface = instance.create_surface(window_arc.clone()).unwrap();
-            let mut engine = PlutoniumEngine::new(surface, instance, size);
+            let scale_factor = window_arc.scale_factor() as f32; // Get DPI scaling factor
+            let mut engine = PlutoniumEngine::new(surface, instance, size, scale_factor);
 
             // Create the SVG texture once
             engine.create_texture_svg(

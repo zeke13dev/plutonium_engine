@@ -29,6 +29,7 @@ enum RenderItem {
 
 pub struct PlutoniumEngine<'a> {
     pub size: PhysicalSize<u32>,
+    dpi_scale_factor: f32,
     surface: wgpu::Surface<'a>,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -88,8 +89,17 @@ impl<'a> PlutoniumEngine<'a> {
 
     pub fn update(&mut self, mouse_info: Option<MouseInfo>, key: &Option<Key>) {
         // update objects
-        for obj in self.object_map.values() {
-            obj.borrow_mut().update(mouse_info, key);
+        // Destructure mutable references to separate fields
+        let object_map = &mut self.object_map;
+        let texture_map = &self.texture_map;
+        let textures = &mut self.textures;
+
+        for (texture_key, obj_refcell) in object_map.iter_mut() {
+            if let Some(&texture_id) = texture_map.get(texture_key) {
+                if let Some(texture) = textures.get_mut(texture_id) {
+                    obj_refcell.borrow_mut().update(mouse_info, key, texture);
+                }
+            }
         }
 
         let (camera_position, tether_size) = if let Some(tether_target) = &self.camera.tether_target
@@ -127,7 +137,7 @@ impl<'a> PlutoniumEngine<'a> {
             let texture = &self.textures[*texture_index];
 
             // Generate the transformation matrix based on the position and camera
-            let position = position.unwrap_or_default();
+            let position = position.unwrap_or_default() * self.dpi_scale_factor;
             let transform_uniform =
                 texture.get_transform_uniform(self.viewport_size, position, self.camera.get_pos());
 
@@ -161,6 +171,7 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     pub fn queue_tile(&mut self, texture_key: &str, tile_index: usize, position: Position) {
+        let position = position * self.dpi_scale_factor;
         if let Some(texture_index) = self.texture_map.get(texture_key) {
             let texture = &self.textures[*texture_index];
 
@@ -293,7 +304,6 @@ impl<'a> PlutoniumEngine<'a> {
                         tile_index,
                     } => {
                         let texture = &self.textures[*texture_index];
-
                         // Render the texture, using the precomputed transform
                         texture.render_hidden(
                             &mut rpass,
@@ -327,6 +337,9 @@ impl<'a> PlutoniumEngine<'a> {
         self.create_texture_svg(texture_key, svg_path, dimensions.pos(), 1.0, None);
         self.create_text_texture(&text_texture_key, "", font_size, dimensions.pos());
 
+        let dimensions =
+            self.textures[*self.texture_map.get(&text_texture_key).unwrap()].dimensions();
+
         let text_input = TextInput::new(texture_key, 1.0, dimensions, padding);
         self.object_map
             .insert(texture_key.to_string(), Rc::new(RefCell::new(text_input)));
@@ -339,6 +352,7 @@ impl<'a> PlutoniumEngine<'a> {
         font_size: f32,
         position: Position,
     ) {
+        let scale_factor = self.dpi_scale_factor;
         let texture_svg = TextureSVG::from_text(
             key,
             &self.device,
@@ -348,6 +362,7 @@ impl<'a> PlutoniumEngine<'a> {
             position,
             &self.texture_bind_group_layout,
             &self.transform_bind_group_layout,
+            scale_factor,
         );
 
         if let Some(texture) = texture_svg {
@@ -365,6 +380,7 @@ impl<'a> PlutoniumEngine<'a> {
         scale_factor: f32,
         tile_size: Option<Size>,
     ) {
+        let scale_factor = scale_factor * self.dpi_scale_factor;
         let svg_texture = TextureSVG::new(
             key,
             &self.device,
@@ -396,6 +412,7 @@ impl<'a> PlutoniumEngine<'a> {
         surface: wgpu::Surface<'a>,
         instance: wgpu::Instance,
         size: PhysicalSize<u32>,
+        dpi_scale_factor: f32,
     ) -> Self {
         let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::default(),
@@ -551,6 +568,7 @@ impl<'a> PlutoniumEngine<'a> {
             size,
             surface,
             device,
+            dpi_scale_factor,
             queue,
             config,
             render_pipeline,

@@ -52,6 +52,7 @@ impl TextureSVG {
         position: Position,
         texture_bind_group_layout: &wgpu::BindGroupLayout,
         transform_bind_group_layout: &wgpu::BindGroupLayout,
+        scale_factor: f32,
     ) -> Option<Self> {
         // Define padding
         let padding = font_size * 0.1;
@@ -260,6 +261,116 @@ impl TextureSVG {
         })
     }
 
+    /// Updates the text content of the existing texture without recreating it.
+    pub fn update_text(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        new_text: &str,
+        font_size: f32,
+        viewport_size: Size,
+        camera_position: Position,
+    ) -> Result<(), String> {
+        // Define padding
+        let padding = font_size * 0.1;
+
+        // Create SVG data with predefined dimensions
+        let svg_data = format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="{}" height="{}">
+                    <text x="{}" y="{}" font-family="Verdana" font-size="{}" fill="black">{}</text>
+                </svg>"#,
+            self.dimensions.width as u32,  // Use existing texture width
+            self.dimensions.height as u32, // Use existing texture height
+            padding.ceil() as u32,         // Adjusted padding for X position
+            (padding + font_size * 0.8).ceil() as u32, // Adjusted Y position
+            font_size,                     // Font size
+            new_text                       // New text content
+        );
+
+        // Parse SVG
+        let opt = Options::default();
+        let mut fontdb = resvg::usvg::fontdb::Database::new();
+        fontdb.load_system_fonts(); // Ensure system fonts are loaded
+        let rtree = Tree::from_str(&svg_data, &opt, &fontdb)
+            .map_err(|e| format!("Failed to parse SVG: {}", e))?;
+        let svg_size = rtree.size();
+        let svg_width = svg_size.width().ceil() as u32;
+        let svg_height = svg_size.height().ceil() as u32;
+
+        // Check if the SVG fits within the preallocated texture
+        if svg_width > self.dimensions.width as u32 || svg_height > self.dimensions.height as u32 {
+            return Err("New text size exceeds the preallocated texture dimensions.".to_string());
+        }
+
+        // Render SVG into pixmap
+        let pixmap = {
+            let mut pixmap =
+                Pixmap::new(svg_width, svg_height).ok_or("Failed to create pixmap.")?;
+            pixmap.fill(Color::TRANSPARENT);
+            let transform = tiny_skia::Transform::identity();
+            resvg::render(&rtree, transform, &mut pixmap.as_mut());
+            pixmap
+        };
+
+        // Upload pixmap data to existing texture
+        let bytes_per_pixel = 4;
+        let unpadded_bytes_per_row = pixmap.width() as usize * bytes_per_pixel;
+        const COPY_BYTES_PER_ROW_ALIGNMENT: usize = 256;
+        let padded_bytes_per_row = ((unpadded_bytes_per_row + COPY_BYTES_PER_ROW_ALIGNMENT - 1)
+            / COPY_BYTES_PER_ROW_ALIGNMENT)
+            * COPY_BYTES_PER_ROW_ALIGNMENT;
+
+        let total_size = padded_bytes_per_row * pixmap.height() as usize;
+        let mut padded_buffer = vec![0u8; total_size];
+
+        for y in 0..pixmap.height() as usize {
+            let dst_start = y * padded_bytes_per_row;
+            let src_start = y * unpadded_bytes_per_row;
+            padded_buffer[dst_start..dst_start + unpadded_bytes_per_row]
+                .copy_from_slice(&pixmap.data()[src_start..src_start + unpadded_bytes_per_row]);
+        }
+
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("SVG Pixel Buffer"),
+            contents: &padded_buffer,
+            usage: wgpu::BufferUsages::COPY_SRC,
+        });
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Texture Update Encoder"),
+        });
+
+        encoder.copy_buffer_to_texture(
+            wgpu::ImageCopyBuffer {
+                buffer: &buffer,
+                layout: wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(padded_bytes_per_row as u32),
+                    rows_per_image: Some(pixmap.height() as u32),
+                },
+            },
+            wgpu::ImageCopyTexture {
+                texture: &self.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::Extent3d {
+                width: pixmap.width(),
+                height: pixmap.height(),
+                depth_or_array_layers: 1,
+            },
+        );
+
+        queue.submit(std::iter::once(encoder.finish()));
+
+        // Optionally, update UV coordinates or other related data here
+        // For example, if the actual rendered size is different, adjust accordingly
+        self.update_transform_uniform(device, queue, viewport_size, camera_position);
+
+        Ok(())
+    }
+
     /// Creates a new `TextureSVG` instance.
     pub fn new(
         texture_key: &str,
@@ -397,6 +508,12 @@ impl TextureSVG {
             }],
             label: Some("Default UV Bind Group"),
         });
+        let dimensions = Rectangle::new(
+            screen_pos.x,
+            screen_pos.y,
+            pixel_size.width,
+            pixel_size.height,
+        );
 
         Some(Self {
             texture_key: texture_key.to_string(),
@@ -408,12 +525,7 @@ impl TextureSVG {
             transform_uniform_buffer,
             transform_bind_group,
             vertices,
-            dimensions: Rectangle::new(
-                screen_pos.x,
-                screen_pos.y,
-                pixel_size.width,
-                pixel_size.height,
-            ),
+            dimensions,
             vertex_buffer,
             index_buffer,
             num_indices: 6,
@@ -536,6 +648,11 @@ impl TextureSVG {
     /// Returns the size of the texture.
     pub fn size(&self) -> Size {
         self.dimensions.size()
+    }
+
+    /// Returns the dimensions of the texture.
+    pub fn dimensions(&self) -> Rectangle {
+        self.dimensions
     }
 
     /// Updates the vertex buffer with the current vertices.
@@ -811,7 +928,6 @@ impl TextureSVG {
         );
 
         queue.submit(std::iter::once(encoder.finish()));
-
         Some((
             svg_texture,
             Size {
@@ -847,5 +963,11 @@ impl PlutoObject for TextureSVG {
         engine.queue_texture(&self.texture_key, None);
     }
 
-    fn update(&mut self, _mouse_pos: Option<MouseInfo>, _key_pressed: &Option<Key>) {}
+    fn update(
+        &mut self,
+        _mouse_pos: Option<MouseInfo>,
+        _key_pressed: &Option<Key>,
+        _texture_svg: &mut TextureSVG,
+    ) {
+    }
 }

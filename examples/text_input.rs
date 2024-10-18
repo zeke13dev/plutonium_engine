@@ -1,13 +1,14 @@
-use std::sync::Arc;
-
 use plutonium_engine::{
     utils::{MouseInfo, Position, Rectangle},
     PlutoniumEngine,
 };
+use std::sync::Arc;
 use wgpu::Surface;
+use winit::dpi::PhysicalSize;
+use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::{
     application::ApplicationHandler,
-    event::{ElementState, KeyEvent, WindowEvent},
+    event::KeyEvent,
     event_loop::{ActiveEventLoop, EventLoop},
     window::{Window, WindowId},
 };
@@ -15,14 +16,12 @@ use winit::{
 struct TextureSvgExample<'a> {
     window: Option<Arc<Window>>,
     engine: Option<PlutoniumEngine<'a>>,
-    player_position: Position,
     _surface: Option<Surface<'a>>,
     mouse_info: MouseInfo,
 }
 
 impl<'a> TextureSvgExample<'a> {
     pub fn new() -> Self {
-        let player_position = Position { x: 0.0, y: 0.0 };
         let mouse_info = MouseInfo {
             is_rmb_clicked: false,
             is_lmb_clicked: false,
@@ -34,7 +33,6 @@ impl<'a> TextureSvgExample<'a> {
             window: None,
             _surface: None,
             engine: None,
-            player_position,
             mouse_info,
         }
     }
@@ -48,10 +46,12 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
             Window::default_attributes().with_title("Moveable Texture SVG Example");
         if let Ok(window) = event_loop.create_window(window_attributes) {
             let window_arc = Arc::new(window);
-            let size = window_arc.as_ref().inner_size();
             let surface = instance.create_surface(window_arc.clone()).unwrap();
-            let mut engine = PlutoniumEngine::new(surface, instance, size);
+            let size = window_arc.inner_size(); // Get window size
+            let scale_factor = window_arc.scale_factor() as f32; // Get DPI scaling factor
 
+            // Initialize the PlutoniumEngine with the adjusted size.
+            let mut engine = PlutoniumEngine::new(surface, instance, size, scale_factor);
             // Create the player texture
             engine.create_text_input(
                 "input",
@@ -83,6 +83,14 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
                 self.mouse_info.mouse_pos.x = position.x as f32;
                 self.mouse_info.mouse_pos.y = position.y as f32;
             }
+            WindowEvent::MouseInput { state, button, .. } => {
+                if button == MouseButton::Left && state == ElementState::Pressed {
+                    self.mouse_info.is_lmb_clicked = true;
+                }
+                if let Some(engine) = &mut self.engine {
+                    engine.update(Some(self.mouse_info), &None);
+                }
+            }
             WindowEvent::KeyboardInput {
                 event:
                     KeyEvent {
@@ -94,6 +102,7 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
             } => {
                 if let Some(engine) = &mut self.engine {
                     engine.update(Some(self.mouse_info), &Some(key));
+                    self.window.as_ref().unwrap().request_redraw();
                 }
             }
             WindowEvent::RedrawRequested => {

@@ -39,7 +39,8 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
             let window_arc = Arc::new(window);
             let size = window_arc.as_ref().inner_size();
             let surface = instance.create_surface(window_arc.clone()).unwrap();
-            let mut engine = PlutoniumEngine::new(surface, instance, size);
+            let scale_factor = window_arc.scale_factor() as f32;
+            let mut engine = PlutoniumEngine::new(surface, instance, size, scale_factor);
 
             // Manually set the scale factor for the tiles
             self.scale_factor = 0.5; // For example, scale down to half size

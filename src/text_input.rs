@@ -1,8 +1,9 @@
+use crate::texture_svg::TextureSVG;
 use crate::utils::{MouseInfo, Rectangle};
 use crate::PlutoObject;
 use crate::PlutoniumEngine;
 use winit::keyboard::Key;
-
+use winit::keyboard::NamedKey;
 pub struct TextInput {
     texture_key: String,
     text_texture_key: String,
@@ -42,22 +43,34 @@ impl PlutoObject for TextInput {
         engine.queue_texture(&self.text_texture_key, None);
     }
 
-    fn update(&mut self, mouse_info: Option<MouseInfo>, key_pressed: &Option<Key>) {
+    fn update(
+        &mut self,
+        mouse_info: Option<MouseInfo>,
+        key_pressed: &Option<Key>,
+        texture: &mut TextureSVG,
+    ) {
         if let Some(mouse) = mouse_info {
             if mouse.is_lmb_clicked {
-                self.focused = self
-                    .dimensions
+                self.focused = texture
+                    .dimensions()
                     .padded_contains(mouse.mouse_pos, self.padding);
             }
         }
 
-        if let Some(key) = key_pressed {
-            if self.focused {
-                // should match for which logical key it is here!
-                if let Some(c) = key.to_text() {
-                    self.content.push_str(c);
-                }
-            }
+        if !self.focused || key_pressed.is_none() {
+            return;
         }
+
+        match key_pressed.as_ref().unwrap() {
+            Key::Character(c) => self.content.push_str(c),
+            Key::Named(NamedKey::Shift) => self.content.push('\n'),
+            Key::Named(NamedKey::Backspace) => {
+                self.content.pop();
+            }
+            Key::Named(NamedKey::Space) => self.content.push(' '),
+            _ => (),
+        }
+
+        texture
     }
 }

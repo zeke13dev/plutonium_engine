@@ -2,6 +2,7 @@ use std::{
     hash::{Hash, Hasher},
     ops::Add,
     ops::Mul,
+    ops::Sub,
 };
 
 pub struct DrawingContext<'a> {
@@ -79,6 +80,16 @@ impl Hash for Position {
     }
 }
 
+impl Mul<f32> for Position {
+    type Output = Position;
+    fn mul(self, factor: f32) -> Self::Output {
+        Position {
+            x: self.x * factor,
+            y: self.y * factor,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Rectangle {
     pub x: f32,
@@ -121,6 +132,15 @@ impl Rectangle {
         self.y = pos.y;
     }
 
+    pub fn pad(rec: &Rectangle, padding: f32) -> Rectangle {
+        Rectangle::new(
+            rec.x + padding,
+            rec.y + padding,
+            rec.width + padding,
+            rec.height + padding,
+        )
+    }
+
     pub fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
         Self {
             x,
@@ -140,14 +160,19 @@ impl Rectangle {
     }
 }
 
-/*
-impl Add for Rectangle {
+impl Add<f32> for Rectangle {
     type Output = Rectangle;
     fn add(self, other: f32) -> Self::Output {
         Rectangle::new(self.x, self.y, self.width + other, self.height + other)
     }
 }
-*/
+
+impl Mul<f32> for Rectangle {
+    type Output = Rectangle;
+    fn mul(self, factor: f32) -> Self::Output {
+        Rectangle::new(self.x, self.y, self.width * factor, self.height * factor)
+    }
+}
 
 #[derive(Copy, Clone, Debug)]
 pub struct MouseInfo {

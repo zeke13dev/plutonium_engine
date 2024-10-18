@@ -1,15 +1,11 @@
 *** USEFUL COMMANDS ***
-space + - for diagnostics
+space- for diagnostics
 
 *** lib.rs ***
-- render_obj() closure????
 
 *** src/text_input ***
-- add match expression for input?
-- use rectangle * and +
 
 *** src/utils ***
-- implement rectangle * and +
 
 *** src/texture_svg ***
 - correctness of padded_contains
@@ -17,3 +13,7 @@ space + - for diagnostics
 *** OTHER ***
 - queue_object instead of queueing all the other stuff and making everything a PlutoObj?
 
+
+*** CURRENT ***
+- text texture atlas
+- encapsulation
