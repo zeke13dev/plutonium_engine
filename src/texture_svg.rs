@@ -1,5 +1,7 @@
+use crate::traits::UpdateContext;
 use crate::{texture_atlas::TextureAtlas, traits::PlutoObject, utils::*, PlutoniumEngine};
 use resvg::usvg::{Options, Tree};
+use std::collections::HashMap;
 use std::{fs, num::NonZeroU64};
 use tiny_skia::{Color, Pixmap};
 use wgpu::util::DeviceExt;
@@ -967,7 +969,8 @@ impl PlutoObject for TextureSVG {
         &mut self,
         _mouse_pos: Option<MouseInfo>,
         _key_pressed: &Option<Key>,
-        _texture_svg: &mut TextureSVG,
+        _texture_map: &mut HashMap<String, TextureSVG>,
+        _update_context: Option<UpdateContext>,
     ) {
     }
 }

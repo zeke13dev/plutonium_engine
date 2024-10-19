@@ -7,6 +7,7 @@ pub mod traits;
 pub mod utils;
 
 use crate::text_input::TextInput;
+use crate::traits::UpdateContext;
 use camera::Camera;
 use pollster::block_on;
 use std::cell::RefCell;
@@ -21,7 +22,7 @@ use winit::keyboard::Key;
 
 enum RenderItem {
     Texture {
-        texture_index: usize,
+        texture_key: String,
         transform_bind_group: wgpu::BindGroup,
         tile_index: Option<usize>, // None for full texture, Some(tile_index) for a specific tile
     },
@@ -37,8 +38,7 @@ pub struct PlutoniumEngine<'a> {
     render_pipeline: wgpu::RenderPipeline,
     texture_bind_group_layout: wgpu::BindGroupLayout,
     transform_bind_group_layout: wgpu::BindGroupLayout,
-    textures: Vec<TextureSVG>,
-    texture_map: HashMap<String, usize>,
+    texture_map: HashMap<String, TextureSVG>,
     object_map: HashMap<String, Rc<RefCell<dyn PlutoObject>>>,
     render_queue: Vec<RenderItem>,
     viewport_size: Size,
@@ -64,8 +64,7 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     pub fn set_texture_position(&mut self, key: &str, position: Position) {
-        if let Some(index) = self.texture_map.get(key) {
-            let texture = &mut self.textures[*index];
+        if let Some(texture) = self.texture_map.get_mut(key) {
             texture.set_position(
                 &self.device,
                 &self.queue,
@@ -88,25 +87,25 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     pub fn update(&mut self, mouse_info: Option<MouseInfo>, key: &Option<Key>) {
-        // update objects
-        // Destructure mutable references to separate fields
-        let object_map = &mut self.object_map;
-        let texture_map = &self.texture_map;
-        let textures = &mut self.textures;
-
-        for (texture_key, obj_refcell) in object_map.iter_mut() {
-            if let Some(&texture_id) = texture_map.get(texture_key) {
-                if let Some(texture) = textures.get_mut(texture_id) {
-                    obj_refcell.borrow_mut().update(mouse_info, key, texture);
-                }
-            }
+        for (texture_key, obj) in self.object_map.iter_mut() {
+            obj.borrow_mut().update(
+                mouse_info,
+                key,
+                &mut self.texture_map,
+                Some(UpdateContext {
+                    device: &self.device,
+                    queue: &self.queue,
+                    viewport_size: &self.viewport_size,
+                    camera_position: &self.camera.get_pos(),
+                }),
+            );
         }
 
         let (camera_position, tether_size) = if let Some(tether_target) = &self.camera.tether_target
         {
-            if let Some(texture_index) = self.texture_map.get(tether_target) {
-                let tether_size = Some(self.textures[*texture_index].size());
-                (self.textures[*texture_index].pos(), tether_size)
+            if let Some(tether) = self.texture_map.get(tether_target) {
+                let tether_size = Some(tether.size()); // Wrap in `Some`
+                (tether.pos(), tether_size)
             } else {
                 (self.camera.get_pos(), None)
             }
@@ -118,7 +117,7 @@ impl<'a> PlutoniumEngine<'a> {
         self.camera.set_tether_size(tether_size);
 
         // update actual location of where object buffers are
-        for texture in &mut self.textures {
+        for texture in self.texture_map.values_mut() {
             texture.update_transform_uniform(
                 &self.device,
                 &self.queue,
@@ -133,9 +132,7 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     pub fn queue_texture(&mut self, texture_key: &str, position: Option<Position>) {
-        if let Some(texture_index) = self.texture_map.get(texture_key) {
-            let texture = &self.textures[*texture_index];
-
+        if let Some(texture) = self.texture_map.get(texture_key) {
             // Generate the transformation matrix based on the position and camera
             let position = position.unwrap_or_default() * self.dpi_scale_factor;
             let transform_uniform =
@@ -163,7 +160,7 @@ impl<'a> PlutoniumEngine<'a> {
             });
 
             self.render_queue.push(RenderItem::Texture {
-                texture_index: *texture_index,
+                texture_key: texture_key.to_string(),
                 transform_bind_group,
                 tile_index: None,
             });
@@ -172,9 +169,7 @@ impl<'a> PlutoniumEngine<'a> {
 
     pub fn queue_tile(&mut self, texture_key: &str, tile_index: usize, position: Position) {
         let position = position * self.dpi_scale_factor;
-        if let Some(texture_index) = self.texture_map.get(texture_key) {
-            let texture = &self.textures[*texture_index];
-
+        if let Some(texture) = self.texture_map.get(texture_key) {
             // Generate the transformation matrix based on the position and camera
             let transform_uniform =
                 texture.get_transform_uniform(self.viewport_size, position, self.camera.get_pos());
@@ -201,7 +196,7 @@ impl<'a> PlutoniumEngine<'a> {
             });
 
             self.render_queue.push(RenderItem::Texture {
-                texture_index: *texture_index,
+                texture_key: texture_key.to_string(),
                 transform_bind_group,
                 tile_index: Some(tile_index),
             });
@@ -209,9 +204,7 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     pub fn queue_text(&mut self, key: &str) {
-        if let Some(&texture_index) = self.texture_map.get(key) {
-            let texture = &self.textures[texture_index];
-
+        if let Some(texture) = self.texture_map.get(key) {
             // Generate the transformation matrix based on the texture's position
             let transform_uniform = texture.get_transform_uniform(
                 self.viewport_size,
@@ -241,7 +234,7 @@ impl<'a> PlutoniumEngine<'a> {
             });
 
             self.render_queue.push(RenderItem::Texture {
-                texture_index,
+                texture_key: key.to_string(),
                 transform_bind_group,
                 tile_index: None,
             });
@@ -299,23 +292,23 @@ impl<'a> PlutoniumEngine<'a> {
             for item in &self.render_queue {
                 match item {
                     RenderItem::Texture {
-                        texture_index,
+                        texture_key,
                         transform_bind_group,
                         tile_index,
                     } => {
-                        let texture = &self.textures[*texture_index];
                         // Render the texture, using the precomputed transform
-                        texture.render_hidden(
-                            &mut rpass,
-                            &self.render_pipeline,
-                            *tile_index,
-                            Some(transform_bind_group),
-                        );
+                        if let Some(texture) = self.texture_map.get(texture_key) {
+                            texture.render_hidden(
+                                &mut rpass,
+                                &self.render_pipeline,
+                                *tile_index,
+                                Some(transform_bind_group),
+                            );
+                        }
                     }
                 }
             }
         }
-
         self.queue.submit(Some(encoder.finish()));
         frame.present();
         Ok(())
@@ -337,8 +330,11 @@ impl<'a> PlutoniumEngine<'a> {
         self.create_texture_svg(texture_key, svg_path, dimensions.pos(), 1.0, None);
         self.create_text_texture(&text_texture_key, "", font_size, dimensions.pos());
 
-        let dimensions =
-            self.textures[*self.texture_map.get(&text_texture_key).unwrap()].dimensions();
+        let dimensions = self
+            .texture_map
+            .get(&text_texture_key)
+            .unwrap()
+            .dimensions();
 
         let text_input = TextInput::new(texture_key, 1.0, dimensions, padding);
         self.object_map
@@ -366,9 +362,7 @@ impl<'a> PlutoniumEngine<'a> {
         );
 
         if let Some(texture) = texture_svg {
-            let index = self.textures.len();
-            self.textures.push(texture);
-            self.texture_map.insert(key.to_string(), index);
+            self.texture_map.insert(key.to_string(), texture);
         }
     }
 
@@ -394,18 +388,12 @@ impl<'a> PlutoniumEngine<'a> {
         );
 
         if let Some(texture) = svg_texture {
-            let index = self.textures.len();
-            self.textures.push(texture);
-            self.texture_map.insert(key.to_string(), index);
+            self.texture_map.insert(key.to_string(), texture);
         }
     }
 
     pub fn get_texture_svg(&self, key: &str) -> Option<&TextureSVG> {
-        if let Some(index) = self.texture_map.get(key) {
-            Some(&self.textures[*index])
-        } else {
-            None
-        }
+        self.texture_map.get(key)
     }
 
     pub fn new(
@@ -554,8 +542,7 @@ impl<'a> PlutoniumEngine<'a> {
             multiview: None,
         });
 
-        let textures: Vec<TextureSVG> = vec![];
-        let texture_map: HashMap<String, usize> = HashMap::new();
+        let texture_map: HashMap<String, TextureSVG> = HashMap::new();
         let object_map: HashMap<String, Rc<RefCell<dyn PlutoObject>>> = HashMap::new();
         let viewport_size = Size {
             width: config.width as f32,
@@ -574,7 +561,6 @@ impl<'a> PlutoniumEngine<'a> {
             render_pipeline,
             texture_bind_group_layout,
             transform_bind_group_layout,
-            textures,
             texture_map,
             object_map,
             render_queue,
