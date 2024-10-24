@@ -32,7 +32,10 @@ impl<'a> ApplicationHandler<()> for TextRenderingExample<'a> {
             let window_arc = Arc::new(window);
             let size = window_arc.as_ref().inner_size();
             let surface = instance.create_surface(window_arc.clone()).unwrap();
-            let mut engine = PlutoniumEngine::new(surface, instance, size);
+            let scale_factor = window_arc.scale_factor() as f32; // Get DPI scaling factor
+
+            // Initialize the PlutoniumEngine with the adjusted size.
+            let mut engine = PlutoniumEngine::new(surface, instance, size, scale_factor);
 
             // Create the text texture and store it with an identifier
             let text_position = Position { x: 0.0, y: 0.0 };
@@ -68,16 +71,13 @@ impl<'a> ApplicationHandler<()> for TextRenderingExample<'a> {
                 ..
             } => {
                 if let Some(engine) = &mut self.engine {
-                    match key.as_ref() {
-                        Key::Character("r") => {
-                            // Clear the render queue and re-queue the text for rendering
-                            engine.clear_render_queue();
-                            let text_position = Position { x: 100.0, y: 100.0 };
-                            engine.queue_texture("greeting", Some(text_position));
+                    if let Key::Character("r") = key.as_ref() {
+                        // Clear the render queue and re-queue the text for rendering
+                        engine.clear_render_queue();
+                        let text_position = Position { x: 100.0, y: 100.0 };
+                        engine.queue_texture("greeting", Some(text_position));
 
-                            self.window.as_ref().unwrap().request_redraw();
-                        }
-                        _ => (),
+                        self.window.as_ref().unwrap().request_redraw();
                     }
                 }
             }
@@ -86,7 +86,7 @@ impl<'a> ApplicationHandler<()> for TextRenderingExample<'a> {
                     // Clear the render queue before each frame
                     engine.clear_render_queue();
 
-                    engine.update();
+                    engine.update(None, &None);
                     // Queue the text for rendering
                     let text_position = Position { x: 0.0, y: 0.0 };
                     engine.queue_texture("greeting", Some(text_position));

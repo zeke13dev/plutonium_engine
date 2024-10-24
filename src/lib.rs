@@ -1,20 +1,28 @@
 extern crate image;
 pub mod camera;
+pub mod text_input;
 pub mod texture_atlas;
 pub mod texture_svg;
+pub mod traits;
 pub mod utils;
 
+use crate::text_input::TextInput;
+use crate::traits::UpdateContext;
 use camera::Camera;
 use pollster::block_on;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::{borrow::Cow, collections::HashMap};
 use texture_svg::*;
+use traits::PlutoObject;
 use utils::*;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
+use winit::keyboard::Key;
 
 enum RenderItem {
     Texture {
-        texture_index: usize,
+        texture_key: String,
         transform_bind_group: wgpu::BindGroup,
         tile_index: Option<usize>, // None for full texture, Some(tile_index) for a specific tile
     },
@@ -22,6 +30,7 @@ enum RenderItem {
 
 pub struct PlutoniumEngine<'a> {
     pub size: PhysicalSize<u32>,
+    dpi_scale_factor: f32,
     surface: wgpu::Surface<'a>,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -29,8 +38,8 @@ pub struct PlutoniumEngine<'a> {
     render_pipeline: wgpu::RenderPipeline,
     texture_bind_group_layout: wgpu::BindGroupLayout,
     transform_bind_group_layout: wgpu::BindGroupLayout,
-    textures: Vec<TextureSVG>,
-    texture_map: HashMap<String, usize>,
+    texture_map: HashMap<String, TextureSVG>,
+    object_map: HashMap<String, Rc<RefCell<dyn PlutoObject>>>,
     render_queue: Vec<RenderItem>,
     viewport_size: Size,
     camera: Camera,
@@ -55,8 +64,7 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     pub fn set_texture_position(&mut self, key: &str, position: Position) {
-        if let Some(index) = self.texture_map.get(key) {
-            let texture = &mut self.textures[*index];
+        if let Some(texture) = self.texture_map.get_mut(key) {
             texture.set_position(
                 &self.device,
                 &self.queue,
@@ -78,12 +86,26 @@ impl<'a> PlutoniumEngine<'a> {
         };
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self, mouse_info: Option<MouseInfo>, key: &Option<Key>) {
+        for (texture_key, obj) in self.object_map.iter_mut() {
+            obj.borrow_mut().update(
+                mouse_info,
+                key,
+                &mut self.texture_map,
+                Some(UpdateContext {
+                    device: &self.device,
+                    queue: &self.queue,
+                    viewport_size: &self.viewport_size,
+                    camera_position: &self.camera.get_pos(),
+                }),
+            );
+        }
+
         let (camera_position, tether_size) = if let Some(tether_target) = &self.camera.tether_target
         {
-            if let Some(texture_index) = self.texture_map.get(tether_target) {
-                let tether_size = Some(self.textures[*texture_index].size());
-                (self.textures[*texture_index].pos(), tether_size)
+            if let Some(tether) = self.texture_map.get(tether_target) {
+                let tether_size = Some(tether.size()); // Wrap in `Some`
+                (tether.pos(), tether_size)
             } else {
                 (self.camera.get_pos(), None)
             }
@@ -94,7 +116,8 @@ impl<'a> PlutoniumEngine<'a> {
         self.camera.set_pos(camera_position);
         self.camera.set_tether_size(tether_size);
 
-        for texture in &mut self.textures {
+        // update actual location of where object buffers are
+        for texture in self.texture_map.values_mut() {
             texture.update_transform_uniform(
                 &self.device,
                 &self.queue,
@@ -109,42 +132,35 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     pub fn queue_texture(&mut self, texture_key: &str, position: Option<Position>) {
-        if let Some(texture_index) = self.texture_map.get(texture_key) {
-            let texture = &self.textures[*texture_index];
-
+        if let Some(texture) = self.texture_map.get(texture_key) {
             // Generate the transformation matrix based on the position and camera
-            let position = position.unwrap_or_default();
-            let transform_uniform = texture.get_transform_uniform(
-                self.viewport_size,
-                position,
-                self.camera.get_pos(),
-            );
+            let position = position.unwrap_or_default() * self.dpi_scale_factor;
+            let transform_uniform =
+                texture.get_transform_uniform(self.viewport_size, position, self.camera.get_pos());
 
-            let transform_uniform_buffer = self.device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: Some("Transform Uniform Buffer"),
-                    contents: bytemuck::cast_slice(&[transform_uniform]),
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                },
-            );
+            let transform_uniform_buffer =
+                self.device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("Transform Uniform Buffer"),
+                        contents: bytemuck::cast_slice(&[transform_uniform]),
+                        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    });
 
-            let transform_bind_group = self.device.create_bind_group(
-                &wgpu::BindGroupDescriptor {
-                    layout: &self.transform_bind_group_layout,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &transform_uniform_buffer,
-                            offset: 0,
-                            size: None,
-                        }),
-                    }],
-                    label: Some("Transform Bind Group"),
-                },
-            );
+            let transform_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &self.transform_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &transform_uniform_buffer,
+                        offset: 0,
+                        size: None,
+                    }),
+                }],
+                label: Some("Transform Bind Group"),
+            });
 
             self.render_queue.push(RenderItem::Texture {
-                texture_index: *texture_index,
+                texture_key: texture_key.to_string(),
                 transform_bind_group,
                 tile_index: None,
             });
@@ -152,41 +168,35 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     pub fn queue_tile(&mut self, texture_key: &str, tile_index: usize, position: Position) {
-        if let Some(texture_index) = self.texture_map.get(texture_key) {
-            let texture = &self.textures[*texture_index];
-
+        let position = position * self.dpi_scale_factor;
+        if let Some(texture) = self.texture_map.get(texture_key) {
             // Generate the transformation matrix based on the position and camera
-            let transform_uniform = texture.get_transform_uniform(
-                self.viewport_size,
-                position,
-                self.camera.get_pos(),
-            );
+            let transform_uniform =
+                texture.get_transform_uniform(self.viewport_size, position, self.camera.get_pos());
 
-            let transform_uniform_buffer = self.device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: Some("Transform Uniform Buffer"),
-                    contents: bytemuck::cast_slice(&[transform_uniform]),
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                },
-            );
+            let transform_uniform_buffer =
+                self.device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("Transform Uniform Buffer"),
+                        contents: bytemuck::cast_slice(&[transform_uniform]),
+                        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    });
 
-            let transform_bind_group = self.device.create_bind_group(
-                &wgpu::BindGroupDescriptor {
-                    layout: &self.transform_bind_group_layout,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &transform_uniform_buffer,
-                            offset: 0,
-                            size: None,
-                        }),
-                    }],
-                    label: Some("Transform Bind Group"),
-                },
-            );
+            let transform_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &self.transform_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &transform_uniform_buffer,
+                        offset: 0,
+                        size: None,
+                    }),
+                }],
+                label: Some("Transform Bind Group"),
+            });
 
             self.render_queue.push(RenderItem::Texture {
-                texture_index: *texture_index,
+                texture_key: texture_key.to_string(),
                 transform_bind_group,
                 tile_index: Some(tile_index),
             });
@@ -194,41 +204,37 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     pub fn queue_text(&mut self, key: &str) {
-        if let Some(&texture_index) = self.texture_map.get(key) {
-            let texture = &self.textures[texture_index];
-    
+        if let Some(texture) = self.texture_map.get(key) {
             // Generate the transformation matrix based on the texture's position
             let transform_uniform = texture.get_transform_uniform(
                 self.viewport_size,
                 texture.pos(), // Use the texture's stored position
                 self.camera.get_pos(),
             );
-    
-            let transform_uniform_buffer = self.device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: Some("Transform Uniform Buffer"),
-                    contents: bytemuck::cast_slice(&[transform_uniform]),
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                },
-            );
-    
-            let transform_bind_group = self.device.create_bind_group(
-                &wgpu::BindGroupDescriptor {
-                    layout: &self.transform_bind_group_layout,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &transform_uniform_buffer,
-                            offset: 0,
-                            size: None,
-                        }),
-                    }],
-                    label: Some("Transform Bind Group"),
-                },
-            );
-    
+
+            let transform_uniform_buffer =
+                self.device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("Transform Uniform Buffer"),
+                        contents: bytemuck::cast_slice(&[transform_uniform]),
+                        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    });
+
+            let transform_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &self.transform_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &transform_uniform_buffer,
+                        offset: 0,
+                        size: None,
+                    }),
+                }],
+                label: Some("Transform Bind Group"),
+            });
+
             self.render_queue.push(RenderItem::Texture {
-                texture_index,
+                texture_key: key.to_string(),
                 transform_bind_group,
                 tile_index: None,
             });
@@ -239,6 +245,12 @@ impl<'a> PlutoniumEngine<'a> {
 
     pub fn clear_render_queue(&mut self) {
         self.render_queue.clear();
+    }
+
+    pub fn render_obj(&mut self, texture_key: &str) {
+        if let Some(obj_rc) = self.object_map.get(texture_key) {
+            obj_rc.clone().borrow().render(self);
+        }
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -280,27 +292,61 @@ impl<'a> PlutoniumEngine<'a> {
             for item in &self.render_queue {
                 match item {
                     RenderItem::Texture {
-                        texture_index,
+                        texture_key,
                         transform_bind_group,
                         tile_index,
                     } => {
-                        let texture = &self.textures[*texture_index];
-
                         // Render the texture, using the precomputed transform
-                        texture.render(
-                            &mut rpass,
-                            &self.render_pipeline,
-                            *tile_index,
-                            Some(transform_bind_group),
-                        );
+                        if let Some(texture) = self.texture_map.get(texture_key) {
+                            texture.render_hidden(
+                                &mut rpass,
+                                &self.render_pipeline,
+                                *tile_index,
+                                Some(transform_bind_group),
+                            );
+                        }
                     }
                 }
             }
         }
-
         self.queue.submit(Some(encoder.finish()));
         frame.present();
         Ok(())
+    }
+
+    pub fn create_text_input(
+        &mut self,
+        texture_key: &str,
+        svg_path: &str,
+        font_size: f32,
+        _font: &str,
+        dimensions: Rectangle,
+        padding: f32,
+    ) {
+        let mut pos = dimensions.pos();
+        pos.x += padding;
+        pos.y += padding;
+        let text_texture_key = format!("text_{}", texture_key);
+        self.create_texture_svg(texture_key, svg_path, dimensions.pos(), 1.0, None);
+        self.create_text_texture(
+            &text_texture_key,
+            "",
+            font_size,
+            Position {
+                x: dimensions.x + (dimensions.width * 0.1),
+                y: dimensions.y + (dimensions.height / 2.0),
+            },
+        );
+
+        let dimensions = self
+            .texture_map
+            .get(&text_texture_key)
+            .unwrap()
+            .dimensions();
+
+        let text_input = TextInput::new(texture_key, 1.0, dimensions, padding);
+        self.object_map
+            .insert(texture_key.to_string(), Rc::new(RefCell::new(text_input)));
     }
 
     pub fn create_text_texture(
@@ -310,7 +356,9 @@ impl<'a> PlutoniumEngine<'a> {
         font_size: f32,
         position: Position,
     ) {
+        let scale_factor = self.dpi_scale_factor;
         let texture_svg = TextureSVG::from_text(
+            key,
             &self.device,
             &self.queue,
             text,
@@ -318,12 +366,11 @@ impl<'a> PlutoniumEngine<'a> {
             position,
             &self.texture_bind_group_layout,
             &self.transform_bind_group_layout,
+            scale_factor,
         );
 
         if let Some(texture) = texture_svg {
-            let index = self.textures.len();
-            self.textures.push(texture);
-            self.texture_map.insert(key.to_string(), index);
+            self.texture_map.insert(key.to_string(), texture);
         }
     }
 
@@ -335,7 +382,9 @@ impl<'a> PlutoniumEngine<'a> {
         scale_factor: f32,
         tile_size: Option<Size>,
     ) {
+        let scale_factor = scale_factor * self.dpi_scale_factor;
         let svg_texture = TextureSVG::new(
+            key,
             &self.device,
             &self.queue,
             file_path,
@@ -347,16 +396,19 @@ impl<'a> PlutoniumEngine<'a> {
         );
 
         if let Some(texture) = svg_texture {
-            let index = self.textures.len();
-            self.textures.push(texture);
-            self.texture_map.insert(key.to_string(), index);
+            self.texture_map.insert(key.to_string(), texture);
         }
+    }
+
+    pub fn get_texture_svg(&self, key: &str) -> Option<&TextureSVG> {
+        self.texture_map.get(key)
     }
 
     pub fn new(
         surface: wgpu::Surface<'a>,
         instance: wgpu::Instance,
         size: PhysicalSize<u32>,
+        dpi_scale_factor: f32,
     ) -> Self {
         let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::default(),
@@ -480,7 +532,7 @@ impl<'a> PlutoniumEngine<'a> {
                     step_mode: wgpu::VertexStepMode::Vertex,
                     attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2],
                 }],
-                compilation_options: wgpu::PipelineCompilationOptions::default()
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -490,7 +542,7 @@ impl<'a> PlutoniumEngine<'a> {
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
-                compilation_options: wgpu::PipelineCompilationOptions::default()
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
@@ -498,8 +550,8 @@ impl<'a> PlutoniumEngine<'a> {
             multiview: None,
         });
 
-        let textures: Vec<TextureSVG> = vec![];
-        let texture_map: HashMap<String, usize> = HashMap::new();
+        let texture_map: HashMap<String, TextureSVG> = HashMap::new();
+        let object_map: HashMap<String, Rc<RefCell<dyn PlutoObject>>> = HashMap::new();
         let viewport_size = Size {
             width: config.width as f32,
             height: config.height as f32,
@@ -511,13 +563,14 @@ impl<'a> PlutoniumEngine<'a> {
             size,
             surface,
             device,
+            dpi_scale_factor,
             queue,
             config,
             render_pipeline,
             texture_bind_group_layout,
             transform_bind_group_layout,
-            textures,
             texture_map,
+            object_map,
             render_queue,
             viewport_size,
             camera,

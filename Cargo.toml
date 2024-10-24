@@ -26,6 +26,7 @@ futures = "0.3.30"
 tokio = "1.37.0"
 glyphon = "0.5.0"
 rusttype = "0.9"
+queues = "1.0.2"
 
 
 [dependencies.bytemuck]

@@ -42,7 +42,8 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
             let window_arc = Arc::new(window);
             let size = window_arc.as_ref().inner_size();
             let surface = instance.create_surface(window_arc.clone()).unwrap();
-            let mut engine = PlutoniumEngine::new(surface, instance, size);
+            let scale_factor = window_arc.scale_factor() as f32; // Get DPI scaling factor
+            let mut engine = PlutoniumEngine::new(surface, instance, size, scale_factor);
 
             // actual example stuff
             engine.create_texture_svg(
@@ -128,7 +129,7 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
                     engine.activate_camera();
 
                     // Queue the tiles for rendering
-                    engine.update();
+                    engine.update(None, &None);
                     engine.queue_tile("atlas", 0, Position { x: 0.0, y: 0.0 });
                     engine.queue_tile(
                         "atlas",

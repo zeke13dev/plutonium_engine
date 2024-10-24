@@ -1,12 +1,12 @@
 use std::sync::Arc;
+use winit::dpi::PhysicalSize;
 
 use plutonium_engine::{utils::Position, PlutoniumEngine};
 use wgpu::Surface;
 use winit::{
     application::ApplicationHandler,
-    event::{ElementState, KeyEvent, WindowEvent},
+    event::WindowEvent,
     event_loop::{ActiveEventLoop, EventLoop},
-    keyboard::Key,
     window::{Window, WindowId},
 };
 
@@ -25,10 +25,19 @@ impl<'a> TextureSvgExample<'a> {
 
         // Adjust the positions so the squares are flush (touching) each other
         let svg_positions = vec![
-            Position { x: 0.0, y: 0.0 },    // Top-left
-            Position { x: total_size, y: 0.0 },   // Top-right
-            Position { x: 0.0, y: total_size },   // Bottom-left
-            Position { x: total_size, y: total_size },  // Bottom-right
+            Position { x: 0.0, y: 0.0 }, // Top-left
+            Position {
+                x: total_size,
+                y: 0.0,
+            }, // Top-right
+            Position {
+                x: 0.0,
+                y: total_size,
+            }, // Bottom-left
+            Position {
+                x: total_size,
+                y: total_size,
+            }, // Bottom-right
         ];
 
         Self {
@@ -50,7 +59,8 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
             let window_arc = Arc::new(window);
             let size = window_arc.as_ref().inner_size();
             let surface = instance.create_surface(window_arc.clone()).unwrap();
-            let mut engine = PlutoniumEngine::new(surface, instance, size);
+            let scale_factor = window_arc.scale_factor() as f32; // Get DPI scaling factor
+            let mut engine = PlutoniumEngine::new(surface, instance, size, scale_factor);
 
             // Create the SVG texture once
             engine.create_texture_svg(
@@ -81,13 +91,13 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
             WindowEvent::RedrawRequested => {
                 if let Some(engine) = &mut self.engine {
                     engine.clear_render_queue();
-                    engine.update();
-    
+                    engine.update(None, &None);
+
                     // Queue the same texture at different positions
                     for position in &self.svg_positions {
                         engine.queue_texture("tile_texture", Some(*position));
                     }
-    
+
                     engine.render().unwrap();
                 }
             }
