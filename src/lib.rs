@@ -328,7 +328,15 @@ impl<'a> PlutoniumEngine<'a> {
         pos.y += padding;
         let text_texture_key = format!("text_{}", texture_key);
         self.create_texture_svg(texture_key, svg_path, dimensions.pos(), 1.0, None);
-        self.create_text_texture(&text_texture_key, "", font_size, dimensions.pos());
+        self.create_text_texture(
+            &text_texture_key,
+            "",
+            font_size,
+            Position {
+                x: dimensions.x + (dimensions.width * 0.1),
+                y: dimensions.y + (dimensions.height / 2.0),
+            },
+        );
 
         let dimensions = self
             .texture_map

@@ -43,7 +43,7 @@ impl TextInput {
 impl PlutoObject for TextInput {
     fn render(&self, engine: &mut PlutoniumEngine) {
         engine.queue_texture(&self.texture_key, None);
-        engine.queue_texture(&self.text_texture_key, None);
+        engine.queue_text(&self.text_texture_key);
     }
 
     fn update(

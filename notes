@@ -1,5 +1,6 @@
 *** USEFUL COMMANDS ***
-space- for diagnostics
+space+e for diagnostics
+space+k for inline diagnostics
 
 *** lib.rs ***
 

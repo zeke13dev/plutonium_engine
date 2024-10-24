@@ -4,7 +4,6 @@ use plutonium_engine::{
 };
 use std::sync::Arc;
 use wgpu::Surface;
-use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::{
     application::ApplicationHandler,
