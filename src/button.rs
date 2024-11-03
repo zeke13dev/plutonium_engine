@@ -51,7 +51,7 @@ impl Button {
 
 impl PlutoObject for Button {
     fn render(&self, engine: &mut PlutoniumEngine) {
-        engine.queue_texture(&self.texture_key, None);
+        engine.queue_texture(&self.texture_key, Some(self.dimensions.pos()));
         engine.queue_text(&self.text_texture_key);
     }
 

@@ -327,30 +327,23 @@ impl<'a> PlutoniumEngine<'a> {
         content: &str,
         callback: Option<Box<dyn Fn()>>,
     ) {
-        let mut pos = dimensions.pos();
-        pos.x += padding;
-        pos.y += padding;
+        let pos = dimensions.pos();
         let text_texture_key = format!("text_{}", texture_key);
-        self.create_texture_svg(texture_key, svg_path, dimensions.pos(), 1.0, None);
+        self.create_texture_svg(texture_key, svg_path, pos, 1.0, None);
+
+        let button = Button::new(texture_key, dimensions, padding, content, callback);
+        self.object_map
+            .insert(texture_key.to_string(), Rc::new(RefCell::new(button)));
+
         self.create_text_texture(
             &text_texture_key,
-            content,
+            "",
             font_size,
             Position {
                 x: dimensions.x + (dimensions.width * 0.1),
                 y: dimensions.y + (dimensions.height / 2.0),
             },
         );
-
-        let dimensions = self
-            .texture_map
-            .get(&text_texture_key)
-            .unwrap()
-            .dimensions();
-
-        let button = Button::new(texture_key, dimensions, padding, content, callback);
-        self.object_map
-            .insert(texture_key.to_string(), Rc::new(RefCell::new(button)));
     }
 
     pub fn create_text_input(
@@ -362,11 +355,14 @@ impl<'a> PlutoniumEngine<'a> {
         dimensions: Rectangle,
         padding: f32,
     ) {
-        let mut pos = dimensions.pos();
-        pos.x += padding;
-        pos.y += padding;
+        let pos = dimensions.pos();
         let text_texture_key = format!("text_{}", texture_key);
-        self.create_texture_svg(texture_key, svg_path, dimensions.pos(), 1.0, None);
+        self.create_texture_svg(texture_key, svg_path, pos, 1.0, None);
+
+        let text_input = TextInput::new(texture_key, 1.0, dimensions, padding);
+        self.object_map
+            .insert(texture_key.to_string(), Rc::new(RefCell::new(text_input)));
+
         self.create_text_texture(
             &text_texture_key,
             "",
@@ -376,16 +372,6 @@ impl<'a> PlutoniumEngine<'a> {
                 y: dimensions.y + (dimensions.height / 2.0),
             },
         );
-
-        let dimensions = self
-            .texture_map
-            .get(&text_texture_key)
-            .unwrap()
-            .dimensions();
-
-        let text_input = TextInput::new(texture_key, 1.0, dimensions, padding);
-        self.object_map
-            .insert(texture_key.to_string(), Rc::new(RefCell::new(text_input)));
     }
 
     pub fn create_text_texture(
