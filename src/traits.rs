@@ -19,5 +19,6 @@ pub trait PlutoObject {
         key_pressed: &Option<Key>,
         texture_map: &mut HashMap<String, TextureSVG>,
         update_context: Option<UpdateContext>,
+        dpi_scale_factor: f32,
     );
 }

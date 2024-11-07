@@ -13,6 +13,7 @@ pub struct Button {
     dimensions: Rectangle,
     padding: f32,
     callback: Option<Box<dyn Fn()>>,
+    text_size: f32,
 }
 
 impl Button {
@@ -23,6 +24,7 @@ impl Button {
         padding: f32,
         content: &str,
         callback: Option<Box<dyn Fn()>>,
+        text_size: f32,
     ) -> Button {
         let text_texture_key = format!("text_{}", texture_key);
 
@@ -33,6 +35,7 @@ impl Button {
             dimensions,
             padding,
             callback,
+            text_size,
         }
     }
 
@@ -61,9 +64,10 @@ impl PlutoObject for Button {
         _key_pressed: &Option<Key>,
         texture_map: &mut HashMap<String, TextureSVG>,
         update_context: Option<UpdateContext>,
+        dpi_scale_factor: f32,
     ) {
         if let Some(mouse) = mouse_info {
-            // eventually this will check other focused methods
+            // eventually this will check other is_focused methods
             if mouse.is_lmb_clicked
                 && texture_map
                     .get(&self.texture_key)
@@ -85,7 +89,7 @@ impl PlutoObject for Button {
                     update_context.device,
                     update_context.queue,
                     &self.content,
-                    12.0,
+                    self.text_size * dpi_scale_factor,
                     *update_context.viewport_size,
                     *update_context.camera_position,
                 )

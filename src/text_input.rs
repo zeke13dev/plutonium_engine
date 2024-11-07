@@ -14,11 +14,18 @@ pub struct TextInput {
     content: String,
     dimensions: Rectangle,
     padding: f32,
+    font_size: f32,
 }
 
 impl TextInput {
     // initializers
-    pub fn new(texture_key: &str, scale: f32, dimensions: Rectangle, padding: f32) -> TextInput {
+    pub fn new(
+        texture_key: &str,
+        scale: f32,
+        dimensions: Rectangle,
+        padding: f32,
+        font_size: f32,
+    ) -> TextInput {
         let text_texture_key = format!("text_{}", texture_key);
 
         TextInput {
@@ -28,6 +35,7 @@ impl TextInput {
             content: "".to_string(),
             dimensions,
             padding,
+            font_size,
         }
     }
 
@@ -44,6 +52,10 @@ impl PlutoObject for TextInput {
     fn render(&self, engine: &mut PlutoniumEngine) {
         engine.queue_texture(&self.texture_key, Some(self.dimensions.pos()));
         engine.queue_text(&self.text_texture_key);
+        // render the cursor
+        if self.focused {
+            engine.queue_text("text_cursor");
+        }
     }
 
     fn update(
@@ -52,6 +64,7 @@ impl PlutoObject for TextInput {
         key_pressed: &Option<Key>,
         texture_map: &mut HashMap<String, TextureSVG>,
         update_context: Option<UpdateContext>,
+        dpi_scale_factor: f32,
     ) {
         if let Some(mouse) = mouse_info {
             if mouse.is_lmb_clicked {
@@ -84,11 +97,34 @@ impl PlutoObject for TextInput {
                     update_context.device,
                     update_context.queue,
                     &self.content,
-                    12.0,
+                    self.font_size * dpi_scale_factor,
                     *update_context.viewport_size,
                     *update_context.camera_position,
                 )
                 .unwrap();
+
+            // update cursor
+            let text_cursor = texture_map
+                .get_mut("text_cursor")
+                .expect("text cursor should exist if we have a text input obj");
+            text_cursor
+                .update_text(
+                    update_context.device,
+                    update_context.queue,
+                    "|",
+                    self.font_size * dpi_scale_factor,
+                    *update_context.viewport_size,
+                    *update_context.camera_position,
+                )
+                .unwrap();
+
+            text_cursor.set_position(
+                texture_map
+                    .get(&self.texture_key)
+                    .expect("")
+                    .dimensions()
+                    .pos(),
+            )
         }
     }
 }

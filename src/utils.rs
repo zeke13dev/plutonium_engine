@@ -90,6 +90,16 @@ impl Mul<f32> for Position {
     }
 }
 
+impl Add<f32> for Position {
+    type Output = Position;
+    fn add(self, other: f32) -> Self::Output {
+        Position {
+            x: self.x + other,
+            y: self.y + other,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Rectangle {
     pub x: f32,

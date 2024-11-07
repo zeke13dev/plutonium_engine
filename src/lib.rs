@@ -89,7 +89,7 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     pub fn update(&mut self, mouse_info: Option<MouseInfo>, key: &Option<Key>) {
-        for (texture_key, obj) in self.object_map.iter_mut() {
+        for (_, obj) in self.object_map.iter_mut() {
             obj.borrow_mut().update(
                 mouse_info,
                 key,
@@ -100,6 +100,7 @@ impl<'a> PlutoniumEngine<'a> {
                     viewport_size: &self.viewport_size,
                     camera_position: &self.camera.get_pos(),
                 }),
+                self.dpi_scale_factor,
             );
         }
 
@@ -208,9 +209,11 @@ impl<'a> PlutoniumEngine<'a> {
     pub fn queue_text(&mut self, key: &str) {
         if let Some(texture) = self.texture_map.get(key) {
             // Generate the transformation matrix based on the texture's position
+
+            // NEED TO MULTIPLY BY SCALE FACTOR DPI
             let transform_uniform = texture.get_transform_uniform(
                 self.viewport_size,
-                texture.pos(), // Use the texture's stored position
+                texture.pos() * self.dpi_scale_factor,
                 self.camera.get_pos(),
             );
 
@@ -252,6 +255,8 @@ impl<'a> PlutoniumEngine<'a> {
     pub fn render_obj(&mut self, texture_key: &str) {
         if let Some(obj_rc) = self.object_map.get(texture_key) {
             obj_rc.clone().borrow().render(self);
+        } else {
+            eprintln!("Text texture with key '{}' not found.", texture_key);
         }
     }
 
@@ -329,9 +334,22 @@ impl<'a> PlutoniumEngine<'a> {
     ) {
         let pos = dimensions.pos();
         let text_texture_key = format!("text_{}", texture_key);
-        self.create_texture_svg(texture_key, svg_path, pos, 1.0, None);
+        self.create_texture_svg(
+            texture_key,
+            svg_path,
+            pos * self.dpi_scale_factor,
+            1.0,
+            None,
+        );
 
-        let button = Button::new(texture_key, dimensions, padding, content, callback);
+        let button = Button::new(
+            texture_key,
+            dimensions,
+            padding,
+            content,
+            callback,
+            font_size,
+        );
         self.object_map
             .insert(texture_key.to_string(), Rc::new(RefCell::new(button)));
 
@@ -355,11 +373,16 @@ impl<'a> PlutoniumEngine<'a> {
         dimensions: Rectangle,
         padding: f32,
     ) {
-        let pos = dimensions.pos();
+        // create cursor if it does not exist
+        if !self.texture_map.contains_key("text_cursor") {
+            self.create_text_texture("text_cursor", "|", font_size, Position { x: 0.0, y: 0.0 });
+        }
+
+        let pos = dimensions.pos() * self.dpi_scale_factor;
         let text_texture_key = format!("text_{}", texture_key);
         self.create_texture_svg(texture_key, svg_path, pos, 1.0, None);
 
-        let text_input = TextInput::new(texture_key, 1.0, dimensions, padding);
+        let text_input = TextInput::new(texture_key, 1.0, dimensions, padding, font_size);
         self.object_map
             .insert(texture_key.to_string(), Rc::new(RefCell::new(text_input)));
 
@@ -387,7 +410,7 @@ impl<'a> PlutoniumEngine<'a> {
             &self.device,
             &self.queue,
             text,
-            font_size,
+            font_size * scale_factor,
             position,
             &self.texture_bind_group_layout,
             &self.transform_bind_group_layout,

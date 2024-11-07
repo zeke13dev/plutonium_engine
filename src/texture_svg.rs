@@ -971,6 +971,7 @@ impl PlutoObject for TextureSVG {
         _key_pressed: &Option<Key>,
         _texture_map: &mut HashMap<String, TextureSVG>,
         _update_context: Option<UpdateContext>,
+        _dpi_scale_factor: f32,
     ) {
     }
 }
