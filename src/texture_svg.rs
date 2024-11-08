@@ -4,13 +4,14 @@ use resvg::usvg::{Options, Tree};
 use std::collections::HashMap;
 use std::{fs, num::NonZeroU64};
 use tiny_skia::{Color, Pixmap};
+use uuid::Uuid;
 use wgpu::util::DeviceExt;
 use winit::keyboard::Key;
 
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct TextureSVG {
-    texture_key: String,
+    texture_key: Uuid,
     texture: wgpu::Texture,
     view: wgpu::TextureView,
     bind_group: wgpu::BindGroup,
@@ -375,7 +376,7 @@ impl TextureSVG {
 
     /// Creates a new `TextureSVG` instance.
     pub fn new(
-        texture_key: &str,
+        texture_key: Uuid,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         file_path: &str,

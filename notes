@@ -17,4 +17,4 @@ space+k for inline diagnostics
 
 *** CURRENT ***
 - text texture atlas
-- try to use make sure that position updates happen in the pluto_obj and are then fixed in texture_svg update pos
+- pluto obj trying to get Texture2D to work properly

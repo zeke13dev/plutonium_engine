@@ -118,13 +118,13 @@ impl PlutoObject for TextInput {
                 )
                 .unwrap();
 
-            text_cursor.set_position(
+            /* text_cursor.set_position(
                 texture_map
                     .get(&self.texture_key)
                     .expect("")
                     .dimensions()
                     .pos(),
-            )
+            ) */
         }
     }
 }

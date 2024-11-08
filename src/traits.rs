@@ -1,7 +1,8 @@
 use crate::texture_svg::TextureSVG;
-use crate::utils::{MouseInfo, Position, Size};
+use crate::utils::{MouseInfo, Position, Rectangle, Size};
 use crate::PlutoniumEngine;
 use std::collections::HashMap;
+use uuid::Uuid;
 use winit::keyboard::Key;
 
 pub struct UpdateContext<'a> {
@@ -12,7 +13,15 @@ pub struct UpdateContext<'a> {
 }
 
 pub trait PlutoObject {
-    fn render(&self, engine: &mut PlutoniumEngine);
+    // getters
+    fn texture_key(&self) -> Uuid;
+    fn dimensions(&self) -> &Rectangle;
+    fn pos(&self) -> &Position;
+
+    // setters
+    fn set_dimensions(&mut self, new_dimensions: Rectangle);
+    fn set_pos(&mut self, new_pos: Position);
+
     fn update(
         &mut self,
         mouse_pos: Option<MouseInfo>,
@@ -20,5 +29,35 @@ pub trait PlutoObject {
         texture_map: &mut HashMap<String, TextureSVG>,
         update_context: Option<UpdateContext>,
         dpi_scale_factor: f32,
-    );
+    ) {
+        // do i need to do anything default?
+        // engine.update_texture(self.texture_key());
+    }
+
+    fn render(&self, engine: &mut PlutoniumEngine) {
+        engine.queue_texture(self.texture_key(), Some(self.pos()));
+    }
 }
+
+/*
+===== DEFAULT IMPLEMENTATIONS FOR SETTERS AND GETTERS =====
+fn texture_key(&self) -> &str {
+    &self.texture_key
+}
+
+fn dimensions(&self) -> &Rectangle {
+    &self.dimensions
+}
+
+fn pos(&self) -> &Position {
+    &self.position
+}
+
+fn set_dimensions(&mut self, &Rectangle new_dimensions) {
+    &self.dimensions = new_dimensions;
+}
+
+fn set_pos(&mut self, &Position new_position) {
+    &self.position = new_position;
+}
+*/

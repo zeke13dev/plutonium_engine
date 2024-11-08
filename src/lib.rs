@@ -1,6 +1,9 @@
 extern crate image;
 pub mod button;
 pub mod camera;
+pub mod pluto_objects {
+    pub mod texture_2d;
+}
 pub mod text_input;
 pub mod texture_atlas;
 pub mod texture_svg;
@@ -11,13 +14,18 @@ use crate::text_input::TextInput;
 use crate::traits::UpdateContext;
 use button::Button;
 use camera::Camera;
+use pluto_objects::texture_2d::Texture2D;
 use pollster::block_on;
 use std::cell::RefCell;
+use std::collections::hash_map::DefaultHasher;
+use std::error::Error;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 use std::{borrow::Cow, collections::HashMap};
 use texture_svg::*;
 use traits::PlutoObject;
 use utils::*;
+use uuid::Uuid;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 use winit::keyboard::Key;
@@ -40,7 +48,7 @@ pub struct PlutoniumEngine<'a> {
     render_pipeline: wgpu::RenderPipeline,
     texture_bind_group_layout: wgpu::BindGroupLayout,
     transform_bind_group_layout: wgpu::BindGroupLayout,
-    texture_map: HashMap<String, TextureSVG>,
+    texture_map: HashMap<Uuid, TextureSVG>,
     object_map: HashMap<String, Rc<RefCell<dyn PlutoObject>>>,
     render_queue: Vec<RenderItem>,
     viewport_size: Size,
@@ -134,10 +142,10 @@ impl<'a> PlutoniumEngine<'a> {
         self.camera.tether_target = Some(texture_key.to_string());
     }
 
-    pub fn queue_texture(&mut self, texture_key: &str, position: Option<Position>) {
+    pub fn queue_texture(&mut self, texture_key: &str, position: Option<&Position>) {
         if let Some(texture) = self.texture_map.get(texture_key) {
             // Generate the transformation matrix based on the position and camera
-            let position = position.unwrap_or_default() * self.dpi_scale_factor;
+            let position = *position.unwrap_or(&Position::default()) * self.dpi_scale_factor;
             let transform_uniform =
                 texture.get_transform_uniform(self.viewport_size, position, self.camera.get_pos());
 
@@ -320,119 +328,145 @@ impl<'a> PlutoniumEngine<'a> {
         frame.present();
         Ok(())
     }
+    /*
+        pub fn create_button(
+            &mut self,
+            texture_key: &str,
+            svg_path: &str,
+            font_size: f32,
+            _font: &str,
+            dimensions: Rectangle,
+            padding: f32,
+            content: &str,
+            callback: Option<Box<dyn Fn()>>,
+        ) {
+            let pos = dimensions.pos();
+            let text_texture_key = format!("text_{}", texture_key);
+            self.create_texture_svg(
+                texture_key,
+                svg_path,
+                pos * self.dpi_scale_factor,
+                1.0,
+                None,
+            );
 
-    pub fn create_button(
-        &mut self,
-        texture_key: &str,
-        svg_path: &str,
-        font_size: f32,
-        _font: &str,
-        dimensions: Rectangle,
-        padding: f32,
-        content: &str,
-        callback: Option<Box<dyn Fn()>>,
-    ) {
-        let pos = dimensions.pos();
-        let text_texture_key = format!("text_{}", texture_key);
-        self.create_texture_svg(
-            texture_key,
-            svg_path,
-            pos * self.dpi_scale_factor,
-            1.0,
-            None,
-        );
+            let button = Button::new(
+                texture_key,
+                dimensions,
+                padding,
+                content,
+                callback,
+                font_size,
+            );
+            self.object_map
+                .insert(texture_key.to_string(), Rc::new(RefCell::new(button)));
 
-        let button = Button::new(
-            texture_key,
-            dimensions,
-            padding,
-            content,
-            callback,
-            font_size,
-        );
-        self.object_map
-            .insert(texture_key.to_string(), Rc::new(RefCell::new(button)));
-
-        self.create_text_texture(
-            &text_texture_key,
-            "",
-            font_size,
-            Position {
-                x: dimensions.x + (dimensions.width * 0.1),
-                y: dimensions.y + (dimensions.height / 2.0),
-            },
-        );
-    }
-
-    pub fn create_text_input(
-        &mut self,
-        texture_key: &str,
-        svg_path: &str,
-        font_size: f32,
-        _font: &str,
-        dimensions: Rectangle,
-        padding: f32,
-    ) {
-        // create cursor if it does not exist
-        if !self.texture_map.contains_key("text_cursor") {
-            self.create_text_texture("text_cursor", "|", font_size, Position { x: 0.0, y: 0.0 });
+            self.create_text_texture(
+                &text_texture_key,
+                "",
+                font_size,
+                Position {
+                    x: dimensions.x + (dimensions.width * 0.1),
+                    y: dimensions.y + (dimensions.height / 2.0),
+                },
+            );
         }
 
-        let pos = dimensions.pos() * self.dpi_scale_factor;
-        let text_texture_key = format!("text_{}", texture_key);
-        self.create_texture_svg(texture_key, svg_path, pos, 1.0, None);
+        pub fn create_text_input(
+            &mut self,
+            texture_key: &str,
+            svg_path: &str,
+            font_size: f32,
+            _font: &str,
+            dimensions: Rectangle,
+            padding: f32,
+        ) {
+            // create cursor if it does not exist
+            if !self.texture_map.contains_key("text_cursor") {
+                self.create_text_texture("text_cursor", "|", font_size, Position { x: 0.0, y: 0.0 });
+            }
 
-        let text_input = TextInput::new(texture_key, 1.0, dimensions, padding, font_size);
-        self.object_map
-            .insert(texture_key.to_string(), Rc::new(RefCell::new(text_input)));
+            let pos = dimensions.pos() * self.dpi_scale_factor;
+            let text_texture_key = format!("text_{}", texture_key);
+            self.create_texture_svg(texture_key, svg_path, pos, 1.0, None);
 
-        self.create_text_texture(
-            &text_texture_key,
-            "",
-            font_size,
-            Position {
-                x: dimensions.x + (dimensions.width * 0.1),
-                y: dimensions.y + (dimensions.height / 2.0),
-            },
-        );
-    }
+            let text_input = TextInput::new(texture_key, 1.0, dimensions, padding, font_size);
+            self.object_map
+                .insert(texture_key.to_string(), Rc::new(RefCell::new(text_input)));
 
-    pub fn create_text_texture(
-        &mut self,
-        key: &str,
-        text: &str,
-        font_size: f32,
-        position: Position,
-    ) {
-        let scale_factor = self.dpi_scale_factor;
-        let texture_svg = TextureSVG::from_text(
-            key,
-            &self.device,
-            &self.queue,
-            text,
-            font_size * scale_factor,
-            position,
-            &self.texture_bind_group_layout,
-            &self.transform_bind_group_layout,
-            scale_factor,
-        );
-
-        if let Some(texture) = texture_svg {
-            self.texture_map.insert(key.to_string(), texture);
+            self.create_text_texture(
+                &text_texture_key,
+                "",
+                font_size,
+                Position {
+                    x: dimensions.x + (dimensions.width * 0.1),
+                    y: dimensions.y + (dimensions.height / 2.0),
+                },
+            );
         }
-    }
 
+        pub fn create_text_texture(
+            &mut self,
+            key: &str,
+            text: &str,
+            font_size: f32,
+            position: Position,
+        ) {
+            let scale_factor = self.dpi_scale_factor;
+            let texture_svg = TextureSVG::from_text(
+                key,
+                &self.device,
+                &self.queue,
+                text,
+                font_size * scale_factor,
+                position,
+                &self.texture_bind_group_layout,
+                &self.transform_bind_group_layout,
+                scale_factor,
+            );
+
+            if let Some(texture) = texture_svg {
+                self.texture_map.insert(key.to_string(), texture);
+            }
+        }
+
+        pub fn create_texture_svg(
+            &mut self,
+            key: &str,
+            file_path: &str,
+            position: Position,
+            scale_factor: f32,
+            tile_size: Option<Size>,
+        ) {
+            let scale_factor = scale_factor * self.dpi_scale_factor;
+            let svg_texture = TextureSVG::new(
+                key,
+                &self.device,
+                &self.queue,
+                file_path,
+                &self.texture_bind_group_layout,
+                &self.transform_bind_group_layout,
+                position,
+                scale_factor,
+                tile_size.map(|size| size * scale_factor), // Apply scale factor to tile_size
+            );
+
+            if let Some(texture) = svg_texture {
+                self.texture_map.insert(key.to_string(), texture);
+            }
+        }
+    */
     pub fn create_texture_svg(
         &mut self,
-        key: &str,
         file_path: &str,
         position: Position,
         scale_factor: f32,
         tile_size: Option<Size>,
-    ) {
+    ) -> (Uuid, Rectangle) {
         let scale_factor = scale_factor * self.dpi_scale_factor;
+        let texture_key = Uuid::new_v4();
         let svg_texture = TextureSVG::new(
-            key,
+            texture_key,
             &self.device,
             &self.queue,
             file_path,
@@ -443,13 +477,22 @@ impl<'a> PlutoniumEngine<'a> {
             tile_size.map(|size| size * scale_factor), // Apply scale factor to tile_size
         );
 
-        if let Some(texture) = svg_texture {
-            self.texture_map.insert(key.to_string(), texture);
-        }
+        let texture = svg_texture.expect("texture should vacously be created properly");
+        let dimensions = texture.dimensions();
+        self.texture_map.insert(texture_key, texture);
+        (texture_key, dimensions)
     }
 
-    pub fn get_texture_svg(&self, key: &str) -> Option<&TextureSVG> {
-        self.texture_map.get(key)
+    /* OBJECT CREATION FUNCTIONS */
+    pub fn create_texture2d(
+        &mut self,
+        svg_path: &str,
+        position: Position,
+        scale_factor: f32,
+    ) -> Texture2D {
+        let (texture_key, dimensions) =
+            self.create_texture_svg(svg_path, position, scale_factor, None);
+        Texture2D::new(texture_key, dimensions)
     }
 
     pub fn new(
@@ -598,7 +641,7 @@ impl<'a> PlutoniumEngine<'a> {
             multiview: None,
         });
 
-        let texture_map: HashMap<String, TextureSVG> = HashMap::new();
+        let texture_map: HashMap<Uuid, TextureSVG> = HashMap::new();
         let object_map: HashMap<String, Rc<RefCell<dyn PlutoObject>>> = HashMap::new();
         let viewport_size = Size {
             width: config.width as f32,
