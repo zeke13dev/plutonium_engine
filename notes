@@ -17,4 +17,5 @@ space+k for inline diagnostics
 
 *** CURRENT ***
 - text texture atlas
-- pluto obj trying to get Texture2D to work properly
+- using PlutoObject for objects that aren't just 2-D textures.
+- decide if PlutoObject is the way to do and if i have properly implemented

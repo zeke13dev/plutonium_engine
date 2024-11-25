@@ -14,7 +14,7 @@ pub struct UpdateContext<'a> {
 
 pub trait PlutoObject {
     // getters
-    fn texture_key(&self) -> Uuid;
+    fn texture_key(&self) -> &Uuid;
     fn dimensions(&self) -> &Rectangle;
     fn pos(&self) -> &Position;
 
@@ -26,7 +26,7 @@ pub trait PlutoObject {
         &mut self,
         mouse_pos: Option<MouseInfo>,
         key_pressed: &Option<Key>,
-        texture_map: &mut HashMap<String, TextureSVG>,
+        texture_map: &mut HashMap<Uuid, TextureSVG>,
         update_context: Option<UpdateContext>,
         dpi_scale_factor: f32,
     ) {
@@ -40,7 +40,7 @@ pub trait PlutoObject {
 }
 
 /*
-===== DEFAULT IMPLEMENTATIONS FOR SETTERS AND GETTERS =====
+===== DEFAULT IMPLEMENTATIONS FOR SETTERS AND GETTERS ===== (NEEDS TO BE UPDATED as of 11/24/24)
 fn texture_key(&self) -> &str {
     &self.texture_key
 }

@@ -1,11 +1,12 @@
 use crate::{Position, Rectangle, Size};
+use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct Camera {
     position: Position,
     boundary: Option<Rectangle>,
     activated: bool,
-    pub tether_target: Option<String>,
+    pub tether_target: Option<Uuid>,
     tether_size: Option<Size>,
 }
 
@@ -89,7 +90,7 @@ impl Camera {
         }
     }
 
-    pub fn set_tether_target(&mut self, target: Option<String>) {
+    pub fn set_tether_target(&mut self, target: Option<Uuid>) {
         self.tether_target = target;
     }
 

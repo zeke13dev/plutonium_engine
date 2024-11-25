@@ -47,7 +47,7 @@ impl TextureSVG {
     }
 
     pub fn from_text(
-        texture_key: &str,
+        texture_key: Uuid,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         text: &str,
@@ -237,7 +237,7 @@ impl TextureSVG {
         });
 
         Some(Self {
-            texture_key: texture_key.to_string(),
+            texture_key,
             texture,
             view,
             bind_group,
@@ -519,7 +519,7 @@ impl TextureSVG {
         );
 
         Some(Self {
-            texture_key: texture_key.to_string(),
+            texture_key,
             texture,
             view,
             bind_group,
@@ -958,21 +958,5 @@ impl TextureSVG {
             .contains(*pos);
         }
         self.dimensions.contains(*pos)
-    }
-}
-
-impl PlutoObject for TextureSVG {
-    fn render(&self, engine: &mut PlutoniumEngine) {
-        engine.queue_texture(&self.texture_key, None);
-    }
-
-    fn update(
-        &mut self,
-        _mouse_pos: Option<MouseInfo>,
-        _key_pressed: &Option<Key>,
-        _texture_map: &mut HashMap<String, TextureSVG>,
-        _update_context: Option<UpdateContext>,
-        _dpi_scale_factor: f32,
-    ) {
     }
 }

@@ -1,18 +1,18 @@
 extern crate image;
-pub mod button;
+// pub mod button;
 pub mod camera;
 pub mod pluto_objects {
     pub mod texture_2d;
 }
-pub mod text_input;
+// pub mod text_input;
 pub mod texture_atlas;
 pub mod texture_svg;
 pub mod traits;
 pub mod utils;
 
-use crate::text_input::TextInput;
+// use crate::text_input::TextInput;
 use crate::traits::UpdateContext;
-use button::Button;
+// use button::Button;
 use camera::Camera;
 use pluto_objects::texture_2d::Texture2D;
 use pollster::block_on;
@@ -32,7 +32,7 @@ use winit::keyboard::Key;
 
 enum RenderItem {
     Texture {
-        texture_key: String,
+        texture_key: Uuid,
         transform_bind_group: wgpu::BindGroup,
         tile_index: Option<usize>, // None for full texture, Some(tile_index) for a specific tile
     },
@@ -73,7 +73,7 @@ impl<'a> PlutoniumEngine<'a> {
         self.camera.deactivate();
     }
 
-    pub fn set_texture_position(&mut self, key: &str, position: Position) {
+    pub fn set_texture_position(&mut self, key: &Uuid, position: Position) {
         if let Some(texture) = self.texture_map.get_mut(key) {
             texture.set_position(
                 &self.device,
@@ -138,12 +138,12 @@ impl<'a> PlutoniumEngine<'a> {
         }
     }
 
-    pub fn set_camera_target(&mut self, texture_key: &str) {
-        self.camera.tether_target = Some(texture_key.to_string());
+    pub fn set_camera_target(&mut self, texture_key: Uuid) {
+        self.camera.tether_target = Some(texture_key);
     }
 
-    pub fn queue_texture(&mut self, texture_key: &str, position: Option<&Position>) {
-        if let Some(texture) = self.texture_map.get(texture_key) {
+    pub fn queue_texture(&mut self, texture_key: &Uuid, position: Option<&Position>) {
+        if let Some(texture) = self.texture_map.get(&texture_key) {
             // Generate the transformation matrix based on the position and camera
             let position = *position.unwrap_or(&Position::default()) * self.dpi_scale_factor;
             let transform_uniform =
@@ -171,16 +171,16 @@ impl<'a> PlutoniumEngine<'a> {
             });
 
             self.render_queue.push(RenderItem::Texture {
-                texture_key: texture_key.to_string(),
+                texture_key: *texture_key,
                 transform_bind_group,
                 tile_index: None,
             });
         }
     }
 
-    pub fn queue_tile(&mut self, texture_key: &str, tile_index: usize, position: Position) {
+    pub fn queue_tile(&mut self, texture_key: &Uuid, tile_index: usize, position: Position) {
         let position = position * self.dpi_scale_factor;
-        if let Some(texture) = self.texture_map.get(texture_key) {
+        if let Some(texture) = self.texture_map.get(&texture_key) {
             // Generate the transformation matrix based on the position and camera
             let transform_uniform =
                 texture.get_transform_uniform(self.viewport_size, position, self.camera.get_pos());
@@ -207,15 +207,15 @@ impl<'a> PlutoniumEngine<'a> {
             });
 
             self.render_queue.push(RenderItem::Texture {
-                texture_key: texture_key.to_string(),
+                texture_key: *texture_key,
                 transform_bind_group,
                 tile_index: Some(tile_index),
             });
         }
     }
 
-    pub fn queue_text(&mut self, key: &str) {
-        if let Some(texture) = self.texture_map.get(key) {
+    pub fn queue_text(&mut self, key: &Uuid) {
+        if let Some(texture) = self.texture_map.get(&key) {
             // Generate the transformation matrix based on the texture's position
 
             // NEED TO MULTIPLY BY SCALE FACTOR DPI
@@ -247,7 +247,7 @@ impl<'a> PlutoniumEngine<'a> {
             });
 
             self.render_queue.push(RenderItem::Texture {
-                texture_key: key.to_string(),
+                texture_key: *key,
                 transform_bind_group,
                 tile_index: None,
             });
