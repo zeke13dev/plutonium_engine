@@ -3,6 +3,7 @@ extern crate image;
 pub mod camera;
 pub mod pluto_objects {
     pub mod texture_2d;
+    pub mod texture_atlas_2d;
 }
 // pub mod text_input;
 pub mod texture_atlas;

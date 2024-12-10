@@ -1,4 +1,4 @@
-use crate::utils::*;
+/*use crate::utils::*;
 use wgpu::util::DeviceExt;
 
 #[derive(Debug)]
@@ -83,3 +83,4 @@ impl TextureAtlas {
         &self.uv_bind_group_layout
     }
 }
+*/
