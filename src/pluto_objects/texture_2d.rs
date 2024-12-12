@@ -6,7 +6,6 @@ use uuid::Uuid;
 pub struct Texture2D {
     texture_key: Uuid,
     dimensions: Rectangle,
-    position: Position,
 }
 
 impl Texture2D {
@@ -14,7 +13,6 @@ impl Texture2D {
         Texture2D {
             texture_key,
             dimensions,
-            position: dimensions.pos(),
         }
     }
 }
@@ -28,8 +26,8 @@ impl PlutoObject for Texture2D {
         &self.dimensions
     }
 
-    fn pos(&self) -> &Position {
-        &self.position
+    fn pos(&self) -> Position {
+        self.dimensions.pos()
     }
 
     fn set_dimensions(&mut self, new_dimensions: Rectangle) {
@@ -37,6 +35,6 @@ impl PlutoObject for Texture2D {
     }
 
     fn set_pos(&mut self, new_position: Position) {
-        self.position = new_position;
+        self.dimensions.set_pos(new_position);
     }
 }

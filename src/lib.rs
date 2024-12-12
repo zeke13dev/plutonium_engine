@@ -2,6 +2,7 @@ extern crate image;
 // pub mod button;
 pub mod camera;
 pub mod pluto_objects {
+    pub mod text2d;
     pub mod texture_2d;
     pub mod texture_atlas_2d;
 }
@@ -15,7 +16,7 @@ pub mod utils;
 use crate::traits::UpdateContext;
 // use button::Button;
 use camera::Camera;
-use pluto_objects::texture_2d::Texture2D;
+use pluto_objects::{text2d::Text2D, texture_2d::Texture2D, texture_atlas_2d::TextureAtlas2D};
 use pollster::block_on;
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
@@ -143,10 +144,10 @@ impl<'a> PlutoniumEngine<'a> {
         self.camera.tether_target = Some(texture_key);
     }
 
-    pub fn queue_texture(&mut self, texture_key: &Uuid, position: Option<&Position>) {
+    pub fn queue_texture(&mut self, texture_key: &Uuid, position: Option<Position>) {
         if let Some(texture) = self.texture_map.get(&texture_key) {
             // Generate the transformation matrix based on the position and camera
-            let position = *position.unwrap_or(&Position::default()) * self.dpi_scale_factor;
+            let position = position.unwrap_or(Position::default()) * self.dpi_scale_factor;
             let transform_uniform =
                 texture.get_transform_uniform(self.viewport_size, position, self.camera.get_pos());
 
@@ -406,30 +407,6 @@ impl<'a> PlutoniumEngine<'a> {
             );
         }
 
-        pub fn create_text_texture(
-            &mut self,
-            key: &str,
-            text: &str,
-            font_size: f32,
-            position: Position,
-        ) {
-            let scale_factor = self.dpi_scale_factor;
-            let texture_svg = TextureSVG::from_text(
-                key,
-                &self.device,
-                &self.queue,
-                text,
-                font_size * scale_factor,
-                position,
-                &self.texture_bind_group_layout,
-                &self.transform_bind_group_layout,
-                scale_factor,
-            );
-
-            if let Some(texture) = texture_svg {
-                self.texture_map.insert(key.to_string(), texture);
-            }
-        }
 
         pub fn create_texture_svg(
             &mut self,
@@ -456,7 +433,9 @@ impl<'a> PlutoniumEngine<'a> {
                 self.texture_map.insert(key.to_string(), texture);
             }
         }
+
     */
+
     pub fn create_texture_svg(
         &mut self,
         file_path: &str,
@@ -484,6 +463,31 @@ impl<'a> PlutoniumEngine<'a> {
         (texture_key, dimensions)
     }
 
+    pub fn create_text_texture(
+        &mut self,
+        text: &str,
+        font_size: f32,
+        scale_factor: f32,
+        position: Position,
+    ) -> (Uuid, Rectangle) {
+        let texture_key = Uuid::new_v4();
+        let texture_svg = TextureSVG::from_text(
+            texture_key,
+            &self.device,
+            &self.queue,
+            text,
+            font_size * scale_factor,
+            position,
+            &self.texture_bind_group_layout,
+            &self.transform_bind_group_layout,
+            scale_factor,
+        );
+
+        let texture = texture_svg.expect("texture should vacously be created properly");
+        let dimensions = texture.dimensions();
+        self.texture_map.insert(texture_key, texture);
+        (texture_key, dimensions)
+    }
     /* OBJECT CREATION FUNCTIONS */
     pub fn create_texture2d(
         &mut self,
@@ -494,6 +498,30 @@ impl<'a> PlutoniumEngine<'a> {
         let (texture_key, dimensions) =
             self.create_texture_svg(svg_path, position, scale_factor, None);
         Texture2D::new(texture_key, dimensions)
+    }
+
+    pub fn create_texture_atlas_2d(
+        &mut self,
+        svg_path: &str,
+        position: Position,
+        scale_factor: f32,
+        tile_size: Size,
+    ) -> TextureAtlas2D {
+        let (texture_key, dimensions) =
+            self.create_texture_svg(svg_path, position, scale_factor, Some(tile_size));
+        TextureAtlas2D::new(texture_key, dimensions, tile_size)
+    }
+
+    pub fn create_text2d(
+        &mut self,
+        text: &str,
+        font_size: f32,
+        position: Position,
+        scale_factor: f32,
+    ) -> Text2D {
+        let (texture_key, dimensions) =
+            self.create_text_texture(text, font_size, scale_factor, position);
+        Text2D::new(texture_key, dimensions, font_size, text)
     }
 
     pub fn new(

@@ -16,7 +16,7 @@ pub trait PlutoObject {
     // getters
     fn texture_key(&self) -> &Uuid;
     fn dimensions(&self) -> &Rectangle;
-    fn pos(&self) -> &Position;
+    fn pos(&self) -> Position;
 
     // setters
     fn set_dimensions(&mut self, new_dimensions: Rectangle);

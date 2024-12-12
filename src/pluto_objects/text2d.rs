@@ -1,29 +1,27 @@
 use crate::traits::PlutoObject;
-use crate::utils::{Position, Rectangle, Size};
+use crate::utils::{Position, Rectangle};
 use crate::PlutoniumEngine;
 use uuid::Uuid;
 
-pub struct TextureAtlas2D {
+pub struct Text2D {
     texture_key: Uuid,
     dimensions: Rectangle,
-    tile_size: Size,
+    font_size: f32,
+    text: String,
 }
 
-impl TextureAtlas2D {
-    pub fn new(texture_key: Uuid, dimensions: Rectangle, tile_size: Size) -> Self {
-        TextureAtlas2D {
+impl Text2D {
+    pub fn new(texture_key: Uuid, dimensions: Rectangle, font_size: f32, text: &str) -> Self {
+        Text2D {
             texture_key,
             dimensions,
-            tile_size,
+            font_size,
+            text: text.to_string(),
         }
-    }
-
-    pub fn render_tile(&self, engine: &mut PlutoniumEngine, tile_index: usize, position: Position) {
-        engine.queue_tile(&self.texture_key, tile_index, position);
     }
 }
 
-impl PlutoObject for TextureAtlas2D {
+impl PlutoObject for Text2D {
     fn texture_key(&self) -> &Uuid {
         &self.texture_key
     }
