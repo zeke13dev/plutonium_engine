@@ -2,7 +2,9 @@ extern crate image;
 // pub mod button;
 pub mod camera;
 pub mod pluto_objects {
+    pub mod button;
     pub mod text2d;
+    pub mod text_input;
     pub mod texture_2d;
     pub mod texture_atlas_2d;
 }
@@ -16,7 +18,10 @@ pub mod utils;
 use crate::traits::UpdateContext;
 // use button::Button;
 use camera::Camera;
-use pluto_objects::{text2d::Text2D, texture_2d::Texture2D, texture_atlas_2d::TextureAtlas2D};
+use pluto_objects::{
+    button::Button, text2d::Text2D, text_input::TextInput, texture_2d::Texture2D,
+    texture_atlas_2d::TextureAtlas2D,
+};
 use pollster::block_on;
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
@@ -522,6 +527,27 @@ impl<'a> PlutoniumEngine<'a> {
         let (texture_key, dimensions) =
             self.create_text_texture(text, font_size, scale_factor, position);
         Text2D::new(texture_key, dimensions, font_size, text)
+    }
+
+    pub fn create_button(
+        &mut self,
+        svg_path: &str,
+        text: &str,
+        font_size: f32,
+        position: Position,
+        scale_factor: f32,
+        callback: Option<Box<dyn Fn()>>,
+    ) -> Button {
+        let (button_texture_key, button_dimensions) =
+            self.create_texture_svg(svg_path, position, scale_factor, None);
+        let text_position = Position {
+            x: button_dimensions.x + (button_dimensions.width * 0.1),
+            y: button_dimensions.y + (button_dimensions.height / 2.0),
+        };
+        let (text_texture_key, text_dimensions) =
+            self.create_text_texture(text, font_size, scale_factor, text_position);
+        let text_object = Text2D::new(text_texture_key, text_dimensions, font_size, text);
+        Button::new(button_texture_key, button_dimensions, text_object, callback)
     }
 
     pub fn new(
