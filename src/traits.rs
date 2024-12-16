@@ -14,8 +14,8 @@ pub struct UpdateContext<'a> {
 
 pub trait PlutoObject {
     // getters
-    fn texture_key(&self) -> &Uuid;
-    fn dimensions(&self) -> &Rectangle;
+    fn texture_key(&self) -> Uuid;
+    fn dimensions(&self) -> Rectangle;
     fn pos(&self) -> Position;
 
     // setters
@@ -35,7 +35,7 @@ pub trait PlutoObject {
     }
 
     fn render(&self, engine: &mut PlutoniumEngine) {
-        engine.queue_texture(self.texture_key(), Some(self.pos()));
+        engine.queue_texture(&self.texture_key(), Some(self.pos()));
     }
 }
 

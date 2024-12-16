@@ -24,12 +24,12 @@ impl TextureAtlas2D {
 }
 
 impl PlutoObject for TextureAtlas2D {
-    fn texture_key(&self) -> &Uuid {
-        &self.texture_key
+    fn texture_key(&self) -> Uuid {
+        self.texture_key
     }
 
-    fn dimensions(&self) -> &Rectangle {
-        &self.dimensions
+    fn dimensions(&self) -> Rectangle {
+        self.dimensions
     }
 
     fn pos(&self) -> Position {

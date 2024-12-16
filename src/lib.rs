@@ -493,6 +493,7 @@ impl<'a> PlutoniumEngine<'a> {
         self.texture_map.insert(texture_key, texture);
         (texture_key, dimensions)
     }
+
     /* OBJECT CREATION FUNCTIONS */
     pub fn create_texture2d(
         &mut self,
@@ -548,6 +549,29 @@ impl<'a> PlutoniumEngine<'a> {
             self.create_text_texture(text, font_size, scale_factor, text_position);
         let text_object = Text2D::new(text_texture_key, text_dimensions, font_size, text);
         Button::new(button_texture_key, button_dimensions, text_object, callback)
+    }
+
+    pub fn create_text_input(
+        &mut self,
+        svg_path: &str,
+        font_size: f32,
+        position: Position,
+        scale_factor: f32,
+    ) -> TextInput {
+        let cursor_object = self.create_text2d("|", font_size, position, scale_factor);
+        let callback = None;
+
+        let button_object =
+            self.create_button(svg_path, "", font_size, position, scale_factor, callback);
+
+        let dimensions = button_object.dimensions();
+        let text_pos = Position {
+            x: dimensions.x + (dimensions.width * 0.1),
+            y: dimensions.y + (dimensions.height / 2.0),
+        };
+
+        let text_object = self.create_text2d("", font_size, text_pos, scale_factor);
+        TextInput::new(button_object, text_object, dimensions, cursor_object)
     }
 
     pub fn new(

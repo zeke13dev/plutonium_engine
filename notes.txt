@@ -18,6 +18,5 @@ space+k for inline diagnostics
 *** CURRENT ***
 text_input / button / text_input
 
-1. testing text_input
+1. text_input testing (i don't think button is being selected correctly)
 2. setting up cursor (svg_path=None for default cursor maybe)
-3. create_text_input with the button closure (might need to use my friend chad)

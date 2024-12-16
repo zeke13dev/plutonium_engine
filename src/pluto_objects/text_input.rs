@@ -4,42 +4,74 @@ use crate::traits::PlutoObject;
 use crate::traits::UpdateContext;
 use crate::utils::{MouseInfo, Position, Rectangle};
 use crate::PlutoniumEngine;
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use uuid::Uuid;
 use winit::keyboard::{Key, NamedKey};
 
 pub struct TextInput {
+    inner: Rc<RefCell<TextInputInternal>>,
+}
+
+struct TextInputInternal {
     button_object: Button,
     text_object: Text2D,
+    cursor_object: Text2D,
     dimensions: Rectangle,
-    padding: f32, // currently set to 0 always, should effect where text is
+    _padding: f32, // currently set to 0 always, should effect where text is
     focused: bool,
 }
 
 impl TextInput {
-    pub fn new(button_object: Button, text_object: Text2D, dimensions: Rectangle) -> Self {
-        TextInput {
+    pub fn new(
+        button_object: Button,
+        text_object: Text2D,
+        dimensions: Rectangle,
+        cursor_object: Text2D,
+    ) -> Self {
+        let inner = Rc::new(RefCell::new(TextInputInternal {
             button_object,
             text_object,
+            cursor_object,
             dimensions,
-            padding: 0.0,
+            _padding: 0.0,
             focused: false,
-        }
+        }));
+
+        let inner_clone = Rc::clone(&inner);
+        let callback = move || {
+            let mut inner = inner_clone.borrow_mut();
+            inner.focused = true;
+            println!("TextInput.active set to true");
+        };
+        inner
+            .borrow_mut()
+            .button_object
+            .set_callback(Some(Box::new(callback)));
+        TextInput { inner }
     }
 
     pub fn set_content(&mut self, new_content: &str) {
-        self.text_object.set_content(new_content);
+        self.inner.borrow_mut().text_object.set_content(new_content);
     }
 
     pub fn clear(&mut self) {
         Self::set_content(self, ""); // i don't think this is correct
     }
+
+    pub fn set_font_size(&mut self, font_size: f32) {
+        let mut text_input = self.inner.borrow_mut();
+        text_input.text_object.set_font_size(font_size);
+        text_input.cursor_object.set_font_size(font_size);
+    }
 }
 
 impl PlutoObject for TextInput {
     fn render(&self, engine: &mut PlutoniumEngine) {
-        self.button_object.render(engine);
-        // render cursor?
+        let text_input = self.inner.borrow();
+        text_input.button_object.render(engine); // renders text as well
+        text_input.cursor_object.render(engine);
     }
 
     fn update(
@@ -50,62 +82,43 @@ impl PlutoObject for TextInput {
         _update_context: Option<UpdateContext>,
         _dpi_scale_factor: f32,
     ) {
-        if !self.focused || key_pressed.is_none() {
+        let mut text_input = self.inner.borrow_mut();
+        if !text_input.focused || key_pressed.is_none() {
             return;
         }
 
         match key_pressed.as_ref().unwrap() {
-            Key::Character(c) => self.text_object.append_content(c),
-            Key::Named(NamedKey::Shift) => self.text_object.append_content("\n"),
+            Key::Character(c) => text_input.text_object.append_content(c),
+            Key::Named(NamedKey::Shift) => text_input.text_object.append_content("\n"),
             Key::Named(NamedKey::Backspace) => {
-                self.text_object.pop_content();
+                text_input.text_object.pop_content();
             }
-            Key::Named(NamedKey::Space) => self.text_object.append_content(" "),
+            Key::Named(NamedKey::Space) => text_input.text_object.append_content(" "),
             _ => (),
         }
 
         // update cursor
-        /*
-        let text_cursor = texture_map
-            .get_mut("text_cursor")
-            .expect("text cursor should exist if we have a text input obj");
-        text_cursor
-            .update_text(
-                update_context.device,
-                update_context.queue,
-                "|",
-                self.font_size * dpi_scale_factor,
-                *update_context.viewport_size,
-                *update_context.camera_position,
-            )
-            .unwrap();
-
-         text_cursor.set_position(
-            texture_map
-                .get(&self.texture_key)
-                .expect("")
-                .dimensions()
-                .pos(),
-        ) */
+        let pos = text_input.dimensions.pos();
+        text_input.cursor_object.set_pos(pos);
     }
 
-    fn texture_key(&self) -> &Uuid {
-        self.button_object.texture_key() // maybe should error or smth
+    fn texture_key(&self) -> Uuid {
+        self.inner.borrow().button_object.texture_key() // maybe should error or smth
     }
 
-    fn dimensions(&self) -> &Rectangle {
-        &self.dimensions
+    fn dimensions(&self) -> Rectangle {
+        self.inner.borrow().dimensions
     }
 
     fn pos(&self) -> Position {
-        self.dimensions.pos()
+        self.inner.borrow().dimensions.pos()
     }
 
     fn set_dimensions(&mut self, new_dimensions: Rectangle) {
-        self.dimensions = new_dimensions;
+        self.inner.borrow_mut().dimensions = new_dimensions;
     }
 
     fn set_pos(&mut self, new_position: Position) {
-        self.dimensions.set_pos(new_position);
+        self.inner.borrow_mut().dimensions.set_pos(new_position);
     }
 }

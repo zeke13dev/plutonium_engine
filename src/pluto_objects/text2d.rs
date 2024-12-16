@@ -2,7 +2,6 @@ use crate::texture_svg::TextureSVG;
 use crate::traits::PlutoObject;
 use crate::traits::UpdateContext;
 use crate::utils::{MouseInfo, Position, Rectangle};
-use crate::PlutoniumEngine;
 use std::collections::HashMap;
 use uuid::Uuid;
 use winit::keyboard::Key;
@@ -24,6 +23,15 @@ impl Text2D {
             content: content.to_string(),
             content_changed: false,
         }
+    }
+
+    pub fn get_font_size(&self) -> f32 {
+        self.font_size
+    }
+
+    pub fn set_font_size(&mut self, font_size: f32) {
+        self.content_changed = font_size != self.font_size;
+        self.font_size = font_size;
     }
 
     pub fn set_content(&mut self, new_content: &str) {
@@ -54,7 +62,7 @@ impl PlutoObject for Text2D {
         if self.content_changed {
             if let Some(update_context) = update_context {
                 texture_map
-                    .get_mut(self.texture_key())
+                    .get_mut(&self.texture_key())
                     .expect("texture key should always refer to texture svg")
                     .update_text(
                         update_context.device,
@@ -70,12 +78,12 @@ impl PlutoObject for Text2D {
         }
     }
 
-    fn texture_key(&self) -> &Uuid {
-        &self.texture_key
+    fn texture_key(&self) -> Uuid {
+        self.texture_key
     }
 
-    fn dimensions(&self) -> &Rectangle {
-        &self.dimensions
+    fn dimensions(&self) -> Rectangle {
+        self.dimensions
     }
 
     fn pos(&self) -> Position {
