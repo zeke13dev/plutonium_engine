@@ -10,100 +10,147 @@ use std::rc::Rc;
 use uuid::Uuid;
 use winit::keyboard::{Key, NamedKey};
 
+pub struct TextInputInternal {
+    id: Uuid,
+    button: Button, // Owned directly
+    text: Text2D,   // Owned directly
+    cursor: Text2D, // Owned directly
+    dimensions: Rectangle,
+    _padding: f32, // Placeholder
+    focused: bool,
+}
+
+impl TextInputInternal {
+    pub fn new(
+        id: Uuid,
+        button: Button,
+        text: Text2D,
+        cursor: Text2D,
+        dimensions: Rectangle,
+    ) -> Self {
+        Self {
+            id,
+            button,
+            text,
+            cursor,
+            dimensions,
+            _padding: 0.0,
+            focused: false,
+        }
+    }
+
+    pub fn set_focus(&mut self, focus: bool) {
+        self.focused = focus;
+    }
+
+    pub fn set_content(&mut self, content: &str) {
+        self.text.set_content(content);
+    }
+
+    pub fn clear(&mut self) {
+        self.text.set_content("");
+    }
+
+    pub fn set_font_size(&mut self, font_size: f32) {
+        self.text.set_font_size(font_size);
+        self.cursor.set_font_size(font_size);
+    }
+
+    pub fn render(&self, engine: &mut PlutoniumEngine) {
+        self.button.render(engine);
+        self.text.render(engine);
+        self.cursor.render(engine);
+    }
+
+    pub fn update(&mut self, key_pressed: Option<&Key>) {
+        if !self.focused || key_pressed.is_none() {
+            return;
+        }
+
+        match key_pressed.unwrap() {
+            Key::Character(c) => self.text.append_content(c),
+            Key::Named(NamedKey::Backspace) => self.text.pop_content(),
+            Key::Named(NamedKey::Space) => self.text.append_content(" "),
+            Key::Named(NamedKey::Shift) => self.text.append_content("\n"),
+            _ => (),
+        }
+    }
+}
+
 pub struct TextInput {
     inner: Rc<RefCell<TextInputInternal>>,
 }
 
-struct TextInputInternal {
-    button_object: Button,
-    text_object: Text2D,
-    cursor_object: Text2D,
-    dimensions: Rectangle,
-    _padding: f32, // currently set to 0 always, should effect where text is
-    focused: bool,
-}
-
 impl TextInput {
     pub fn new(
-        button_object: Button,
-        text_object: Text2D,
+        id: Uuid,
+        mut button: Button, // Button mutably required for setting callback
+        text: Text2D,
+        cursor: Text2D,
         dimensions: Rectangle,
-        cursor_object: Text2D,
     ) -> Self {
-        let inner = Rc::new(RefCell::new(TextInputInternal {
-            button_object,
-            text_object,
-            cursor_object,
-            dimensions,
-            _padding: 0.0,
-            focused: false,
-        }));
+        let inner = Rc::new(RefCell::new(TextInputInternal::new(
+            id, button, text, cursor, dimensions,
+        )));
 
+        // Clone the Rc, not the RefCell
         let inner_clone = Rc::clone(&inner);
-        let callback = move || {
-            let mut inner = inner_clone.borrow_mut();
-            inner.focused = true;
-            println!("TextInput.active set to true");
-        };
         inner
             .borrow_mut()
-            .button_object
-            .set_callback(Some(Box::new(callback)));
-        TextInput { inner }
+            .button
+            .set_callback(Some(Box::new(move || {
+                inner_clone.borrow_mut().set_focus(true);
+                println!("TextInput: Focused");
+            })));
+
+        Self { inner }
     }
 
-    pub fn set_content(&mut self, new_content: &str) {
-        self.inner.borrow_mut().text_object.set_content(new_content);
+    pub fn set_content(&self, content: &str) {
+        self.inner.borrow_mut().set_content(content);
     }
 
-    pub fn clear(&mut self) {
-        Self::set_content(self, ""); // i don't think this is correct
+    pub fn clear(&self) {
+        self.inner.borrow_mut().clear();
     }
 
-    pub fn set_font_size(&mut self, font_size: f32) {
-        let mut text_input = self.inner.borrow_mut();
-        text_input.text_object.set_font_size(font_size);
-        text_input.cursor_object.set_font_size(font_size);
+    pub fn set_font_size(&self, font_size: f32) {
+        self.inner.borrow_mut().set_font_size(font_size);
+    }
+
+    pub fn set_focus(&self, focus: bool) {
+        self.inner.borrow_mut().set_focus(focus);
     }
 }
 
 impl PlutoObject for TextInput {
+    fn get_id(&self) -> Uuid {
+        self.inner.borrow().id
+    }
+
     fn render(&self, engine: &mut PlutoniumEngine) {
-        let text_input = self.inner.borrow();
-        text_input.button_object.render(engine); // renders text as well
-        text_input.cursor_object.render(engine);
+        self.inner.borrow().render(engine);
     }
 
     fn update(
         &mut self,
-        _mouse_info: Option<MouseInfo>,
+        mouse_info: Option<MouseInfo>,
         key_pressed: &Option<Key>,
         _texture_map: &mut HashMap<Uuid, TextureSVG>,
         _update_context: Option<UpdateContext>,
         _dpi_scale_factor: f32,
     ) {
-        let mut text_input = self.inner.borrow_mut();
-        if !text_input.focused || key_pressed.is_none() {
-            return;
-        }
-
-        match key_pressed.as_ref().unwrap() {
-            Key::Character(c) => text_input.text_object.append_content(c),
-            Key::Named(NamedKey::Shift) => text_input.text_object.append_content("\n"),
-            Key::Named(NamedKey::Backspace) => {
-                text_input.text_object.pop_content();
+        let mut inner = self.inner.borrow_mut();
+        if let Some(mouse) = mouse_info {
+            if mouse.is_lmb_clicked && inner.dimensions.contains(mouse.mouse_pos) {
+                inner.set_focus(true);
             }
-            Key::Named(NamedKey::Space) => text_input.text_object.append_content(" "),
-            _ => (),
         }
-
-        // update cursor
-        let pos = text_input.dimensions.pos();
-        text_input.cursor_object.set_pos(pos);
+        inner.update(key_pressed.as_ref());
     }
 
     fn texture_key(&self) -> Uuid {
-        self.inner.borrow().button_object.texture_key() // maybe should error or smth
+        self.inner.borrow().button.texture_key()
     }
 
     fn dimensions(&self) -> Rectangle {

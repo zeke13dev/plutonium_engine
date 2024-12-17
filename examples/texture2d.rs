@@ -119,7 +119,6 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
                     if let Some(player) = &self.player {
                         player.render(engine);
                     }
-                    //engine.queue_texture("player", Some(self.player_position));
                     engine.render().unwrap();
                 }
             }

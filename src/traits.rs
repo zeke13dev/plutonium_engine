@@ -15,6 +15,7 @@ pub struct UpdateContext<'a> {
 pub trait PlutoObject {
     // getters
     fn texture_key(&self) -> Uuid;
+    fn get_id(&self) -> Uuid;
     fn dimensions(&self) -> Rectangle;
     fn pos(&self) -> Position;
 
@@ -24,11 +25,11 @@ pub trait PlutoObject {
 
     fn update(
         &mut self,
-        mouse_pos: Option<MouseInfo>,
-        key_pressed: &Option<Key>,
-        texture_map: &mut HashMap<Uuid, TextureSVG>,
-        update_context: Option<UpdateContext>,
-        dpi_scale_factor: f32,
+        _mouse_pos: Option<MouseInfo>,
+        _key_pressed: &Option<Key>,
+        _texture_map: &mut HashMap<Uuid, TextureSVG>,
+        _update_context: Option<UpdateContext>,
+        _dpi_scale_factor: f32,
     ) {
         // do i need to do anything default?
         // engine.update_texture(self.texture_key());
@@ -36,6 +37,10 @@ pub trait PlutoObject {
 
     fn render(&self, engine: &mut PlutoniumEngine) {
         engine.queue_texture(&self.texture_key(), Some(self.pos()));
+    }
+
+    fn delete(&self, engine: &mut PlutoniumEngine) {
+        engine.remove_object(self.get_id());
     }
 }
 

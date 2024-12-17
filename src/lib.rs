@@ -19,14 +19,14 @@ use crate::traits::UpdateContext;
 // use button::Button;
 use camera::Camera;
 use pluto_objects::{
-    button::Button, text2d::Text2D, text_input::TextInput, texture_2d::Texture2D,
-    texture_atlas_2d::TextureAtlas2D,
+    button::{Button, ButtonInternal},
+    text2d::{Text2D, Text2DInternal},
+    text_input::TextInput,
+    texture_2d::{Texture2D, Texture2DInternal},
+    texture_atlas_2d::{TextureAtlas2D, TextureAtlas2DInternal},
 };
 use pollster::block_on;
 use std::cell::RefCell;
-use std::collections::hash_map::DefaultHasher;
-use std::error::Error;
-use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 use std::{borrow::Cow, collections::HashMap};
 use texture_svg::*;
@@ -56,7 +56,7 @@ pub struct PlutoniumEngine<'a> {
     texture_bind_group_layout: wgpu::BindGroupLayout,
     transform_bind_group_layout: wgpu::BindGroupLayout,
     texture_map: HashMap<Uuid, TextureSVG>,
-    object_map: HashMap<String, Rc<RefCell<dyn PlutoObject>>>,
+    pluto_objects: HashMap<Uuid, Rc<RefCell<dyn PlutoObject>>>,
     render_queue: Vec<RenderItem>,
     viewport_size: Size,
     camera: Camera,
@@ -104,7 +104,7 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     pub fn update(&mut self, mouse_info: Option<MouseInfo>, key: &Option<Key>) {
-        for (_, obj) in self.object_map.iter_mut() {
+        for obj in self.pluto_objects.values_mut() {
             obj.borrow_mut().update(
                 mouse_info,
                 key,
@@ -118,7 +118,6 @@ impl<'a> PlutoniumEngine<'a> {
                 self.dpi_scale_factor,
             );
         }
-
         let (camera_position, tether_size) = if let Some(tether_target) = &self.camera.tether_target
         {
             if let Some(tether) = self.texture_map.get(tether_target) {
@@ -265,14 +264,6 @@ impl<'a> PlutoniumEngine<'a> {
 
     pub fn clear_render_queue(&mut self) {
         self.render_queue.clear();
-    }
-
-    pub fn render_obj(&mut self, texture_key: &str) {
-        if let Some(obj_rc) = self.object_map.get(texture_key) {
-            obj_rc.clone().borrow().render(self);
-        } else {
-            eprintln!("Text texture with key '{}' not found.", texture_key);
-        }
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -494,6 +485,10 @@ impl<'a> PlutoniumEngine<'a> {
         (texture_key, dimensions)
     }
 
+    pub fn remove_object(&mut self, id: Uuid) {
+        self.pluto_objects.remove(&id);
+    }
+
     /* OBJECT CREATION FUNCTIONS */
     pub fn create_texture2d(
         &mut self,
@@ -501,9 +496,21 @@ impl<'a> PlutoniumEngine<'a> {
         position: Position,
         scale_factor: f32,
     ) -> Texture2D {
+        let id = Uuid::new_v4();
+
+        // Create the texture data
         let (texture_key, dimensions) =
             self.create_texture_svg(svg_path, position, scale_factor, None);
-        Texture2D::new(texture_key, dimensions)
+
+        // Create the internal representation
+        let internal = Texture2DInternal::new(id, texture_key, dimensions);
+
+        // Wrap it in Rc<RefCell> and store it in the engine
+        let rc_internal = Rc::new(RefCell::new(internal));
+        self.pluto_objects.insert(id, rc_internal.clone());
+
+        // Return the user-facing wrapper
+        Texture2D::new(rc_internal)
     }
 
     pub fn create_texture_atlas_2d(
@@ -513,9 +520,21 @@ impl<'a> PlutoniumEngine<'a> {
         scale_factor: f32,
         tile_size: Size,
     ) -> TextureAtlas2D {
+        let id = Uuid::new_v4();
+
+        // Create texture data
         let (texture_key, dimensions) =
             self.create_texture_svg(svg_path, position, scale_factor, Some(tile_size));
-        TextureAtlas2D::new(texture_key, dimensions, tile_size)
+
+        // Create the internal representation
+        let internal = TextureAtlas2DInternal::new(id, texture_key, dimensions, tile_size);
+
+        // Wrap it in Rc<RefCell> and store it
+        let rc_internal = Rc::new(RefCell::new(internal));
+        self.pluto_objects.insert(id, rc_internal.clone());
+
+        // Return the wrapper
+        TextureAtlas2D::new(rc_internal)
     }
 
     pub fn create_text2d(
@@ -525,9 +544,19 @@ impl<'a> PlutoniumEngine<'a> {
         position: Position,
         scale_factor: f32,
     ) -> Text2D {
+        let id = Uuid::new_v4();
         let (texture_key, dimensions) =
             self.create_text_texture(text, font_size, scale_factor, position);
-        Text2D::new(texture_key, dimensions, font_size, text)
+
+        // Create the internal representation
+        let internal = Text2DInternal::new(id, texture_key, dimensions, font_size, text);
+
+        // Wrap it in Rc<RefCell> and store it
+        let rc_internal = Rc::new(RefCell::new(internal));
+        self.pluto_objects.insert(id, rc_internal.clone());
+
+        // Return the user-facing wrapper
+        Text2D::new(rc_internal)
     }
 
     pub fn create_button(
@@ -539,16 +568,36 @@ impl<'a> PlutoniumEngine<'a> {
         scale_factor: f32,
         callback: Option<Box<dyn Fn()>>,
     ) -> Button {
+        let id = Uuid::new_v4();
+
+        // Create button texture
         let (button_texture_key, button_dimensions) =
             self.create_texture_svg(svg_path, position, scale_factor, None);
+
+        // Create text object
         let text_position = Position {
             x: button_dimensions.x + (button_dimensions.width * 0.1),
             y: button_dimensions.y + (button_dimensions.height / 2.0),
         };
         let (text_texture_key, text_dimensions) =
             self.create_text_texture(text, font_size, scale_factor, text_position);
-        let text_object = Text2D::new(text_texture_key, text_dimensions, font_size, text);
-        Button::new(button_texture_key, button_dimensions, text_object, callback)
+        let text_object = self.create_text2d(text, font_size, text_position, scale_factor);
+
+        // Create internal representation
+        let internal = ButtonInternal::new(
+            id,
+            button_texture_key,
+            button_dimensions,
+            text_object,
+            callback,
+        );
+
+        // Wrap in Rc<RefCell> and store
+        let rc_internal = Rc::new(RefCell::new(internal));
+        self.pluto_objects.insert(id, rc_internal.clone());
+
+        // Return the wrapper
+        Button::new(rc_internal)
     }
 
     pub fn create_text_input(
@@ -558,20 +607,24 @@ impl<'a> PlutoniumEngine<'a> {
         position: Position,
         scale_factor: f32,
     ) -> TextInput {
-        let cursor_object = self.create_text2d("|", font_size, position, scale_factor);
-        let callback = None;
+        let id = Uuid::new_v4();
 
-        let button_object =
-            self.create_button(svg_path, "", font_size, position, scale_factor, callback);
+        // Create button
+        let button = self.create_button(svg_path, "", font_size, position, scale_factor, None);
 
-        let dimensions = button_object.dimensions();
-        let text_pos = Position {
-            x: dimensions.x + (dimensions.width * 0.1),
-            y: dimensions.y + (dimensions.height / 2.0),
+        // Create text object
+        let text_position = Position {
+            x: button.get_dimensions().x + (button.get_dimensions().width * 0.1),
+            y: button.get_dimensions().y + (button.get_dimensions().height / 2.0),
         };
+        let text = self.create_text2d("", font_size, text_position, scale_factor);
 
-        let text_object = self.create_text2d("", font_size, text_pos, scale_factor);
-        TextInput::new(button_object, text_object, dimensions, cursor_object)
+        // Create cursor
+        let cursor = self.create_text2d("|", font_size, position, scale_factor);
+
+        // Return TextInput
+        let dimensions = button.get_dimensions();
+        TextInput::new(id, button, text, cursor, dimensions)
     }
 
     pub fn new(
@@ -721,7 +774,7 @@ impl<'a> PlutoniumEngine<'a> {
         });
 
         let texture_map: HashMap<Uuid, TextureSVG> = HashMap::new();
-        let object_map: HashMap<String, Rc<RefCell<dyn PlutoObject>>> = HashMap::new();
+        let pluto_objects = HashMap::new();
         let viewport_size = Size {
             width: config.width as f32,
             height: config.height as f32,
@@ -740,7 +793,7 @@ impl<'a> PlutoniumEngine<'a> {
             texture_bind_group_layout,
             transform_bind_group_layout,
             texture_map,
-            object_map,
+            pluto_objects,
             render_queue,
             viewport_size,
             camera,
