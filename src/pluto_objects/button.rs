@@ -1,8 +1,10 @@
 use crate::pluto_objects::text2d::Text2D;
-use crate::traits::PlutoObject;
+use crate::texture_svg::TextureSVG;
+use crate::traits::{PlutoObject, UpdateContext};
 use crate::utils::{MouseInfo, Position, Rectangle};
 use crate::PlutoniumEngine;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 use uuid::Uuid;
 use winit::keyboard::Key;
@@ -86,6 +88,17 @@ impl PlutoObject for ButtonInternal {
 
     fn set_pos(&mut self, new_position: Position) {
         self.dimensions.set_pos(new_position);
+    }
+
+    fn update(
+        &mut self,
+        mouse_info: Option<MouseInfo>,
+        key_pressed: &Option<Key>,
+        _texture_map: &mut HashMap<Uuid, TextureSVG>,
+        _update_context: Option<UpdateContext>,
+        _dpi_scale_factor: f32,
+    ) {
+            self.update(mouse_info, key_pressed);
     }
 }
 

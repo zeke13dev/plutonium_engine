@@ -1,12 +1,13 @@
 use crate::texture_svg::TextureSVG;
 use crate::traits::PlutoObject;
 use crate::traits::UpdateContext;
-use crate::utils::{Position, Rectangle};
+use crate::utils::{MouseInfo, Position, Rectangle};
 use crate::PlutoniumEngine;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use uuid::Uuid;
+use winit::keyboard::Key;
 
 // Internal Representation
 pub struct Text2DInternal {
@@ -108,6 +109,19 @@ impl PlutoObject for Text2DInternal {
     fn set_pos(&mut self, new_position: Position) {
         self.dimensions.set_pos(new_position);
     }
+
+    fn update(
+        &mut self,
+        _mouse_info: Option<MouseInfo>,
+        _key_pressed: &Option<Key>,
+        texture_map: &mut HashMap<Uuid, TextureSVG>,
+        update_context: Option<UpdateContext>,
+        dpi_scale_factor: f32,
+    ) {
+        if let Some(context) = update_context {
+            self.update(texture_map, &context, dpi_scale_factor);
+        }
+    }
 }
 
 // Wrapper Representation
@@ -122,6 +136,10 @@ impl Text2D {
 
     pub fn set_font_size(&self, font_size: f32) {
         self.internal.borrow_mut().set_font_size(font_size);
+    }
+
+    pub fn get_content(&self) -> String {
+        self.internal.borrow().content.clone()
     }
 
     pub fn set_content(&self, content: &str) {

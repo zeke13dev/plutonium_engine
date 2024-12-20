@@ -25,7 +25,7 @@ pub trait PlutoObject {
 
     fn update(
         &mut self,
-        _mouse_pos: Option<MouseInfo>,
+        _mouse_info: Option<MouseInfo>,
         _key_pressed: &Option<Key>,
         _texture_map: &mut HashMap<Uuid, TextureSVG>,
         _update_context: Option<UpdateContext>,

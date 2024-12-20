@@ -16,7 +16,6 @@ pub struct TextInputInternal {
     text: Text2D,   // Owned directly
     cursor: Text2D, // Owned directly
     dimensions: Rectangle,
-    _padding: f32, // Placeholder
     focused: bool,
 }
 
@@ -34,7 +33,6 @@ impl TextInputInternal {
             text,
             cursor,
             dimensions,
-            _padding: 0.0,
             focused: false,
         }
     }
@@ -56,116 +54,106 @@ impl TextInputInternal {
         self.cursor.set_font_size(font_size);
     }
 
-    pub fn render(&self, engine: &mut PlutoniumEngine) {
-        self.button.render(engine);
-        self.text.render(engine);
-        self.cursor.render(engine);
-    }
-
     pub fn update(&mut self, key_pressed: Option<&Key>) {
         if !self.focused || key_pressed.is_none() {
             return;
         }
-
         match key_pressed.unwrap() {
             Key::Character(c) => self.text.append_content(c),
             Key::Named(NamedKey::Backspace) => self.text.pop_content(),
             Key::Named(NamedKey::Space) => self.text.append_content(" "),
-            Key::Named(NamedKey::Shift) => self.text.append_content("\n"),
             _ => (),
         }
     }
 }
 
-pub struct TextInput {
-    inner: Rc<RefCell<TextInputInternal>>,
-}
-
-impl TextInput {
-    pub fn new(
-        id: Uuid,
-        mut button: Button, // Button mutably required for setting callback
-        text: Text2D,
-        cursor: Text2D,
-        dimensions: Rectangle,
-    ) -> Self {
-        let inner = Rc::new(RefCell::new(TextInputInternal::new(
-            id, button, text, cursor, dimensions,
-        )));
-
-        // Clone the Rc, not the RefCell
-        let inner_clone = Rc::clone(&inner);
-        inner
-            .borrow_mut()
-            .button
-            .set_callback(Some(Box::new(move || {
-                inner_clone.borrow_mut().set_focus(true);
-                println!("TextInput: Focused");
-            })));
-
-        Self { inner }
-    }
-
-    pub fn set_content(&self, content: &str) {
-        self.inner.borrow_mut().set_content(content);
-    }
-
-    pub fn clear(&self) {
-        self.inner.borrow_mut().clear();
-    }
-
-    pub fn set_font_size(&self, font_size: f32) {
-        self.inner.borrow_mut().set_font_size(font_size);
-    }
-
-    pub fn set_focus(&self, focus: bool) {
-        self.inner.borrow_mut().set_focus(focus);
-    }
-}
-
-impl PlutoObject for TextInput {
+impl PlutoObject for TextInputInternal {
     fn get_id(&self) -> Uuid {
-        self.inner.borrow().id
+        self.id
     }
 
     fn render(&self, engine: &mut PlutoniumEngine) {
-        self.inner.borrow().render(engine);
+        self.button.render(engine);
+        self.text.render(engine);
+        self.cursor.render(engine);
     }
 
     fn update(
         &mut self,
         mouse_info: Option<MouseInfo>,
         key_pressed: &Option<Key>,
-        _texture_map: &mut HashMap<Uuid, TextureSVG>,
-        _update_context: Option<UpdateContext>,
+        _texture_map: &mut HashMap<Uuid, crate::texture_svg::TextureSVG>,
+        _update_context: Option<crate::traits::UpdateContext>,
         _dpi_scale_factor: f32,
     ) {
-        let mut inner = self.inner.borrow_mut();
         if let Some(mouse) = mouse_info {
-            if mouse.is_lmb_clicked && inner.dimensions.contains(mouse.mouse_pos) {
-                inner.set_focus(true);
+            if mouse.is_lmb_clicked && self.dimensions.contains(mouse.mouse_pos) {
+                self.set_focus(true);
             }
         }
-        inner.update(key_pressed.as_ref());
+        self.update(key_pressed.as_ref());
     }
-
     fn texture_key(&self) -> Uuid {
-        self.inner.borrow().button.texture_key()
+        self.button.texture_key()
     }
 
     fn dimensions(&self) -> Rectangle {
-        self.inner.borrow().dimensions
+        self.dimensions
     }
 
     fn pos(&self) -> Position {
-        self.inner.borrow().dimensions.pos()
+        self.dimensions.pos()
     }
 
     fn set_dimensions(&mut self, new_dimensions: Rectangle) {
-        self.inner.borrow_mut().dimensions = new_dimensions;
+        self.dimensions = new_dimensions;
     }
 
     fn set_pos(&mut self, new_position: Position) {
-        self.inner.borrow_mut().dimensions.set_pos(new_position);
+        self.dimensions.set_pos(new_position);
+    }
+}
+
+pub struct TextInput {
+    internal: Rc<RefCell<TextInputInternal>>,
+}
+
+impl TextInput {
+    pub fn new(internal: Rc<RefCell<TextInputInternal>>) -> Self {
+        // Set the focus callback on the button
+        let internal_clone = Rc::clone(&internal);
+        internal
+            .borrow_mut()
+            .button
+            .set_callback(Some(Box::new(move || {
+                internal_clone.borrow_mut().set_focus(true);
+                println!("TextInput: Focused");
+            })));
+
+        Self { internal }
+    }
+
+    pub fn set_content(&self, content: &str) {
+        self.internal.borrow_mut().set_content(content);
+    }
+
+    pub fn clear(&self) {
+        self.internal.borrow_mut().clear();
+    }
+
+    pub fn set_font_size(&self, font_size: f32) {
+        self.internal.borrow_mut().set_font_size(font_size);
+    }
+
+    pub fn set_focus(&self, focus: bool) {
+        self.internal.borrow_mut().set_focus(focus);
+    }
+
+    pub fn internal(&self) -> Rc<RefCell<TextInputInternal>> {
+        Rc::clone(&self.internal)
+    }
+
+    pub fn render(&self, engine: &mut PlutoniumEngine) {
+        self.internal.borrow().render(engine);
     }
 }

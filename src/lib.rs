@@ -1,5 +1,4 @@
 extern crate image;
-// pub mod button;
 pub mod camera;
 pub mod pluto_objects {
     pub mod button;
@@ -8,20 +7,17 @@ pub mod pluto_objects {
     pub mod texture_2d;
     pub mod texture_atlas_2d;
 }
-// pub mod text_input;
 pub mod texture_atlas;
 pub mod texture_svg;
 pub mod traits;
 pub mod utils;
 
-// use crate::text_input::TextInput;
 use crate::traits::UpdateContext;
-// use button::Button;
 use camera::Camera;
 use pluto_objects::{
     button::{Button, ButtonInternal},
     text2d::{Text2D, Text2DInternal},
-    text_input::TextInput,
+    text_input::{TextInput, TextInputInternal},
     texture_2d::{Texture2D, Texture2DInternal},
     texture_atlas_2d::{TextureAtlas2D, TextureAtlas2DInternal},
 };
@@ -57,6 +53,7 @@ pub struct PlutoniumEngine<'a> {
     transform_bind_group_layout: wgpu::BindGroupLayout,
     texture_map: HashMap<Uuid, TextureSVG>,
     pluto_objects: HashMap<Uuid, Rc<RefCell<dyn PlutoObject>>>,
+    update_queue: Vec<Uuid>,
     render_queue: Vec<RenderItem>,
     viewport_size: Size,
     camera: Camera,
@@ -104,19 +101,22 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     pub fn update(&mut self, mouse_info: Option<MouseInfo>, key: &Option<Key>) {
-        for obj in self.pluto_objects.values_mut() {
-            obj.borrow_mut().update(
-                mouse_info,
-                key,
-                &mut self.texture_map,
-                Some(UpdateContext {
-                    device: &self.device,
-                    queue: &self.queue,
-                    viewport_size: &self.viewport_size,
-                    camera_position: &self.camera.get_pos(),
-                }),
-                self.dpi_scale_factor,
-            );
+        // text doesn't seem to be getting updated
+        for id in &self.update_queue {
+            if let Some(obj) = self.pluto_objects.get(id) {
+                obj.borrow_mut().update(
+                    mouse_info,
+                    key,
+                    &mut self.texture_map,
+                    Some(UpdateContext {
+                        device: &self.device,
+                        queue: &self.queue,
+                        viewport_size: &self.viewport_size,
+                        camera_position: &self.camera.get_pos(),
+                    }),
+                    self.dpi_scale_factor,
+                );
+            }
         }
         let (camera_position, tether_size) = if let Some(tether_target) = &self.camera.tether_target
         {
@@ -508,7 +508,7 @@ impl<'a> PlutoniumEngine<'a> {
         // Wrap it in Rc<RefCell> and store it in the engine
         let rc_internal = Rc::new(RefCell::new(internal));
         self.pluto_objects.insert(id, rc_internal.clone());
-
+        self.update_queue.push(id);
         // Return the user-facing wrapper
         Texture2D::new(rc_internal)
     }
@@ -532,6 +532,7 @@ impl<'a> PlutoniumEngine<'a> {
         // Wrap it in Rc<RefCell> and store it
         let rc_internal = Rc::new(RefCell::new(internal));
         self.pluto_objects.insert(id, rc_internal.clone());
+        self.update_queue.push(id);
 
         // Return the wrapper
         TextureAtlas2D::new(rc_internal)
@@ -554,6 +555,7 @@ impl<'a> PlutoniumEngine<'a> {
         // Wrap it in Rc<RefCell> and store it
         let rc_internal = Rc::new(RefCell::new(internal));
         self.pluto_objects.insert(id, rc_internal.clone());
+        self.update_queue.push(id);
 
         // Return the user-facing wrapper
         Text2D::new(rc_internal)
@@ -579,10 +581,10 @@ impl<'a> PlutoniumEngine<'a> {
             x: button_dimensions.x + (button_dimensions.width * 0.1),
             y: button_dimensions.y + (button_dimensions.height / 2.0),
         };
-        let (text_texture_key, text_dimensions) =
+        let (_text_texture_key, _text_dimensions) =
             self.create_text_texture(text, font_size, scale_factor, text_position);
         let text_object = self.create_text2d(text, font_size, text_position, scale_factor);
-
+        text_object.set_pos(Position { x: 0.0, y: 0.0 });
         // Create internal representation
         let internal = ButtonInternal::new(
             id,
@@ -595,6 +597,7 @@ impl<'a> PlutoniumEngine<'a> {
         // Wrap in Rc<RefCell> and store
         let rc_internal = Rc::new(RefCell::new(internal));
         self.pluto_objects.insert(id, rc_internal.clone());
+        self.update_queue.push(id);
 
         // Return the wrapper
         Button::new(rc_internal)
@@ -607,24 +610,32 @@ impl<'a> PlutoniumEngine<'a> {
         position: Position,
         scale_factor: f32,
     ) -> TextInput {
-        let id = Uuid::new_v4();
+        let input_id = Uuid::new_v4();
 
         // Create button
         let button = self.create_button(svg_path, "", font_size, position, scale_factor, None);
 
         // Create text object
         let text_position = Position {
-            x: button.get_dimensions().x + (button.get_dimensions().width * 0.1),
-            y: button.get_dimensions().y + (button.get_dimensions().height / 2.0),
+            x: button.get_dimensions().x + (button.get_dimensions().width * 0.01),
+            y: button.get_dimensions().y + (button.get_dimensions().height * 0.05),
         };
         let text = self.create_text2d("", font_size, text_position, scale_factor);
 
         // Create cursor
         let cursor = self.create_text2d("|", font_size, position, scale_factor);
 
-        // Return TextInput
+        // Create internal representation
         let dimensions = button.get_dimensions();
-        TextInput::new(id, button, text, cursor, dimensions)
+        let internal = TextInputInternal::new(input_id, button, text, cursor, dimensions);
+
+        // Wrap in Rc<RefCell> and store
+        let rc_internal = Rc::new(RefCell::new(internal));
+        self.pluto_objects.insert(input_id, rc_internal.clone());
+        self.update_queue.push(input_id);
+
+        // Return the wrapper
+        TextInput::new(rc_internal)
     }
 
     pub fn new(
@@ -780,6 +791,7 @@ impl<'a> PlutoniumEngine<'a> {
             height: config.height as f32,
         };
         let render_queue = Vec::new();
+        let update_queue = Vec::new();
         let camera = Camera::new(Position { x: 0.0, y: 0.0 });
 
         Self {
@@ -795,6 +807,7 @@ impl<'a> PlutoniumEngine<'a> {
             texture_map,
             pluto_objects,
             render_queue,
+            update_queue,
             viewport_size,
             camera,
         }
