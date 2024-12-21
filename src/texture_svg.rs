@@ -24,12 +24,6 @@ pub struct TextureSVG {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
-    uv_uniform_buffer: wgpu::Buffer,
-    uv_bind_groups: Vec<wgpu::BindGroup>,
-    uv_bind_group: wgpu::BindGroup,
-    texture_atlas: Option<TextureAtlas>,
-    tile_size: Option<Size>,
-    atlas_size: Option<Size>,
 }
 
 impl TextureSVG {
@@ -43,7 +37,7 @@ impl TextureSVG {
         camera_position: Position,
     ) {
         self.dimensions.set_pos(position);
-        self.update_transform_uniform(device, queue, viewport_size, camera_position);
+        self.update_transform_uniform(queue, viewport_size, camera_position);
     }
 
     pub fn from_text(
@@ -255,12 +249,6 @@ impl TextureSVG {
             vertex_buffer,
             index_buffer,
             num_indices: 6,
-            uv_uniform_buffer,
-            uv_bind_groups: vec![],
-            uv_bind_group,
-            tile_size: None,
-            atlas_size: None,
-            texture_atlas: None,
         })
     }
 
@@ -369,7 +357,7 @@ impl TextureSVG {
 
         // Optionally, update UV coordinates or other related data here
         // For example, if the actual rendered size is different, adjust accordingly
-        self.update_transform_uniform(device, queue, viewport_size, camera_position);
+        self.update_transform_uniform(queue, viewport_size, camera_position);
 
         Ok(())
     }
@@ -384,16 +372,8 @@ impl TextureSVG {
         transform_bind_group_layout: &wgpu::BindGroupLayout,
         screen_pos: Position,
         scale_factor: f32,
-        tile_size: Option<Size>,
     ) -> Option<Self> {
         let (texture, pixel_size) = Self::svg_to_texture(file_path, device, queue, scale_factor)?;
-        let atlas_size = Some(pixel_size);
-        let texture_atlas = match (tile_size, atlas_size) {
-            (Some(tile_size), Some(atlas_size)) => {
-                Some(TextureAtlas::new(device, tile_size, atlas_size))
-            }
-            _ => None,
-        };
 
         let view: wgpu::TextureView = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -418,99 +398,6 @@ impl TextureSVG {
             transform_bind_group_layout,
         );
 
-        let uv_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(
-                            std::mem::size_of::<UVTransform>() as u64
-                        ),
-                    },
-                    count: None,
-                }],
-                label: Some("UV Bind Group Layout"),
-            });
-
-        let num_tiles = match tile_size {
-            Some(size) => {
-                (pixel_size.width as usize / size.width as usize)
-                    * (pixel_size.height as usize / size.height as usize)
-            }
-            None => 1,
-        };
-
-        let alignment = 256;
-        let element_size = std::mem::size_of::<UVTransform>();
-        let aligned_element_size = (element_size + alignment - 1) / alignment * alignment;
-        let buffer_size = num_tiles * aligned_element_size;
-
-        let uv_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("UV Uniform Buffer"),
-            contents: bytemuck::cast_slice(&vec![
-                UVTransform {
-                    uv_offset: [0.0, 0.0],
-                    uv_scale: [1.0, 1.0]
-                };
-                buffer_size / element_size
-            ]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let uv_bind_groups = match tile_size {
-            Some(_) => (0..num_tiles)
-                .filter_map(|i| {
-                    let offset = (i * aligned_element_size) as u64;
-                    if offset + aligned_element_size as u64 > buffer_size as u64 {
-                        None
-                    } else {
-                        if let Some(tile_rect) =
-                            TextureSVG::tile_uv_coordinates(i, tile_size, atlas_size)
-                        {
-                            let uv_transform = UVTransform {
-                                uv_offset: [tile_rect.x, tile_rect.y],
-                                uv_scale: [tile_rect.width, tile_rect.height],
-                            };
-                            queue.write_buffer(
-                                &uv_uniform_buffer,
-                                offset as u64,
-                                bytemuck::bytes_of(&uv_transform),
-                            );
-                        }
-
-                        Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
-                            layout: &uv_bind_group_layout,
-                            entries: &[wgpu::BindGroupEntry {
-                                binding: 0,
-                                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                                    buffer: &uv_uniform_buffer,
-                                    offset,
-                                    size: NonZeroU64::new(aligned_element_size as u64),
-                                }),
-                            }],
-                            label: Some("UV Bind Group"),
-                        }))
-                    }
-                })
-                .collect(),
-            None => vec![],
-        };
-
-        let default_uv_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &uv_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                    buffer: &uv_uniform_buffer,
-                    offset: 0,
-                    size: NonZeroU64::new(std::mem::size_of::<UVTransform>() as u64),
-                }),
-            }],
-            label: Some("Default UV Bind Group"),
-        });
         let dimensions = Rectangle::new(
             screen_pos.x,
             screen_pos.y,
@@ -532,12 +419,6 @@ impl TextureSVG {
             vertex_buffer,
             index_buffer,
             num_indices: 6,
-            uv_uniform_buffer,
-            uv_bind_groups,
-            uv_bind_group: default_uv_bind_group,
-            tile_size,
-            atlas_size,
-            texture_atlas,
         })
     }
 
@@ -669,6 +550,35 @@ impl TextureSVG {
         self.vertex_buffer = new_vertex_buffer;
     }
 
+    pub fn update_transform_uniform(
+        &mut self,
+        queue: &wgpu::Queue,
+        viewport_size: Size,
+        camera_position: Position,
+    ) {
+        // Calculate NDC scaling factors
+        let width_ndc = self.dimensions.width / viewport_size.width;
+        let height_ndc = self.dimensions.height / viewport_size.height;
+
+        // Convert world position to NDC
+        let ndc_x = (2.0 * (self.dimensions.x - camera_position.x)) / viewport_size.width - 1.0;
+        let ndc_y = 1.0 - (2.0 * (self.dimensions.y - camera_position.y)) / viewport_size.height;
+
+        // Update the transform matrix
+        self.transform_uniform.transform = [
+            [1.0, 0.0, 0.0, ndc_x + width_ndc],
+            [0.0, 1.0, 0.0, ndc_y - height_ndc],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ];
+
+        // Send the updated transform to the GPU
+        queue.write_buffer(
+            &self.transform_uniform_buffer,
+            0,
+            bytemuck::cast_slice(&[self.transform_uniform]),
+        );
+    }
     /// Updates the viewport and transform uniform based on the new viewport size.
     pub fn update_viewport(
         &mut self,
@@ -677,71 +587,18 @@ impl TextureSVG {
         viewport_size: Size,
         camera_position: Position,
     ) {
-        self.update_transform_uniform(device, queue, viewport_size, camera_position);
+        self.update_transform_uniform(queue, viewport_size, camera_position);
     }
 
-    pub fn update_transform_uniform(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        viewport_size: Size,
-        camera_position: Position,
-    ) {
-        let viewport_width = viewport_size.width;
-        let viewport_height = viewport_size.height;
-
-        let tile_size = self.tile_size.unwrap_or(self.dimensions.size());
-        self.adjust_vertex_texture_coordinates(tile_size, viewport_size);
-        self.update_vertex_buffer(device);
-
-        // Calculate NDC scaling factors
-        let width_ndc = tile_size.width / viewport_width;
-        let height_ndc = tile_size.height / viewport_height;
-
-        // Calculate NDC position
-        let ndc_x = (2.0 * (self.dimensions.x - camera_position.x)) / viewport_size.width - 1.0;
-        let ndc_y = 1.0 - (2.0 * (self.dimensions.y - camera_position.y)) / viewport_size.height;
-
-        // Construct transformation matrix in column-major order
-        let transform = [
-            [1.0, 0.0, 0.0, ndc_x + width_ndc],
-            [0.0, 1.0, 0.0, ndc_y - height_ndc],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0],
-        ];
-
-        self.transform_uniform.transform = transform;
-        queue.write_buffer(
-            &self.transform_uniform_buffer,
-            0,
-            bytemuck::cast_slice(&[self.transform_uniform]),
-        );
-    }
-
-    pub fn render_hidden<'a>(
+    pub fn render<'a>(
         &'a self,
         rpass: &mut wgpu::RenderPass<'a>,
         render_pipeline: &'a wgpu::RenderPipeline,
-        tile_index: Option<usize>,
-        tile_bind_group: Option<&'a wgpu::BindGroup>,
     ) {
         rpass.set_pipeline(render_pipeline);
         rpass.set_bind_group(0, &self.bind_group, &[]);
-        match tile_bind_group {
-            Some(tile_bind_group) => rpass.set_bind_group(1, tile_bind_group, &[]),
-            None => rpass.set_bind_group(1, &self.transform_bind_group, &[]),
-        }
-
-        let uv_bind_group = if let Some(index) = tile_index {
-            self.uv_bind_groups
-                .get(index)
-                .unwrap_or(&self.uv_bind_group)
-        } else {
-            &self.uv_bind_group
-        };
-
-        rpass.set_bind_group(2, uv_bind_group, &[]);
-        rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..)); // Add this line
+        rpass.set_bind_group(1, &self.transform_bind_group, &[]);
+        rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         rpass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
         rpass.draw_indexed(0..self.num_indices, 0, 0..1);
     }
@@ -753,31 +610,19 @@ impl TextureSVG {
         pos: Position,
         camera_position: Position,
     ) -> TransformUniform {
-        let tile_width = self
-            .tile_size
-            .map(|size| size.width)
-            .unwrap_or(self.dimensions.width);
-        let tile_height = self
-            .tile_size
-            .map(|size| size.height)
-            .unwrap_or(self.dimensions.height);
-
-        let width_ndc = tile_width / viewport_size.width;
-        let height_ndc = tile_height / viewport_size.height;
+        let width_ndc = self.dimensions.width / viewport_size.width;
+        let height_ndc = self.dimensions.height / viewport_size.height;
 
         // Calculate NDC position
         let ndc_dx = (2.0 * (pos.x - camera_position.x)) / viewport_size.width - 1.0;
         let ndc_dy = 1.0 - (2.0 * (pos.y - camera_position.y)) / viewport_size.height;
-
-        let ndc_x = ndc_dx + width_ndc;
-        let ndc_y = ndc_dy - height_ndc;
 
         TransformUniform {
             transform: [
                 [1.0, 0.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0, 0.0],
                 [0.0, 0.0, 1.0, 0.0],
-                [ndc_x, ndc_y, 0.0, 1.0],
+                [ndc_dx + width_ndc, ndc_dy - height_ndc, 0.0, 1.0],
             ],
         }
     }
@@ -812,36 +657,6 @@ impl TextureSVG {
                 tex_coords: tex_coords[3],
             },
         ];
-    }
-
-    /// Calculates and returns the UV coordinates of a tile by index.
-    fn tile_uv_coordinates(
-        tile_index: usize,
-        tile_size: Option<Size>,
-        atlas_size: Option<Size>,
-    ) -> Option<Rectangle> {
-        if let (Some(tile_size), Some(atlas_size)) = (tile_size, atlas_size) {
-            if atlas_size.width == 0.0
-                || atlas_size.height == 0.0
-                || tile_size.width == 0.0
-                || tile_size.height == 0.0
-            {
-                return None;
-            }
-
-            let tiles_per_row = (atlas_size.width / (tile_size.width)) as usize;
-            let row = tile_index / tiles_per_row;
-            let col = tile_index % tiles_per_row;
-
-            let uv_x = (col as f32 * tile_size.width) / atlas_size.width;
-            let uv_y = (row as f32 * tile_size.height) / atlas_size.height;
-            let uv_width = (tile_size.width) / atlas_size.width;
-            let uv_height = (tile_size.height) / atlas_size.height;
-
-            Some(Rectangle::new(uv_x, uv_y, uv_width, uv_height))
-        } else {
-            None
-        }
     }
 
     /// Converts an SVG file to a wgpu texture.
@@ -948,15 +763,6 @@ impl TextureSVG {
     /* higher level functions */
 
     pub fn contains(&self, pos: &Position) -> bool {
-        if let Some(Size { width, height }) = &self.tile_size {
-            return Rectangle {
-                x: self.dimensions.x,
-                y: self.dimensions.y,
-                width: *width,
-                height: *height,
-            }
-            .contains(*pos);
-        }
         self.dimensions.contains(*pos)
     }
 }

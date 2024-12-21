@@ -25,6 +25,7 @@ use pollster::block_on;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::{borrow::Cow, collections::HashMap};
+use texture_atlas::TextureAtlas;
 use texture_svg::*;
 use traits::PlutoObject;
 use utils::*;
@@ -36,8 +37,11 @@ use winit::keyboard::Key;
 enum RenderItem {
     Texture {
         texture_key: Uuid,
+    },
+    AtlasTile {
+        texture_key: Uuid,
         transform_bind_group: wgpu::BindGroup,
-        tile_index: Option<usize>, // None for full texture, Some(tile_index) for a specific tile
+        tile_index: usize,
     },
 }
 
@@ -51,7 +55,9 @@ pub struct PlutoniumEngine<'a> {
     render_pipeline: wgpu::RenderPipeline,
     texture_bind_group_layout: wgpu::BindGroupLayout,
     transform_bind_group_layout: wgpu::BindGroupLayout,
+    uv_bind_group_layout: wgpu::BindGroupLayout,
     texture_map: HashMap<Uuid, TextureSVG>,
+    atlas_map: HashMap<Uuid, TextureAtlas>,
     pluto_objects: HashMap<Uuid, Rc<RefCell<dyn PlutoObject>>>,
     update_queue: Vec<Uuid>,
     render_queue: Vec<RenderItem>,
@@ -136,7 +142,6 @@ impl<'a> PlutoniumEngine<'a> {
         // update actual location of where object buffers are
         for texture in self.texture_map.values_mut() {
             texture.update_transform_uniform(
-                &self.device,
                 &self.queue,
                 self.viewport_size,
                 self.camera.get_pos(),
@@ -178,18 +183,16 @@ impl<'a> PlutoniumEngine<'a> {
 
             self.render_queue.push(RenderItem::Texture {
                 texture_key: *texture_key,
-                transform_bind_group,
-                tile_index: None,
             });
         }
     }
 
     pub fn queue_tile(&mut self, texture_key: &Uuid, tile_index: usize, position: Position) {
         let position = position * self.dpi_scale_factor;
-        if let Some(texture) = self.texture_map.get(&texture_key) {
-            // Generate the transformation matrix based on the position and camera
+        if let Some(atlas) = self.atlas_map.get(&texture_key) {
+            // Use the existing get_transform_uniform method
             let transform_uniform =
-                texture.get_transform_uniform(self.viewport_size, position, self.camera.get_pos());
+                atlas.get_transform_uniform(self.viewport_size, position, self.camera.get_pos());
 
             let transform_uniform_buffer =
                 self.device
@@ -212,10 +215,10 @@ impl<'a> PlutoniumEngine<'a> {
                 label: Some("Transform Bind Group"),
             });
 
-            self.render_queue.push(RenderItem::Texture {
+            self.render_queue.push(RenderItem::AtlasTile {
                 texture_key: *texture_key,
                 transform_bind_group,
-                tile_index: Some(tile_index),
+                tile_index,
             });
         }
     }
@@ -252,11 +255,8 @@ impl<'a> PlutoniumEngine<'a> {
                 label: Some("Transform Bind Group"),
             });
 
-            self.render_queue.push(RenderItem::Texture {
-                texture_key: *key,
-                transform_bind_group,
-                tile_index: None,
-            });
+            self.render_queue
+                .push(RenderItem::Texture { texture_key: *key });
         } else {
             eprintln!("Text texture with key '{}' not found.", key);
         }
@@ -304,18 +304,22 @@ impl<'a> PlutoniumEngine<'a> {
 
             for item in &self.render_queue {
                 match item {
-                    RenderItem::Texture {
+                    RenderItem::Texture { texture_key } => {
+                        if let Some(texture) = self.texture_map.get(texture_key) {
+                            texture.render(&mut rpass, &self.render_pipeline);
+                        }
+                    }
+                    RenderItem::AtlasTile {
                         texture_key,
                         transform_bind_group,
                         tile_index,
                     } => {
-                        // Render the texture, using the precomputed transform
-                        if let Some(texture) = self.texture_map.get(texture_key) {
-                            texture.render_hidden(
+                        if let Some(atlas) = self.atlas_map.get(texture_key) {
+                            atlas.render_tile(
                                 &mut rpass,
                                 &self.render_pipeline,
                                 *tile_index,
-                                Some(transform_bind_group),
+                                transform_bind_group,
                             );
                         }
                     }
@@ -326,137 +330,72 @@ impl<'a> PlutoniumEngine<'a> {
         frame.present();
         Ok(())
     }
-    /*
-        pub fn create_button(
-            &mut self,
-            texture_key: &str,
-            svg_path: &str,
-            font_size: f32,
-            _font: &str,
-            dimensions: Rectangle,
-            padding: f32,
-            content: &str,
-            callback: Option<Box<dyn Fn()>>,
-        ) {
-            let pos = dimensions.pos();
-            let text_texture_key = format!("text_{}", texture_key);
-            self.create_texture_svg(
-                texture_key,
-                svg_path,
-                pos * self.dpi_scale_factor,
-                1.0,
-                None,
-            );
-
-            let button = Button::new(
-                texture_key,
-                dimensions,
-                padding,
-                content,
-                callback,
-                font_size,
-            );
-            self.object_map
-                .insert(texture_key.to_string(), Rc::new(RefCell::new(button)));
-
-            self.create_text_texture(
-                &text_texture_key,
-                "",
-                font_size,
-                Position {
-                    x: dimensions.x + (dimensions.width * 0.1),
-                    y: dimensions.y + (dimensions.height / 2.0),
-                },
-            );
-        }
-
-        pub fn create_text_input(
-            &mut self,
-            texture_key: &str,
-            svg_path: &str,
-            font_size: f32,
-            _font: &str,
-            dimensions: Rectangle,
-            padding: f32,
-        ) {
-            // create cursor if it does not exist
-            if !self.texture_map.contains_key("text_cursor") {
-                self.create_text_texture("text_cursor", "|", font_size, Position { x: 0.0, y: 0.0 });
-            }
-
-            let pos = dimensions.pos() * self.dpi_scale_factor;
-            let text_texture_key = format!("text_{}", texture_key);
-            self.create_texture_svg(texture_key, svg_path, pos, 1.0, None);
-
-            let text_input = TextInput::new(texture_key, 1.0, dimensions, padding, font_size);
-            self.object_map
-                .insert(texture_key.to_string(), Rc::new(RefCell::new(text_input)));
-
-            self.create_text_texture(
-                &text_texture_key,
-                "",
-                font_size,
-                Position {
-                    x: dimensions.x + (dimensions.width * 0.1),
-                    y: dimensions.y + (dimensions.height / 2.0),
-                },
-            );
-        }
-
-
-        pub fn create_texture_svg(
-            &mut self,
-            key: &str,
-            file_path: &str,
-            position: Position,
-            scale_factor: f32,
-            tile_size: Option<Size>,
-        ) {
-            let scale_factor = scale_factor * self.dpi_scale_factor;
-            let svg_texture = TextureSVG::new(
-                key,
-                &self.device,
-                &self.queue,
-                file_path,
-                &self.texture_bind_group_layout,
-                &self.transform_bind_group_layout,
-                position,
-                scale_factor,
-                tile_size.map(|size| size * scale_factor), // Apply scale factor to tile_size
-            );
-
-            if let Some(texture) = svg_texture {
-                self.texture_map.insert(key.to_string(), texture);
-            }
-        }
-
-    */
 
     pub fn create_texture_svg(
         &mut self,
-        file_path: &str,
+        svg_path: &str,
         position: Position,
         scale_factor: f32,
-        tile_size: Option<Size>,
     ) -> (Uuid, Rectangle) {
-        let scale_factor = scale_factor * self.dpi_scale_factor;
         let texture_key = Uuid::new_v4();
-        let svg_texture = TextureSVG::new(
+
+        if let Some(texture) = TextureSVG::new(
             texture_key,
             &self.device,
             &self.queue,
-            file_path,
+            svg_path,
             &self.texture_bind_group_layout,
             &self.transform_bind_group_layout,
             position,
             scale_factor,
-            tile_size.map(|size| size * scale_factor), // Apply scale factor to tile_size
-        );
+        ) {
+            let dimensions = texture.dimensions();
+            self.texture_map.insert(texture_key, texture);
+            (texture_key, dimensions)
+        } else {
+            panic!("Failed to create texture")
+        }
+    }
 
-        let texture = svg_texture.expect("texture should vacously be created properly");
-        let dimensions = texture.dimensions();
-        self.texture_map.insert(texture_key, texture);
-        (texture_key, dimensions)
+    pub fn create_texture_atlas(
+        &mut self,
+        svg_path: &str,
+        position: Position,
+        scale_factor: f32,
+        tile_size: Size,
+    ) -> (Uuid, Rectangle) {
+        // Generate a unique identifier for the new texture atlas
+        let texture_key = Uuid::new_v4();
+
+        // Read the SVG file and convert it to a string for proper SVG processing
+        let svg_data = std::fs::read_to_string(svg_path).expect("Failed to read SVG file");
+
+        // Create the texture atlas with our updated interface
+        if let Some(atlas) = TextureAtlas::new(
+            texture_key,
+            &self.device,
+            &self.queue, // Now required for texture upload
+            &svg_data,   // Now expects string data for SVG parsing
+            tile_size,
+            &self.texture_bind_group_layout,
+            &self.transform_bind_group_layout,
+            &self.uv_bind_group_layout, // New requirement for UV coordinate handling
+            scale_factor,
+        ) {
+            // Create a rectangle representing the atlas dimensions at the specified position
+            let dimensions = Rectangle::new(
+                position.x,
+                position.y,
+                atlas.dimensions().width,
+                atlas.dimensions().height,
+            );
+
+            // Store the atlas and return its identifier and dimensions
+            self.atlas_map.insert(texture_key, atlas);
+            (texture_key, dimensions)
+        } else {
+            panic!("Failed to create texture atlas")
+        }
     }
 
     pub fn create_text_texture(
@@ -499,8 +438,7 @@ impl<'a> PlutoniumEngine<'a> {
         let id = Uuid::new_v4();
 
         // Create the texture data
-        let (texture_key, dimensions) =
-            self.create_texture_svg(svg_path, position, scale_factor, None);
+        let (texture_key, dimensions) = self.create_texture_svg(svg_path, position, scale_factor);
 
         // Create the internal representation
         let internal = Texture2DInternal::new(id, texture_key, dimensions);
@@ -522,19 +460,17 @@ impl<'a> PlutoniumEngine<'a> {
     ) -> TextureAtlas2D {
         let id = Uuid::new_v4();
 
-        // Create texture data
+        // Create texture atlas instead of regular texture
         let (texture_key, dimensions) =
-            self.create_texture_svg(svg_path, position, scale_factor, Some(tile_size));
+            self.create_texture_atlas(svg_path, position, scale_factor, tile_size);
 
         // Create the internal representation
         let internal = TextureAtlas2DInternal::new(id, texture_key, dimensions, tile_size);
-
-        // Wrap it in Rc<RefCell> and store it
         let rc_internal = Rc::new(RefCell::new(internal));
+
         self.pluto_objects.insert(id, rc_internal.clone());
         self.update_queue.push(id);
 
-        // Return the wrapper
         TextureAtlas2D::new(rc_internal)
     }
 
@@ -574,7 +510,7 @@ impl<'a> PlutoniumEngine<'a> {
 
         // Create button texture
         let (button_texture_key, button_dimensions) =
-            self.create_texture_svg(svg_path, position, scale_factor, None);
+            self.create_texture_svg(svg_path, position, scale_factor);
 
         // Create text object
         let text_position = Position {
@@ -785,6 +721,7 @@ impl<'a> PlutoniumEngine<'a> {
         });
 
         let texture_map: HashMap<Uuid, TextureSVG> = HashMap::new();
+        let atlas_map: HashMap<Uuid, TextureAtlas> = HashMap::new();
         let pluto_objects = HashMap::new();
         let viewport_size = Size {
             width: config.width as f32,
@@ -804,7 +741,9 @@ impl<'a> PlutoniumEngine<'a> {
             render_pipeline,
             texture_bind_group_layout,
             transform_bind_group_layout,
+            uv_bind_group_layout,
             texture_map,
+            atlas_map,
             pluto_objects,
             render_queue,
             update_queue,
