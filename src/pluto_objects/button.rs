@@ -98,7 +98,7 @@ impl PlutoObject for ButtonInternal {
         _update_context: Option<UpdateContext>,
         _dpi_scale_factor: f32,
     ) {
-            self.update(mouse_info, key_pressed);
+        self.update(mouse_info, key_pressed);
     }
 }
 

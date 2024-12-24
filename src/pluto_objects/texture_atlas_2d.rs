@@ -103,4 +103,3 @@ impl TextureAtlas2D {
         self.internal.borrow().tile_size
     }
 }
-
