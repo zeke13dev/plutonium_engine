@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use uuid::Uuid;
 use winit::keyboard::Key;
+use crate::text::TextRenderer;
 
 // Internal Representation
 pub struct ButtonInternal {
@@ -97,6 +98,7 @@ impl PlutoObject for ButtonInternal {
         _texture_map: &mut HashMap<Uuid, TextureSVG>,
         _update_context: Option<UpdateContext>,
         _dpi_scale_factor: f32,
+        _text_renderer: &TextRenderer,
     ) {
         self.update(mouse_info, key_pressed);
     }

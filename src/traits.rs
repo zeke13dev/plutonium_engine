@@ -4,7 +4,7 @@ use crate::PlutoniumEngine;
 use std::collections::HashMap;
 use uuid::Uuid;
 use winit::keyboard::Key;
-
+use crate::text::TextRenderer;
 pub struct UpdateContext<'a> {
     pub device: &'a wgpu::Device,
     pub queue: &'a wgpu::Queue,
@@ -30,6 +30,7 @@ pub trait PlutoObject {
         _texture_map: &mut HashMap<Uuid, TextureSVG>,
         _update_context: Option<UpdateContext>,
         _dpi_scale_factor: f32,
+        text_renderer: &TextRenderer,
     ) {
         // do i need to do anything default?
         // engine.update_texture(self.texture_key());

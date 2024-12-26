@@ -1,18 +1,21 @@
-use crate::texture_svg::TextureSVG;
-use crate::traits::PlutoObject;
-use crate::traits::UpdateContext;
-use crate::utils::{MouseInfo, Position, Rectangle};
-use crate::PlutoniumEngine;
+use crate::TextureSVG;
+use rusttype::{point, Font, PositionedGlyph, Scale};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use uuid::Uuid;
 use winit::keyboard::Key;
 
-// Internal Representation
+use crate::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal;
+use crate::traits::{PlutoObject, UpdateContext};
+use crate::utils::{MouseInfo, Position, Rectangle, Size};
+use crate::PlutoniumEngine;
+
+use crate::text::TextRenderer;
+// Text2D Implementation
 pub struct Text2DInternal {
     id: Uuid,
-    texture_key: Uuid,
+    font_key: String,
     dimensions: Rectangle,
     font_size: f32,
     content: String,
@@ -22,14 +25,14 @@ pub struct Text2DInternal {
 impl Text2DInternal {
     pub fn new(
         id: Uuid,
-        texture_key: Uuid,
+        font_key: String,
         dimensions: Rectangle,
         font_size: f32,
         content: &str,
     ) -> Self {
         Self {
             id,
-            texture_key,
+            font_key,
             dimensions,
             font_size,
             content: content.to_string(),
@@ -61,27 +64,12 @@ impl Text2DInternal {
         self.content.pop();
     }
 
-    pub fn update(
-        &mut self,
-        texture_map: &mut HashMap<Uuid, TextureSVG>,
-        update_context: &UpdateContext,
-        dpi_scale_factor: f32,
-    ) {
-        if self.content_changed {
-            texture_map
-                .get_mut(&self.texture_key)
-                .expect("Texture key should always refer to texture SVG")
-                .update_text(
-                    update_context.device,
-                    update_context.queue,
-                    &self.content,
-                    self.font_size * dpi_scale_factor,
-                    *update_context.viewport_size,
-                    *update_context.camera_position,
-                )
-                .unwrap();
-            self.content_changed = false;
-        }
+    pub fn get_text(&self) -> &str {
+        &self.content
+    }
+
+    pub fn get_font(&self) -> &str {
+        &self.font_key
     }
 }
 
@@ -91,7 +79,7 @@ impl PlutoObject for Text2DInternal {
     }
 
     fn texture_key(&self) -> Uuid {
-        self.texture_key
+        self.id
     }
 
     fn dimensions(&self) -> Rectangle {
@@ -114,17 +102,26 @@ impl PlutoObject for Text2DInternal {
         &mut self,
         _mouse_info: Option<MouseInfo>,
         _key_pressed: &Option<Key>,
-        texture_map: &mut HashMap<Uuid, TextureSVG>,
+        _texture_map: &mut HashMap<Uuid, TextureSVG>,
         update_context: Option<UpdateContext>,
         dpi_scale_factor: f32,
+        text_renderer: &TextRenderer, // Add this parameter
     ) {
-        if let Some(context) = update_context {
-            self.update(texture_map, &context, dpi_scale_factor);
+        if self.content_changed {
+            if let Some(context) = update_context {
+                let width = text_renderer // Use the parameter directly
+                    .measure_text(&self.content, &self.font_key);
+                self.dimensions.width = width;
+                self.dimensions.height = self.font_size;
+                self.content_changed = false;
+            }
         }
+    }
+    fn render(&self, engine: &mut PlutoniumEngine) {
+        engine.queue_text(&self.content, &self.font_key, self.dimensions.pos());
     }
 }
 
-// Wrapper Representation
 pub struct Text2D {
     internal: Rc<RefCell<Text2DInternal>>,
 }
@@ -172,17 +169,6 @@ impl Text2D {
 
     pub fn set_dimensions(&self, dimensions: Rectangle) {
         self.internal.borrow_mut().set_dimensions(dimensions);
-    }
-
-    pub fn update(
-        &self,
-        texture_map: &mut HashMap<Uuid, TextureSVG>,
-        update_context: UpdateContext,
-        dpi_scale_factor: f32,
-    ) {
-        self.internal
-            .borrow_mut()
-            .update(texture_map, &update_context, dpi_scale_factor);
     }
 
     pub fn render(&self, engine: &mut PlutoniumEngine) {

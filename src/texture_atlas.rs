@@ -1,3 +1,4 @@
+use crate::text::CharacterInfo;
 use crate::traits::UpdateContext;
 use crate::{traits::PlutoObject, utils::*, PlutoniumEngine};
 use resvg::usvg::{Options, Tree};
@@ -7,7 +8,6 @@ use tiny_skia::{Color, Pixmap};
 use uuid::Uuid;
 use wgpu::util::DeviceExt;
 use winit::keyboard::Key;
-
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct TextureAtlas {
@@ -41,6 +41,194 @@ impl TextureAtlas {
     ) {
         self.dimensions.set_pos(position);
         self.update_transform_uniform(device, queue, viewport_size, camera_position);
+    }
+
+    fn calculate_required_tiles(char_positions: &HashMap<char, CharacterInfo>) -> usize {
+        let mut max_index = 0;
+        for (_, info) in char_positions {
+            max_index = max_index.max(info.tile_index);
+        }
+        max_index + 1 // Add 1 because indices are 0-based
+    }
+
+    pub fn new_from_texture(
+        texture_key: Uuid,
+        texture: wgpu::Texture,
+        texture_bind_group: wgpu::BindGroup,
+        position: Position,
+        size: Size,
+        tile_size: Size,
+        device: &wgpu::Device,
+        transform_bind_group_layout: &wgpu::BindGroupLayout,
+        char_positions: &HashMap<char, CharacterInfo>,
+    ) -> Option<Self> {
+        // Create texture view
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        // Create transformation matrix
+        let transform_uniform = TransformUniform {
+            transform: [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+        };
+
+        // Initialize vertices and buffers
+        let (vertices, vertex_buffer, index_buffer) = Self::initialize_buffers(device);
+
+        // Create transform buffer and bind group
+        let transform_uniform_buffer =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Transform Uniform Buffer"),
+                contents: bytemuck::cast_slice(&[transform_uniform]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+
+        let transform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: transform_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: transform_uniform_buffer.as_entire_binding(),
+            }],
+            label: Some("Transform Bind Group"),
+        });
+
+        // Create UV bind groups
+        let uv_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(
+                            std::mem::size_of::<UVTransform>() as u64
+                        ),
+                    },
+                    count: None,
+                }],
+                label: Some("UV Bind Group Layout"),
+            });
+
+        let num_tiles = (size.width as usize / tile_size.width as usize)
+            * (size.height as usize / tile_size.height as usize);
+
+        let alignment = 256;
+        let element_size = std::mem::size_of::<UVTransform>();
+        let aligned_element_size = (element_size + alignment - 1) / alignment * alignment;
+        let buffer_size = num_tiles * aligned_element_size;
+
+        let uv_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("UV Uniform Buffer"),
+            contents: bytemuck::cast_slice(&vec![
+                UVTransform {
+                    uv_offset: [0.0, 0.0],
+                    uv_scale: [1.0, 1.0],
+                };
+                buffer_size / element_size
+            ]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        // Create UV bind groups for all tiles
+        let dimensions = Rectangle::new(position.x, position.y, size.width, size.height);
+        // Keep the actual atlas grid layout for reference
+        // Get the grid layout for reference
+        let grid_tiles_per_row = (size.width / tile_size.width).floor() as usize;
+        let grid_tiles_per_column = (size.height / tile_size.height).floor() as usize;
+
+        let num_tiles = Self::calculate_required_tiles(char_positions);
+        println!("Creating {} UV bind groups for all characters", num_tiles);
+
+        let mut uv_bind_groups = Vec::with_capacity(num_tiles);
+
+        // Create bind groups for all possible tile indices
+        for tile_index in 0..num_tiles {
+            // Find the character that corresponds to this tile index
+            let mut uv_transform = UVTransform {
+                uv_offset: [0.0, 0.0],
+                uv_scale: [0.0, 0.0],
+            };
+
+            // Look for character with this tile index
+            for (c, info) in char_positions {
+    if info.tile_index == tile_index {
+        // Get the actual position and size from the CharacterInfo
+        let position = Position {
+            x: info.bearing.0,
+            y: info.bearing.1
+        };
+        
+        // Calculate UV coordinates using actual character position and size
+        let uv_x = position.x / size.width;
+        let uv_y = position.y / size.height;
+        let uv_width = info.size.0 as f32 / size.width;
+        let uv_height = info.size.1 as f32 / size.height;
+
+        println!(
+            "Character '{}' (index {}) UV coords: x={}, y={}, w={}, h={}",
+            c, tile_index, uv_x, uv_y, uv_width, uv_height
+        );
+
+        uv_transform = UVTransform {
+            uv_offset: [uv_x, uv_y],
+            uv_scale: [uv_width, uv_height],
+        };
+        break;
+    }
+}
+            let uv_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("UV Transform Buffer for tile {}", tile_index)),
+                contents: bytemuck::cast_slice(&[uv_transform]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+
+            let uv_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &uv_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uv_buffer.as_entire_binding(),
+                }],
+                label: Some(&format!("UV Bind Group for tile {}", tile_index)),
+            });
+
+            uv_bind_groups.push(uv_bind_group);
+        }
+        let default_uv_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &uv_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: &uv_uniform_buffer,
+                    offset: 0,
+                    size: NonZeroU64::new(std::mem::size_of::<UVTransform>() as u64),
+                }),
+            }],
+            label: Some("Default UV Bind Group"),
+        });
+
+        // Return owned TextureAtlas
+        Some(TextureAtlas {
+            texture_key,
+            texture,
+            view,
+            bind_group: texture_bind_group,
+            transform_uniform,
+            transform_uniform_buffer,
+            transform_bind_group,
+            vertices,
+            dimensions,
+            vertex_buffer,
+            index_buffer,
+            num_indices: 6,
+            uv_uniform_buffer,
+            uv_bind_groups,
+            uv_bind_group: default_uv_bind_group,
+            tile_size,
+        })
     }
 
     pub fn new(
@@ -373,11 +561,11 @@ impl TextureAtlas {
         &'a self,
         rpass: &mut wgpu::RenderPass<'a>,
         render_pipeline: &'a wgpu::RenderPipeline,
-        tile_bind_group: &'a wgpu::BindGroup,
+        transform_bind_group: &'a wgpu::BindGroup,
     ) {
         rpass.set_pipeline(render_pipeline);
         rpass.set_bind_group(0, &self.bind_group, &[]);
-        rpass.set_bind_group(1, tile_bind_group, &[]);
+        rpass.set_bind_group(1, transform_bind_group, &[]);
 
         rpass.set_bind_group(2, &self.uv_bind_group, &[]);
         rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..)); // Add this line
@@ -396,18 +584,23 @@ impl TextureAtlas {
         rpass.set_bind_group(0, &self.bind_group, &[]);
         rpass.set_bind_group(1, tile_bind_group, &[]);
 
-        rpass.set_bind_group(
-            2,
-            self.uv_bind_groups
-                .get(tile_index)
-                .unwrap_or(&self.uv_bind_group),
-            &[],
-        );
-        rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..)); // Add this line
+        // Add safety check for bind group access
+        let uv_bind_group = if tile_index < self.uv_bind_groups.len() {
+            &self.uv_bind_groups[tile_index]
+        } else {
+            println!(
+                "Warning: Tile index {} out of bounds (max: {}), using default UV bind group",
+                tile_index,
+                self.uv_bind_groups.len() - 1
+            );
+            &self.uv_bind_group
+        };
+
+        rpass.set_bind_group(2, uv_bind_group, &[]);
+        rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         rpass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
         rpass.draw_indexed(0..self.num_indices, 0, 0..1);
     }
-
     /// gets the transform uniform based on the viewport size and adjusts for position.
     pub fn get_transform_uniform(
         &self,
@@ -483,18 +676,34 @@ impl TextureAtlas {
             return None;
         }
 
-        let tiles_per_row = (atlas_size.width / (tile_size.width)) as usize;
+        // Calculate maximum tiles that could fit in a row
+        let tiles_per_row = (atlas_size.width / tile_size.width).floor() as usize;
+        if tiles_per_row == 0 {
+            return None;
+        }
+
         let row = tile_index / tiles_per_row;
         let col = tile_index % tiles_per_row;
 
-        let uv_x = (col as f32 * tile_size.width) / atlas_size.width;
-        let uv_y = (row as f32 * tile_size.height) / atlas_size.height;
-        let uv_width = (tile_size.width) / atlas_size.width;
-        let uv_height = (tile_size.height) / atlas_size.height;
+        // Calculate exact pixel positions
+        let pixel_x = col as f32 * tile_size.width;
+        let pixel_y = row as f32 * tile_size.height;
+
+        // Ensure we're not going outside the atlas bounds
+        if pixel_x >= atlas_size.width || pixel_y >= atlas_size.height {
+            return None;
+        }
+
+        // Convert to normalized UV coordinates
+        let uv_x = pixel_x / atlas_size.width;
+        let uv_y = pixel_y / atlas_size.height;
+
+        // Calculate UV size, ensuring we don't go outside the texture bounds
+        let uv_width = (tile_size.width).min(atlas_size.width - pixel_x) / atlas_size.width;
+        let uv_height = (tile_size.height).min(atlas_size.height - pixel_y) / atlas_size.height;
 
         Some(Rectangle::new(uv_x, uv_y, uv_width, uv_height))
     }
-
     /// Converts an SVG file to a wgpu texture.
     fn svg_to_texture(
         file_path: &str,

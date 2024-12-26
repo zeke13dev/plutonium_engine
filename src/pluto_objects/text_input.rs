@@ -1,4 +1,5 @@
 use crate::pluto_objects::{button::Button, text2d::Text2D};
+use crate::text::TextRenderer;
 use crate::texture_svg::TextureSVG;
 use crate::traits::PlutoObject;
 use crate::traits::UpdateContext;
@@ -85,6 +86,7 @@ impl PlutoObject for TextInputInternal {
         _texture_map: &mut HashMap<Uuid, crate::texture_svg::TextureSVG>,
         _update_context: Option<crate::traits::UpdateContext>,
         _dpi_scale_factor: f32,
+        _text_renderer: &TextRenderer
     ) {
         if let Some(mouse) = mouse_info {
             if mouse.is_lmb_clicked && self.dimensions.contains(mouse.mouse_pos) {
