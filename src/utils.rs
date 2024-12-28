@@ -41,6 +41,15 @@ impl Size {
         Self { width, height }
     }
 }
+impl Add<f32> for Size {
+    type Output = Size;
+    fn add(self, rhs: f32) -> Self::Output {
+        Size {
+            width: self.width + rhs,
+                   height: self.height + rhs,
+        }
+    }
+}
 impl Mul<f32> for Size {
     type Output = Size;
 

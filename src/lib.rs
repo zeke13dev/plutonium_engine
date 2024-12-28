@@ -301,17 +301,16 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     pub fn queue_text(&mut self, text: &str, font_key: &str, position: Position) {
-        // Don't scale position before layout calculation
         let chars = self
             .text_renderer
             .calculate_text_layout(text, font_key, position);
-
         for char in chars {
             // Scale position here instead
             let scaled_position = char.position * self.dpi_scale_factor;
             self.queue_tile(&char.atlas_id, char.tile_index, scaled_position);
         }
     }
+
     pub fn clear_render_queue(&mut self) {
         self.render_queue.clear();
     }
@@ -464,7 +463,9 @@ impl<'a> PlutoniumEngine<'a> {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
 
@@ -521,9 +522,13 @@ impl<'a> PlutoniumEngine<'a> {
             Size::new(width as f32, height as f32),
             tile_size,
             &self.device,
+            &self.queue,
             &self.transform_bind_group_layout,
             char_positions,
         ) {
+            atlas
+                .save_debug_png(&self.device, &self.queue, "debug_atlas.png")
+                .unwrap();
             // Add to atlas_map
             self.atlas_map.insert(atlas_id, atlas);
 

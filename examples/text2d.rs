@@ -52,7 +52,7 @@ impl<'a> ApplicationHandler<()> for TextRenderingExample<'a> {
             // Create text with the specified font
             let text_position = Position { x: 0.0, y: 0.0 };
             self.text2d = Some(engine.create_text2d(
-                "A",
+                "Hello, World!",
                 "roboto", // Use the loaded font
                 30.0,
                 text_position,

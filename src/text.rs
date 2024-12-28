@@ -80,23 +80,13 @@ impl TextRenderer {
             Some(atlas) => atlas,
             None => return chars_to_render,
         };
-
-        println!("Calculating layout for text: {}", text);
-        println!("Using font: {}", font_key);
-        println!("Atlas dimensions: {:?}", font_atlas.atlas_size);
         let (tile_width, tile_height) = font_atlas.get_tile_dimensions();
-        println!("Tile dimensions: {}x{}", tile_width, tile_height);
 
         let mut current_x = position.x;
         let mut current_y = position.y;
 
         for c in text.chars() {
             if let Some(char_info) = font_atlas.get_char_info(c) {
-                println!(
-                    "Character '{}' - tile_index: {}, bearing: {:?}, size: {:?}",
-                    c, char_info.tile_index, char_info.bearing, char_info.size
-                );
-
                 if c == '\n' {
                     current_y += font_atlas.font_size * 1.2;
                     current_x = position.x;
@@ -105,7 +95,7 @@ impl TextRenderer {
 
                 let char_pos = Position {
                     x: current_x + char_info.bearing.0,
-                    y: current_y + (font_atlas.font_size - char_info.bearing.1),
+                    y: current_y - char_info.bearing.1,
                 };
 
                 chars_to_render.push(CharacterRenderInfo {
@@ -142,18 +132,18 @@ impl TextRenderer {
         };
         self.font_atlases.insert(font_key.to_string(), font_atlas);
     }
+
     pub fn calculate_atlas_size(
         font: &Font,
         scale: Scale,
         padding: u32,
     ) -> (u32, u32, HashMap<char, (u32, u32)>, u32, u32) {
-        // Added max dimensions to return
         let mut total_area = 0;
         let mut max_width = 0;
         let mut max_height = 0;
         let mut char_dimensions = HashMap::new();
 
-        // Calculate maximum dimensions across all characters
+        // Calculate dimensions for all printable ASCII characters
         for c in (32..=126).map(|c| c as u8 as char) {
             let glyph = font.glyph(c).scaled(scale).positioned(point(0.0, 0.0));
 
@@ -168,9 +158,14 @@ impl TextRenderer {
             }
         }
 
-        // Calculate atlas dimensions
-        let total_width = (total_area as f32).sqrt().ceil() as u32;
-        let total_height = ((total_area as f32 / total_width as f32).ceil() as u32).max(max_height);
+        // Add extra padding to ensure we have enough space
+        let chars_count = (126 - 32 + 1) as u32; // Number of printable ASCII characters
+        let min_width = max_width * 8; // Assume at least 8 characters per row
+        let min_height = max_height * ((chars_count / 8) + 1); // Calculate required rows
+
+        // Calculate atlas dimensions ensuring power of 2 and minimum size
+        let total_width = min_width.next_power_of_two();
+        let total_height = min_height.next_power_of_two();
 
         (
             total_width,
@@ -180,6 +175,17 @@ impl TextRenderer {
             max_height,
         )
     }
+    pub fn measure_text(&self, text: &str, font_key: &str) -> f32 {
+        if let Some(font_atlas) = self.font_atlases.get(font_key) {
+            text.chars()
+                .filter_map(|c| font_atlas.char_map.get(&c))
+                .map(|info| info.advance_width)
+                .sum()
+        } else {
+            0.0
+        }
+    }
+
     pub fn render_glyphs_to_atlas(
         font: &Font,
         scale: Scale,
@@ -190,61 +196,39 @@ impl TextRenderer {
         let (atlas_width, atlas_height) = atlas_size;
         let mut texture_data = vec![0; (atlas_width * atlas_height * 4) as usize];
         let mut char_map = HashMap::new();
-        let mut debug_char_positions = HashMap::new();
 
-        // Find maximum glyph dimensions for tile size
+        // Find maximum glyph dimensions for consistent tile size
         let max_width = char_dimensions.values().map(|(w, _)| w).max().unwrap_or(&0) + padding * 2;
         let max_height = char_dimensions.values().map(|(_, h)| h).max().unwrap_or(&0) + padding * 2;
 
-        println!("Atlas dimensions: {}x{}", atlas_width, atlas_height);
-        println!("Max tile dimensions: {}x{}", max_width, max_height);
-
-        // Calculate grid layout
         let tiles_per_row = atlas_width / max_width;
-        let tiles_per_col = atlas_height / max_height;
-
-        println!(
-            "Tiles per row: {}, Tiles per column: {}",
-            tiles_per_row, tiles_per_col
-        );
 
         let mut current_x = padding;
         let mut current_y = padding;
-        let mut current_row_height = 0;
         let mut next_tile_index = 0;
 
-        // Process each printable ASCII character
         for c in (32..=126).map(|c| c as u8 as char) {
             let glyph = font.glyph(c).scaled(scale).positioned(point(0.0, 0.0));
 
             if let (Some((width, height)), Some(bb)) =
                 (char_dimensions.get(&c), glyph.pixel_bounding_box())
             {
-                // Check if we need to move to next row
-                if current_x + width + padding > atlas_width {
+                // Check if we need to move to next row - use max_width for consistent spacing
+                if current_x + max_width > atlas_width {
                     current_x = padding;
-                    current_y += current_row_height + padding;
-                    current_row_height = 0;
+                    current_y += max_height; // Use max_height for consistent row height
                 }
 
-                // Store debug position information
-                let debug_rect = Rectangle {
-                    x: current_x as f32,
-                    y: current_y as f32,
-                    width: *width as f32,
-                    height: *height as f32,
-                };
-                debug_char_positions.insert(c, debug_rect);
+                // Center the glyph within its tile
+                let x_offset = (max_width - width) / 2;
+                let y_offset = (max_height - height) / 2;
+                let glyph_x = current_x + x_offset;
+                let glyph_y = current_y + y_offset;
 
-                println!(
-                    "Character '{}' at tile index {} - Position: ({}, {})",
-                    c, next_tile_index, current_x, current_y
-                );
-
-                // Draw the glyph into texture data
+                // Draw the glyph
                 glyph.draw(|x, y, v| {
-                    let px = current_x + x as u32;
-                    let py = current_y + y as u32;
+                    let px = glyph_x + x as u32;
+                    let py = glyph_y + y as u32;
 
                     if px < atlas_width && py < atlas_height {
                         let index = ((py * atlas_width + px) * 4) as usize;
@@ -256,43 +240,32 @@ impl TextRenderer {
                     }
                 });
 
-                // Store character information with sequential indexing
+                // Store character information
+                let char_pos = Position {
+                    // Ensure positive coordinates by offsetting any negative values
+                    x: (bb.min.x as f32).max(0.0) + current_x as f32,
+                    y: (bb.max.y as f32).max(0.0) + current_y as f32,
+                };
+
+                // When storing character info
                 char_map.insert(
                     c,
                     CharacterInfo {
                         tile_index: next_tile_index,
                         advance_width: glyph.unpositioned().h_metrics().advance_width,
-                        bearing: (bb.min.x as f32, bb.max.y as f32),
+                        bearing: (
+                            bb.min.x.max(0) as f32, // Ensure non-negative bearing
+                            bb.max.y as f32,
+                        ),
                         size: (*width, *height),
                     },
                 );
-
-                // Update position tracking
-                current_x += width + padding;
-                current_row_height = current_row_height.max(*height + padding);
+                // Move to next tile position - use max_width for consistent spacing
+                current_x += max_width;
                 next_tile_index += 1;
             }
         }
 
-        // Store debug positions in a static or global for debugging if needed
-        println!("Debug character positions:");
-        for (c, rect) in &debug_char_positions {
-            println!(
-                "Char '{}' at: x={}, y={}, w={}, h={}",
-                c, rect.x, rect.y, rect.width, rect.height
-            );
-        }
-
         Some((texture_data, char_map))
-    }
-    pub fn measure_text(&self, text: &str, font_key: &str) -> f32 {
-        if let Some(font_atlas) = self.font_atlases.get(font_key) {
-            text.chars()
-                .filter_map(|c| font_atlas.char_map.get(&c))
-                .map(|info| info.advance_width)
-                .sum()
-        } else {
-            0.0
-        }
     }
 }

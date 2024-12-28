@@ -8,6 +8,32 @@ use tiny_skia::{Color, Pixmap};
 use uuid::Uuid;
 use wgpu::util::DeviceExt;
 use winit::keyboard::Key;
+
+#[derive(Debug, Clone, Copy)]
+struct BufferDimensions {
+    width: u32,
+    height: u32,
+    unpadded_bytes_per_row: u32,
+    padded_bytes_per_row: u32,
+}
+
+impl BufferDimensions {
+    fn new(width: u32, height: u32) -> Self {
+        let bytes_per_pixel = std::mem::size_of::<u32>() as u32;
+        let unpadded_bytes_per_row = width * bytes_per_pixel;
+        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as u32;
+        let padded_bytes_per_row_padding = (align - unpadded_bytes_per_row % align) % align;
+        let padded_bytes_per_row = unpadded_bytes_per_row + padded_bytes_per_row_padding;
+
+        Self {
+            width,
+            height,
+            unpadded_bytes_per_row,
+            padded_bytes_per_row,
+        }
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct TextureAtlas {
@@ -59,13 +85,14 @@ impl TextureAtlas {
         size: Size,
         tile_size: Size,
         device: &wgpu::Device,
+        queue: &wgpu::Queue,
         transform_bind_group_layout: &wgpu::BindGroupLayout,
         char_positions: &HashMap<char, CharacterInfo>,
     ) -> Option<Self> {
-        // Create texture view
+        // Create texture view for rendering
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Create transformation matrix
+        // Initialize default transform matrix
         let transform_uniform = TransformUniform {
             transform: [
                 [1.0, 0.0, 0.0, 0.0],
@@ -75,10 +102,10 @@ impl TextureAtlas {
             ],
         };
 
-        // Initialize vertices and buffers
+        // Set up vertex and index buffers
         let (vertices, vertex_buffer, index_buffer) = Self::initialize_buffers(device);
 
-        // Create transform buffer and bind group
+        // Create transform uniform buffer
         let transform_uniform_buffer =
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Transform Uniform Buffer"),
@@ -86,6 +113,7 @@ impl TextureAtlas {
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             });
 
+        // Create transform bind group
         let transform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: transform_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
@@ -95,7 +123,7 @@ impl TextureAtlas {
             label: Some("Transform Bind Group"),
         });
 
-        // Create UV bind groups
+        // Create UV bind group layout
         let uv_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[wgpu::BindGroupLayoutEntry {
@@ -113,14 +141,16 @@ impl TextureAtlas {
                 label: Some("UV Bind Group Layout"),
             });
 
-        let num_tiles = (size.width as usize / tile_size.width as usize)
-            * (size.height as usize / tile_size.height as usize);
+        // Calculate how many tiles we need based on character positions
+        let num_tiles = Self::calculate_required_tiles(char_positions);
 
-        let alignment = 256;
+        // Set up memory alignment for UV buffer
+        let alignment = 256; // WebGPU buffer alignment requirement
         let element_size = std::mem::size_of::<UVTransform>();
         let aligned_element_size = (element_size + alignment - 1) / alignment * alignment;
         let buffer_size = num_tiles * aligned_element_size;
 
+        // Create single UV uniform buffer for all transforms
         let uv_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("UV Uniform Buffer"),
             contents: bytemuck::cast_slice(&vec![
@@ -133,70 +163,56 @@ impl TextureAtlas {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        // Create UV bind groups for all tiles
+        // Set up texture dimensions
         let dimensions = Rectangle::new(position.x, position.y, size.width, size.height);
-        // Keep the actual atlas grid layout for reference
-        // Get the grid layout for reference
-        let grid_tiles_per_row = (size.width / tile_size.width).floor() as usize;
-        let grid_tiles_per_column = (size.height / tile_size.height).floor() as usize;
-
-        let num_tiles = Self::calculate_required_tiles(char_positions);
-        println!("Creating {} UV bind groups for all characters", num_tiles);
-
         let mut uv_bind_groups = Vec::with_capacity(num_tiles);
 
-        // Create bind groups for all possible tile indices
+        // Create bind groups for each tile
         for tile_index in 0..num_tiles {
-            // Find the character that corresponds to this tile index
-            let mut uv_transform = UVTransform {
-                uv_offset: [0.0, 0.0],
-                uv_scale: [0.0, 0.0],
-            };
+            let offset = (tile_index * aligned_element_size) as u64;
 
-            // Look for character with this tile index
-            for (c, info) in char_positions {
-    if info.tile_index == tile_index {
-        // Get the actual position and size from the CharacterInfo
-        let position = Position {
-            x: info.bearing.0,
-            y: info.bearing.1
-        };
-        
-        // Calculate UV coordinates using actual character position and size
-        let uv_x = position.x / size.width;
-        let uv_y = position.y / size.height;
-        let uv_width = info.size.0 as f32 / size.width;
-        let uv_height = info.size.1 as f32 / size.height;
+            // Calculate UV coordinates using grid-based approach
+            if let Some(tile_rect) = Self::tile_uv_coordinates(tile_index, tile_size + 4.0, size) {
+                let uv_transform = UVTransform {
+                    uv_offset: [tile_rect.x, tile_rect.y],
+                    uv_scale: [tile_rect.width, tile_rect.height],
+                };
 
-        println!(
-            "Character '{}' (index {}) UV coords: x={}, y={}, w={}, h={}",
-            c, tile_index, uv_x, uv_y, uv_width, uv_height
-        );
+                // Write UV transform to buffer at the correct offset
+                queue.write_buffer(
+                    &uv_uniform_buffer,
+                    offset,
+                    bytemuck::cast_slice(&[uv_transform]),
+                );
 
-        uv_transform = UVTransform {
-            uv_offset: [uv_x, uv_y],
-            uv_scale: [uv_width, uv_height],
-        };
-        break;
-    }
-}
-            let uv_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some(&format!("UV Transform Buffer for tile {}", tile_index)),
-                contents: bytemuck::cast_slice(&[uv_transform]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
+                // Create bind group for this tile
+                let uv_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    layout: &uv_bind_group_layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &uv_uniform_buffer,
+                            offset,
+                            size: NonZeroU64::new(std::mem::size_of::<UVTransform>() as u64),
+                        }),
+                    }],
+                    label: Some(&format!("UV Bind Group for tile {}", tile_index)),
+                });
 
-            let uv_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: &uv_bind_group_layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: uv_buffer.as_entire_binding(),
-                }],
-                label: Some(&format!("UV Bind Group for tile {}", tile_index)),
-            });
-
-            uv_bind_groups.push(uv_bind_group);
+                // Debug output
+                println!(
+                    "Tile {} UV Transform: offset=[{},{}], scale=[{},{}]",
+                    tile_index,
+                    uv_transform.uv_offset[0],
+                    uv_transform.uv_offset[1],
+                    uv_transform.uv_scale[0],
+                    uv_transform.uv_scale[1]
+                );
+                uv_bind_groups.push(uv_bind_group);
+            }
         }
+
+        // Create default UV bind group (used as fallback)
         let default_uv_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &uv_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
@@ -210,7 +226,6 @@ impl TextureAtlas {
             label: Some("Default UV Bind Group"),
         });
 
-        // Return owned TextureAtlas
         Some(TextureAtlas {
             texture_key,
             texture,
@@ -662,12 +677,12 @@ impl TextureAtlas {
         ];
     }
 
-    /// Calculates and returns the UV coordinates of a tile by index.
     fn tile_uv_coordinates(
         tile_index: usize,
         tile_size: Size,
         atlas_size: Size,
     ) -> Option<Rectangle> {
+        // Early return if we have invalid dimensions
         if atlas_size.width == 0.0
             || atlas_size.height == 0.0
             || tile_size.width == 0.0
@@ -676,31 +691,47 @@ impl TextureAtlas {
             return None;
         }
 
-        // Calculate maximum tiles that could fit in a row
+        // Calculate how many tiles can fit in each row and column
         let tiles_per_row = (atlas_size.width / tile_size.width).floor() as usize;
         if tiles_per_row == 0 {
             return None;
         }
 
-        let row = tile_index / tiles_per_row;
+        // Calculate the grid position
         let col = tile_index % tiles_per_row;
+        let row = tile_index / tiles_per_row;
 
-        // Calculate exact pixel positions
+        // Calculate exact pixel positions in the texture
         let pixel_x = col as f32 * tile_size.width;
         let pixel_y = row as f32 * tile_size.height;
 
-        // Ensure we're not going outside the atlas bounds
+        // Verify we're not going outside texture bounds
         if pixel_x >= atlas_size.width || pixel_y >= atlas_size.height {
             return None;
         }
 
-        // Convert to normalized UV coordinates
+        // Convert to normalized UV coordinates (0.0 to 1.0 range)
         let uv_x = pixel_x / atlas_size.width;
         let uv_y = pixel_y / atlas_size.height;
 
-        // Calculate UV size, ensuring we don't go outside the texture bounds
-        let uv_width = (tile_size.width).min(atlas_size.width - pixel_x) / atlas_size.width;
-        let uv_height = (tile_size.height).min(atlas_size.height - pixel_y) / atlas_size.height;
+        // Calculate UV size
+        let uv_width = tile_size.width / atlas_size.width;
+        let uv_height = tile_size.height / atlas_size.height;
+
+        // Debug output to verify calculations
+        println!(
+            "Atlas size: {}x{}, Tile size: {}x{}, Grid pos: ({},{}), UV: ({},{}) {}x{}",
+            atlas_size.width,
+            atlas_size.height,
+            tile_size.width,
+            tile_size.height,
+            col,
+            row,
+            uv_x,
+            uv_y,
+            uv_width,
+            uv_height
+        );
 
         Some(Rectangle::new(uv_x, uv_y, uv_width, uv_height))
     }
@@ -739,7 +770,9 @@ impl TextureAtlas {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[wgpu::TextureFormat::Rgba8UnormSrgb],
         });
 
@@ -815,5 +848,107 @@ impl TextureAtlas {
             height: self.tile_size.height,
         }
         .contains(*pos)
+    }
+    pub fn save_debug_png(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        path: &str,
+    ) -> Result<(), String> {
+        // First verify that the texture has the correct usage flags
+        if !self.texture.usage().contains(wgpu::TextureUsages::COPY_SRC) {
+            return Err("Texture does not have COPY_SRC usage flag".to_string());
+        }
+
+        // Create a buffer to copy texture data into
+        let buffer_dimensions = BufferDimensions::new(
+            self.dimensions.size().width as u32,
+            self.dimensions.size().height as u32,
+        );
+
+        // Verify dimensions are non-zero
+        if buffer_dimensions.width == 0 || buffer_dimensions.height == 0 {
+            return Err("Invalid texture dimensions".to_string());
+        }
+
+        let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Texture Atlas Debug Buffer"),
+            size: (buffer_dimensions.padded_bytes_per_row as u64 * buffer_dimensions.height as u64),
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        // Create command encoder for the copy operation
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Debug PNG Encoder"),
+        });
+
+        // Copy texture to buffer
+        encoder.copy_texture_to_buffer(
+            wgpu::ImageCopyTexture {
+                texture: &self.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::ImageCopyBuffer {
+                buffer: &output_buffer,
+                layout: wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(buffer_dimensions.padded_bytes_per_row),
+                    rows_per_image: Some(buffer_dimensions.height),
+                },
+            },
+            wgpu::Extent3d {
+                width: buffer_dimensions.width,
+                height: buffer_dimensions.height,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        // Submit command encoder
+        queue.submit(std::iter::once(encoder.finish()));
+
+        // Create a mapping for the buffer
+        let buffer_slice = output_buffer.slice(..);
+        let (tx, rx) = std::sync::mpsc::channel();
+
+        buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+            tx.send(result).unwrap();
+        });
+
+        device.poll(wgpu::Maintain::Wait);
+        rx.recv()
+            .map_err(|e| format!("Failed to receive mapping result: {}", e))?
+            .map_err(|e| e.to_string())?;
+
+        // Get the mapped data
+        let padded_data = buffer_slice.get_mapped_range();
+
+        // Convert from RGBA to RGB and remove padding
+        let mut rgba =
+            Vec::with_capacity((buffer_dimensions.width * buffer_dimensions.height * 4) as usize);
+
+        for chunk in padded_data.chunks(buffer_dimensions.padded_bytes_per_row as usize) {
+            rgba.extend_from_slice(&chunk[..buffer_dimensions.unpadded_bytes_per_row as usize]);
+        }
+
+        // Drop the mapping
+        drop(padded_data);
+        output_buffer.unmap();
+
+        // Create the image buffer and save to PNG
+        let image_buffer = image::ImageBuffer::<image::Rgba<u8>, _>::from_raw(
+            buffer_dimensions.width,
+            buffer_dimensions.height,
+            rgba,
+        )
+        .ok_or("Failed to create image buffer")?;
+
+        image_buffer
+            .save(path)
+            .map_err(|e| format!("Failed to save PNG: {}", e))?;
+
+        Ok(())
     }
 }
