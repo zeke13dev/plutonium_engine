@@ -554,6 +554,28 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     /* OBJECT CREATION FUNCTIONS */
+    pub fn create_texture_2d(
+        &mut self,
+        svg_path: &str,
+        position: Position,
+        scale_factor: f32,
+    ) -> Texture2D {
+        let id = Uuid::new_v4();
+
+        // Create the underlying texture
+        let (texture_key, dimensions) = self.create_texture_svg(svg_path, position, scale_factor);
+
+        // Create the internal representation
+        let internal = Texture2DInternal::new(id, texture_key, dimensions);
+        let rc_internal = Rc::new(RefCell::new(internal));
+
+        // Add to pluto objects and update queue
+        self.pluto_objects.insert(id, rc_internal.clone());
+        self.update_queue.push(id);
+
+        // Return the wrapper
+        Texture2D::new(rc_internal)
+    }
     pub fn create_text2d(
         &mut self,
         text: &str,
@@ -880,4 +902,3 @@ impl<'a> PlutoniumEngine<'a> {
         }
     }
 }
-
