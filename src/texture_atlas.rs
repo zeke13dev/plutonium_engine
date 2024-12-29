@@ -200,14 +200,6 @@ impl TextureAtlas {
                 });
 
                 // Debug output
-                println!(
-                    "Tile {} UV Transform: offset=[{},{}], scale=[{},{}]",
-                    tile_index,
-                    uv_transform.uv_offset[0],
-                    uv_transform.uv_offset[1],
-                    uv_transform.uv_scale[0],
-                    uv_transform.uv_scale[1]
-                );
                 uv_bind_groups.push(uv_bind_group);
             }
         }
@@ -717,21 +709,6 @@ impl TextureAtlas {
         // Calculate UV size
         let uv_width = tile_size.width / atlas_size.width;
         let uv_height = tile_size.height / atlas_size.height;
-
-        // Debug output to verify calculations
-        println!(
-            "Atlas size: {}x{}, Tile size: {}x{}, Grid pos: ({},{}), UV: ({},{}) {}x{}",
-            atlas_size.width,
-            atlas_size.height,
-            tile_size.width,
-            tile_size.height,
-            col,
-            row,
-            uv_x,
-            uv_y,
-            uv_width,
-            uv_height
-        );
 
         Some(Rectangle::new(uv_x, uv_y, uv_width, uv_height))
     }

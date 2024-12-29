@@ -143,10 +143,6 @@ impl<'a> PlutoniumEngine<'a> {
         );
 
         self.loaded_fonts.insert(font_key.to_string(), true);
-        println!(
-            "Font loaded successfully with max tile dimensions: {}x{}",
-            max_tile_width, max_tile_height
-        );
         Ok(())
     }
     pub fn set_texture_position(&mut self, key: &Uuid, position: Position) {
@@ -301,12 +297,16 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     pub fn queue_text(&mut self, text: &str, font_key: &str, position: Position) {
-        let chars = self
-            .text_renderer
-            .calculate_text_layout(text, font_key, position);
+        let chars = self.text_renderer.calculate_text_layout(
+            text,
+            font_key,
+            position,
+            self.dpi_scale_factor,
+        );
         for char in chars {
             // Scale position here instead
-            let scaled_position = char.position * self.dpi_scale_factor;
+            // let scaled_position = char.position * self.dpi_scale_factor;
+            let scaled_position = char.position;
             self.queue_tile(&char.atlas_id, char.tile_index, scaled_position);
         }
     }
@@ -880,3 +880,4 @@ impl<'a> PlutoniumEngine<'a> {
         }
     }
 }
+

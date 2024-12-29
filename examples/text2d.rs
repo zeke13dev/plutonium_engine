@@ -37,13 +37,12 @@ impl<'a> ApplicationHandler<()> for TextRenderingExample<'a> {
             let size = window_arc.as_ref().inner_size();
             let surface = instance.create_surface(window_arc.clone()).unwrap();
             let scale_factor = window_arc.scale_factor() as f32;
-
             // Initialize the engine
             let mut engine = PlutoniumEngine::new(surface, instance, size, scale_factor);
 
             // Load the font
-            match engine.load_font("examples/media/roboto.ttf", 40.0, "roboto") {
-                Ok(_) => println!("Font loaded successfully"),
+            match engine.load_font("examples/media/roboto.ttf", 50.0, "roboto") {
+                Ok(_) => (),
                 Err(FontError::IoError(err)) => println!("I/O error occurred: {}", err),
                 Err(FontError::InvalidFontData) => println!("Invalid font data"),
                 Err(FontError::AtlasRenderError) => println!("Atlas render error occurred"),
@@ -52,9 +51,9 @@ impl<'a> ApplicationHandler<()> for TextRenderingExample<'a> {
             // Create text with the specified font
             let text_position = Position { x: 0.0, y: 0.0 };
             self.text2d = Some(engine.create_text2d(
-                "Hello, World!",
+                "Hello, World! \n New Line",
                 "roboto", // Use the loaded font
-                30.0,
+                50.0,
                 text_position,
                 scale_factor,
             ));
