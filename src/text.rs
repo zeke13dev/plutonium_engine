@@ -1,6 +1,5 @@
 use crate::pluto_objects::texture_atlas_2d::TextureAtlas2D;
-use crate::traits::PlutoObject;
-use crate::utils::{Position, Rectangle, Size};
+use crate::utils::{Position, Size};
 use rusttype::{point, Font, Scale};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -31,16 +30,14 @@ pub struct FontAtlas {
     atlas: TextureAtlas2D,
     char_map: HashMap<char, CharacterInfo>,
     font_size: f32,
-    atlas_size: (u32, u32),
-    padding: u32,
-    max_tile_width: u32,  // Added
-    max_tile_height: u32, // Added
+    _padding: u32,
+    max_tile_size: Size,
 }
 
 impl FontAtlas {
     // for debugging
-    pub fn get_tile_dimensions(&self) -> (f32, f32) {
-        (self.max_tile_width as f32, self.max_tile_height as f32)
+    pub fn get_tile_dimensions(&self) -> Size {
+        self.max_tile_size
     }
 
     pub fn get_char_info(&self, c: char) -> Option<&CharacterInfo> {
@@ -58,6 +55,7 @@ impl FontAtlas {
         Ok(())
     }
 }
+#[derive(Default)]
 pub struct TextRenderer {
     font_atlases: HashMap<String, FontAtlas>,
 }
@@ -79,10 +77,8 @@ impl TextRenderer {
         let mut chars_to_render = Vec::new();
         let font_atlas = match self.font_atlases.get(font_key) {
             Some(atlas) => atlas,
-            None => return chars_to_render,
+            _ => return chars_to_render,
         };
-
-        // Start from the provided top-left position
         let mut pen_x = position.x;
         // Calculate the initial baseline by offsetting from the top by the font ascender
         let initial_baseline = position.y + (font_atlas.font_size * 0.35); // Approximate ascender height
@@ -125,19 +121,15 @@ impl TextRenderer {
         atlas: TextureAtlas2D,
         char_map: HashMap<char, CharacterInfo>,
         font_size: f32,
-        atlas_size: (u32, u32),
-        padding: u32,
-        max_tile_width: u32,  // Added
-        max_tile_height: u32, // Added
+        _padding: u32,
+        max_tile_size: Size,
     ) {
         let font_atlas = FontAtlas {
             atlas,
             char_map,
             font_size,
-            atlas_size,
-            padding,
-            max_tile_width,
-            max_tile_height,
+            _padding,
+            max_tile_size,
         };
         self.font_atlases.insert(font_key.to_string(), font_atlas);
     }
@@ -147,7 +139,6 @@ impl TextRenderer {
         scale: Scale,
         padding: u32,
     ) -> (u32, u32, HashMap<char, (u32, u32)>, u32, u32) {
-        let mut total_area = 0;
         let mut max_width = 0;
         let mut max_height = 0;
         let mut char_dimensions = HashMap::new();
@@ -162,7 +153,6 @@ impl TextRenderer {
 
                 max_width = max_width.max(width);
                 max_height = max_height.max(height);
-                total_area += width * height;
                 char_dimensions.insert(c, (width, height));
             }
         }
@@ -194,7 +184,6 @@ impl TextRenderer {
             0.0
         }
     }
-
     pub fn render_glyphs_to_atlas(
         font: &Font,
         scale: Scale,
@@ -205,73 +194,59 @@ impl TextRenderer {
         let (atlas_width, atlas_height) = atlas_size;
         let mut texture_data = vec![0; (atlas_width * atlas_height * 4) as usize];
         let mut char_map = HashMap::new();
-
         let max_width = char_dimensions.values().map(|(w, _)| w).max().unwrap_or(&0) + padding * 2;
         let max_height = char_dimensions.values().map(|(_, h)| h).max().unwrap_or(&0) + padding * 2;
-
         let mut current_x = padding;
         let mut current_y = padding;
         let mut next_tile_index = 0;
 
         for c in (32..=126).map(|c| c as u8 as char) {
-            // Get the glyph first without positioning to calculate metrics
             let base_glyph = font.glyph(c).scaled(scale);
+            let bearing_y = base_glyph
+                .exact_bounding_box()
+                .map(|bb| -bb.min.y)
+                .unwrap_or(0.0);
 
-            if let Some(bb) = base_glyph.exact_bounding_box() {
-                if let Some((width, height)) = char_dimensions.get(&c) {
-                    if current_x + max_width > atlas_width {
-                        current_x = padding;
-                        current_y += max_height;
-                    }
+            if let Some((width, height)) = char_dimensions.get(&c) {
+                if current_x + max_width > atlas_width {
+                    current_x = padding;
+                    current_y += max_height;
+                }
 
-                    // Calculate the vertical bearing (distance from baseline to top of glyph)
-                    let bearing_y = -bb.min.y;
+                let glyph = base_glyph.positioned(point(0.0, bearing_y));
+                let glyph_x = current_x + padding;
+                let glyph_y = current_y + padding;
 
-                    // Position the glyph with the correct vertical offset
-                    let glyph = base_glyph.positioned(point(0.0, bearing_y));
+                if let Some(_bb) = glyph.pixel_bounding_box() {
+                    glyph.draw(|x, y, v| {
+                        let px = glyph_x + x;
+                        let py = glyph_y + y;
+                        if px < atlas_width && py < atlas_height {
+                            let index = ((py * atlas_width + px) * 4) as usize;
+                            let alpha = (v * 255.0) as u8;
+                            texture_data[index] = 255; // R
+                            texture_data[index + 1] = 255; // G
+                            texture_data[index + 2] = 255; // B
+                            texture_data[index + 3] = alpha; // A
+                        }
+                    });
 
-                    // Position glyph at the left edge of its tile, plus padding
-                    let glyph_x = current_x + padding;
-                    let glyph_y = current_y + padding;
-
-                    if let Some(bb) = glyph.pixel_bounding_box() {
-                        glyph.draw(|x, y, v| {
-                            let px = glyph_x + x as u32;
-                            let py = glyph_y + y as u32;
-
-                            if px < atlas_width && py < atlas_height {
-                                let index = ((py * atlas_width + px) * 4) as usize;
-                                let alpha = (v * 255.0) as u8;
-                                texture_data[index] = 255; // R
-                                texture_data[index + 1] = 255; // G
-                                texture_data[index + 2] = 255; // B
-                                texture_data[index + 3] = alpha; // A
-                            }
-                        });
-
-                        let h_metrics = glyph.unpositioned().h_metrics();
-
-                        char_map.insert(
-                            c,
-                            CharacterInfo {
-                                tile_index: next_tile_index,
-                                advance_width: h_metrics.advance_width,
-                                bearing: (h_metrics.left_side_bearing, bearing_y),
-                                size: (*width, *height),
-                            },
-                        );
-
-                        current_x += max_width;
-                        next_tile_index += 1;
-                    }
+                    let h_metrics = glyph.unpositioned().h_metrics();
+                    char_map.insert(
+                        c,
+                        CharacterInfo {
+                            tile_index: next_tile_index,
+                            advance_width: h_metrics.advance_width,
+                            bearing: (h_metrics.left_side_bearing, bearing_y),
+                            size: (*width, *height),
+                        },
+                    );
+                    current_x += max_width;
+                    next_tile_index += 1;
                 }
             }
         }
 
-        if char_map.is_empty() {
-            None
-        } else {
-            Some((texture_data, char_map))
-        }
+        Some((texture_data, char_map))
     }
 }

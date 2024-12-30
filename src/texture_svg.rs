@@ -1,12 +1,9 @@
-use crate::traits::UpdateContext;
-use crate::{traits::PlutoObject, utils::*, PlutoniumEngine};
+use crate::utils::*;
 use resvg::usvg::{Options, Tree};
-use std::collections::HashMap;
 use std::{fs, num::NonZeroU64};
 use tiny_skia::{Color, Pixmap};
 use uuid::Uuid;
 use wgpu::util::DeviceExt;
-use winit::keyboard::Key;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -40,220 +37,6 @@ impl TextureSVG {
     ) {
         self.dimensions.set_pos(position);
         self.update_transform_uniform(device, queue, viewport_size, camera_position);
-    }
-
-    pub fn from_text(
-        texture_key: Uuid,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        text: &str,
-        font_size: f32,
-        position: Position,
-        texture_bind_group_layout: &wgpu::BindGroupLayout,
-        transform_bind_group_layout: &wgpu::BindGroupLayout,
-        scale_factor: f32,
-    ) -> Option<Self> {
-        // Define padding
-        let padding = font_size * 0.1;
-
-        // Create SVG data without hardcoding dimensions
-        let svg_data = format!(
-            r#"<svg xmlns="http://www.w3.org/2000/svg" version="1.1">
-                    <text x="{}" y="{}" font-family="Verdana" font-size="{}" fill="black">{}</text>
-                </svg>"#,
-            padding,                   // X position with padding
-            padding + font_size * 0.8, // Y position (adjusted for font size)
-            font_size,                 // Font size
-            text                       // Text content
-        );
-
-        // Parse SVG and get actual size
-        let opt = Options::default();
-        let mut fontdb = resvg::usvg::fontdb::Database::new();
-        fontdb.load_system_fonts(); // Ensure system fonts are loaded
-        let rtree = Tree::from_str(&svg_data, &opt, &fontdb).ok()?;
-        let svg_size = rtree.size();
-        let svg_width = svg_size.width().ceil() as u32;
-        let svg_height = svg_size.height().ceil() as u32;
-
-        // Create adjusted SVG data with exact dimensions
-        let adjusted_svg_data = format!(
-            r#"<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="{}" height="{}">
-                    <text x="{}" y="{}" font-family="Verdana" font-size="{}" fill="black">{}</text>
-                </svg>"#,
-            svg_width,                                 // Use calculated width
-            svg_height,                                // Use calculated height
-            padding.ceil() as u32,                     // Adjusted padding for X position
-            (padding + font_size * 0.8).ceil() as u32, // Adjusted Y position
-            font_size,                                 // Font size
-            text                                       // Text content
-        );
-
-        // Parse adjusted SVG
-        let rtree = Tree::from_str(&adjusted_svg_data, &opt, &fontdb).ok()?;
-        let pixmap = {
-            let mut pixmap = Pixmap::new(svg_width, svg_height)?;
-            pixmap.fill(Color::TRANSPARENT);
-            let transform = tiny_skia::Transform::identity();
-            resvg::render(&rtree, transform, &mut pixmap.as_mut());
-            pixmap
-        };
-
-        // Proceed with the texture creation as before
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Text SVG Texture"),
-            size: wgpu::Extent3d {
-                width: pixmap.width(),
-                height: pixmap.height(),
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[wgpu::TextureFormat::Rgba8UnormSrgb],
-        });
-
-        // Upload pixmap data to texture
-        let bytes_per_pixel = 4;
-        let unpadded_bytes_per_row = pixmap.width() as usize * bytes_per_pixel;
-        const COPY_BYTES_PER_ROW_ALIGNMENT: usize = 256;
-        let padded_bytes_per_row = ((unpadded_bytes_per_row + COPY_BYTES_PER_ROW_ALIGNMENT - 1)
-            / COPY_BYTES_PER_ROW_ALIGNMENT)
-            * COPY_BYTES_PER_ROW_ALIGNMENT;
-
-        let total_size = padded_bytes_per_row * pixmap.height() as usize;
-        let mut padded_buffer = vec![0u8; total_size];
-
-        for y in 0..pixmap.height() as usize {
-            let dst_start = y * padded_bytes_per_row;
-            let src_start = y * unpadded_bytes_per_row;
-            padded_buffer[dst_start..dst_start + unpadded_bytes_per_row]
-                .copy_from_slice(&pixmap.data()[src_start..src_start + unpadded_bytes_per_row]);
-        }
-
-        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("SVG Pixel Buffer"),
-            contents: &padded_buffer,
-            usage: wgpu::BufferUsages::COPY_SRC,
-        });
-
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Texture Copy Encoder"),
-        });
-        encoder.copy_buffer_to_texture(
-            wgpu::ImageCopyBuffer {
-                buffer: &buffer,
-                layout: wgpu::ImageDataLayout {
-                    offset: 0,
-                    bytes_per_row: Some(padded_bytes_per_row as u32),
-                    rows_per_image: Some(pixmap.height() as u32),
-                },
-            },
-            wgpu::ImageCopyTexture {
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::Extent3d {
-                width: pixmap.width(),
-                height: pixmap.height(),
-                depth_or_array_layers: 1,
-            },
-        );
-
-        queue.submit(std::iter::once(encoder.finish()));
-
-        // Create texture view and sampler
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let sampler = Self::create_sampler(device);
-        let bind_group =
-            Self::create_bind_group(device, &view, &sampler, texture_bind_group_layout);
-
-        // Initialize vertex and index buffers
-        let (vertices, vertex_buffer, index_buffer) = Self::initialize_buffers(device);
-        let transform_uniform = TransformUniform {
-            transform: [
-                [1.0, 0.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
-                [0.0, 0.0, 0.0, 1.0],
-            ],
-        };
-
-        let transform_uniform_buffer = Self::create_uniform_buffer(device, &transform_uniform);
-        let transform_bind_group = Self::create_bind_group_for_transform(
-            device,
-            &transform_uniform_buffer,
-            transform_bind_group_layout,
-        );
-
-        // Define UV bind group layout
-        let uv_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(
-                            std::mem::size_of::<UVTransform>() as u64
-                        ),
-                    },
-                    count: None,
-                }],
-                label: Some("UV Bind Group Layout"),
-            });
-
-        // Create UV uniform buffer
-        let uv_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("UV Uniform Buffer"),
-            contents: bytemuck::bytes_of(&UVTransform {
-                uv_offset: [0.0, 0.0],
-                uv_scale: [1.0, 1.0],
-            }),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        // Create default UV bind group
-        let uv_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &uv_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                    buffer: &uv_uniform_buffer,
-                    offset: 0,
-                    size: NonZeroU64::new(std::mem::size_of::<UVTransform>() as u64),
-                }),
-            }],
-            label: Some("Default UV Bind Group"),
-        });
-
-        Some(Self {
-            texture_key,
-            texture,
-            view,
-            bind_group,
-            active_buffer_index: 0,
-            transform_uniform,
-            transform_uniform_buffer,
-            transform_bind_group,
-            vertices,
-            dimensions: Rectangle::new(
-                position.x,
-                position.y,
-                pixmap.width() as f32,
-                pixmap.height() as f32,
-            ),
-            vertex_buffer,
-            index_buffer,
-            num_indices: 6,
-            uv_uniform_buffer,
-            uv_bind_group,
-        })
     }
 
     /// Updates the text content of the existing texture without recreating it.
@@ -367,6 +150,7 @@ impl TextureSVG {
     }
 
     /// Creates a new `TextureSVG` instance.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         texture_key: Uuid,
         device: &wgpu::Device,
@@ -378,7 +162,6 @@ impl TextureSVG {
         scale_factor: f32,
     ) -> Option<Self> {
         let (texture, pixel_size) = Self::svg_to_texture(file_path, device, queue, scale_factor)?;
-        let atlas_size = Some(pixel_size);
 
         let view: wgpu::TextureView = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -756,8 +539,8 @@ impl TextureSVG {
         let svg_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("SVG Texture"),
             size: wgpu::Extent3d {
-                width: pixmap.width() as u32,
-                height: pixmap.height() as u32,
+                width: pixmap.width(),
+                height: pixmap.height(),
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -800,7 +583,7 @@ impl TextureSVG {
                 layout: wgpu::ImageDataLayout {
                     offset: 0,
                     bytes_per_row: Some(padded_bytes_per_row as u32),
-                    rows_per_image: Some(pixmap.height() as u32),
+                    rows_per_image: Some(pixmap.height()),
                 },
             },
             wgpu::ImageCopyTexture {
@@ -820,8 +603,8 @@ impl TextureSVG {
         Some((
             svg_texture,
             Size {
-                width: scaled_size.width as f32,
-                height: scaled_size.height as f32,
+                width: scaled_size.width,
+                height: scaled_size.height,
             },
         ))
     }

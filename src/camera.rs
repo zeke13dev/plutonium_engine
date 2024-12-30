@@ -27,16 +27,16 @@ impl Camera {
         self.activated = false;
     }
 
-pub fn get_pos(&self, scale_factor: f32) -> Position {
-    if self.activated {
-        Position {
-            x: self.position.x * scale_factor,
-            y: self.position.y * scale_factor,
+    pub fn get_pos(&self, scale_factor: f32) -> Position {
+        if self.activated {
+            Position {
+                x: self.position.x * scale_factor,
+                y: self.position.y * scale_factor,
+            }
+        } else {
+            Position { x: 0.0, y: 0.0 }
         }
-    } else {
-        Position { x: 0.0, y: 0.0 }
     }
-}
     pub fn set_pos(&mut self, new_pos: Position) {
         if let Some(boundary) = &self.boundary {
             // Calculate the logical boundary taking into account both camera position and tether size

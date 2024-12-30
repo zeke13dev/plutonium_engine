@@ -22,7 +22,7 @@ use pluto_objects::{
     texture_2d::{Texture2D, Texture2DInternal},
     texture_atlas_2d::{TextureAtlas2D, TextureAtlas2DInternal},
 };
-use rusttype::{point, Font, PositionedGlyph, Scale};
+use rusttype::{Font, Scale};
 
 use pollster::block_on;
 use std::cell::RefCell;
@@ -99,7 +99,7 @@ impl<'a> PlutoniumEngine<'a> {
         }
 
         let font_size = font_size * self.dpi_scale_factor;
-        let font_data = std::fs::read(font_path).map_err(|e| FontError::IoError(e))?;
+        let font_data = std::fs::read(font_path).map_err(FontError::IoError)?;
         let font = Font::try_from_vec(font_data).ok_or(FontError::InvalidFontData)?;
         let scale = Scale::uniform(font_size);
         let padding = 2;
@@ -135,10 +135,11 @@ impl<'a> PlutoniumEngine<'a> {
             atlas,
             char_map,
             font_size,
-            (atlas_width, atlas_height),
             padding,
-            max_tile_width,
-            max_tile_height,
+            Size {
+                width: max_tile_width as f32,
+                height: max_tile_height as f32,
+            },
         );
 
         self.loaded_fonts.insert(font_key.to_string(), true);
@@ -228,9 +229,9 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     pub fn queue_texture(&mut self, texture_key: &Uuid, position: Option<Position>) {
-        if let Some(texture) = self.texture_map.get(&texture_key) {
+        if let Some(texture) = self.texture_map.get(texture_key) {
             // Generate the transformation matrix based on the position and camera
-            let position = position.unwrap_or(Position::default()) * self.dpi_scale_factor;
+            let position = position.unwrap_or_default() * self.dpi_scale_factor;
             let transform_uniform = texture.get_transform_uniform(
                 self.viewport_size,
                 position,
@@ -591,10 +592,8 @@ impl<'a> PlutoniumEngine<'a> {
         font_key: &str,
         font_size: f32,
         position: Position,
-        scale_factor: f32,
     ) -> Text2D {
         let id = Uuid::new_v4();
-
         // Ensure font is loaded, now with proper error handling
         if !self.loaded_fonts.contains_key(font_key) {
             panic!("Failed to load font");
@@ -641,6 +640,7 @@ impl<'a> PlutoniumEngine<'a> {
         TextureAtlas2D::new(rc_internal)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn create_button(
         &mut self,
         svg_path: &str,
@@ -662,8 +662,7 @@ impl<'a> PlutoniumEngine<'a> {
             x: button_dimensions.x + (button_dimensions.width * 0.1),
             y: button_dimensions.y + (button_dimensions.height / 2.0),
         };
-        let text_object =
-            self.create_text2d(text, font_key, font_size, text_position, scale_factor);
+        let text_object = self.create_text2d(text, font_key, font_size, text_position);
 
         text_object.set_pos(Position { x: 0.0, y: 0.0 });
         // Create internal representation
@@ -710,10 +709,10 @@ impl<'a> PlutoniumEngine<'a> {
             x: button.get_dimensions().x + (button.get_dimensions().width * 0.01),
             y: button.get_dimensions().y + (button.get_dimensions().height * 0.05),
         };
-        let text = self.create_text2d("", font_key, font_size, text_position, scale_factor);
+        let text = self.create_text2d("", font_key, font_size, text_position);
 
         // Create cursor
-        let cursor = self.create_text2d("|", font_key, font_size, position, scale_factor);
+        let cursor = self.create_text2d("|", font_key, font_size, position);
 
         // Create internal representation
         let dimensions = button.get_dimensions();

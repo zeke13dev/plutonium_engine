@@ -17,26 +17,6 @@ struct TextureSvgExample<'a> {
 
 impl<'a> TextureSvgExample<'a> {
     pub fn new() -> Self {
-        let square_size = 100.0;
-        let stroke_width = 5.0;
-        let total_size = square_size + stroke_width;
-
-        // Just store positions initially, we'll create textures later
-        let positions = vec![
-            Position { x: 0.0, y: 0.0 },
-            Position {
-                x: total_size,
-                y: 0.0,
-            },
-            Position {
-                x: 0.0,
-                y: total_size,
-            },
-            Position {
-                x: total_size,
-                y: total_size,
-            },
-        ];
 
         Self {
             window: None,
@@ -137,4 +117,3 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-

@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use plutonium_engine::{
     pluto_objects::texture_2d::Texture2D,
-    traits::PlutoObject,
     utils::{MouseInfo, Position},
     PlutoniumEngine,
 };
@@ -95,12 +94,10 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
                 let mut update_position = |dx, dy| {
                     self.player_position.x += dx;
                     self.player_position.y += dy;
-                    if let Some(engine) = &mut self.engine {
-                        if let Some(player) = &mut self.player {
-                            player.set_pos(self.player_position);
-                        }
-                        self.window.as_ref().unwrap().request_redraw();
+                    if let Some(player) = &mut self.player {
+                        player.set_pos(self.player_position);
                     }
+                    self.window.as_ref().unwrap().request_redraw();
                 };
 
                 match key.as_ref() {
@@ -138,4 +135,3 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-

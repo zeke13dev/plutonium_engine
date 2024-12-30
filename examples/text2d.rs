@@ -1,13 +1,12 @@
 use plutonium_engine::text::FontError;
 use plutonium_engine::{
-    pluto_objects::text2d::Text2D, traits::PlutoObject, utils::Position, PlutoniumEngine,
+    pluto_objects::text2d::Text2D,  utils::Position, PlutoniumEngine,
 };
 use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
-    event::{ElementState, KeyEvent, WindowEvent},
+    event::WindowEvent,
     event_loop::{ActiveEventLoop, EventLoop},
-    keyboard::Key,
     window::{Window, WindowId},
 };
 
@@ -55,7 +54,6 @@ impl<'a> ApplicationHandler<()> for TextRenderingExample<'a> {
                 "roboto", // Use the loaded font
                 50.0,
                 text_position,
-                scale_factor,
             ));
 
             window_arc.request_redraw();

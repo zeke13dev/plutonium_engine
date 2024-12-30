@@ -1,7 +1,6 @@
 use plutonium_engine::{
     pluto_objects::text_input::TextInput,
-    traits::PlutoObject,
-    utils::{MouseInfo, Position, Rectangle},
+    utils::{MouseInfo, Position},
     PlutoniumEngine,
 };
 use std::sync::Arc;
@@ -55,7 +54,9 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
 
             // Initialize the PlutoniumEngine with the adjusted size.
             let mut engine = PlutoniumEngine::new(surface, instance, size, scale_factor);
-            engine.load_font("examples/media/roboto.ttf", 12.0, "roboto");
+            engine
+                .load_font("examples/media/roboto.ttf", 12.0, "roboto")
+                .ok();
 
             let pos = Position { x: 0.0, y: 0.0 };
             self.text_input = Some(engine.create_text_input(

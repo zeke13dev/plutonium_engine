@@ -1,14 +1,12 @@
 use crate::TextureSVG;
-use rusttype::{point, Font, PositionedGlyph, Scale};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use uuid::Uuid;
 use winit::keyboard::Key;
 
-use crate::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal;
 use crate::traits::{PlutoObject, UpdateContext};
-use crate::utils::{MouseInfo, Position, Rectangle, Size};
+use crate::utils::{MouseInfo, Position, Rectangle};
 use crate::PlutoniumEngine;
 
 use crate::text::TextRenderer;
@@ -103,18 +101,16 @@ impl PlutoObject for Text2DInternal {
         _mouse_info: Option<MouseInfo>,
         _key_pressed: &Option<Key>,
         _texture_map: &mut HashMap<Uuid, TextureSVG>,
-        update_context: Option<UpdateContext>,
-        dpi_scale_factor: f32,
+        _update_context: Option<UpdateContext>,
+        _dpi_scale_factor: f32,
         text_renderer: &TextRenderer, // Add this parameter
     ) {
         if self.content_changed {
-            if let Some(context) = update_context {
-                let width = text_renderer // Use the parameter directly
-                    .measure_text(&self.content, &self.font_key);
-                self.dimensions.width = width;
-                self.dimensions.height = self.font_size;
-                self.content_changed = false;
-            }
+            let width = text_renderer // Use the parameter directly
+                .measure_text(&self.content, &self.font_key);
+            self.dimensions.width = width;
+            self.dimensions.height = self.font_size;
+            self.content_changed = false;
         }
     }
     fn render(&self, engine: &mut PlutoniumEngine) {

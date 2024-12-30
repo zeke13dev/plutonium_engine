@@ -1,13 +1,10 @@
 use crate::text::CharacterInfo;
-use crate::traits::UpdateContext;
-use crate::{traits::PlutoObject, utils::*, PlutoniumEngine};
+use crate::utils::*;
 use resvg::usvg::{Options, Tree};
 use std::collections::HashMap;
 use std::{fs, num::NonZeroU64};
-use tiny_skia::{Color, Pixmap};
 use uuid::Uuid;
 use wgpu::util::DeviceExt;
-use winit::keyboard::Key;
 
 #[derive(Debug, Clone, Copy)]
 struct BufferDimensions {
@@ -21,7 +18,7 @@ impl BufferDimensions {
     fn new(width: u32, height: u32) -> Self {
         let bytes_per_pixel = std::mem::size_of::<u32>() as u32;
         let unpadded_bytes_per_row = width * bytes_per_pixel;
-        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as u32;
+        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
         let padded_bytes_per_row_padding = (align - unpadded_bytes_per_row % align) % align;
         let padded_bytes_per_row = unpadded_bytes_per_row + padded_bytes_per_row_padding;
 
@@ -71,12 +68,13 @@ impl TextureAtlas {
 
     fn calculate_required_tiles(char_positions: &HashMap<char, CharacterInfo>) -> usize {
         let mut max_index = 0;
-        for (_, info) in char_positions {
+        for info in char_positions.values() {
             max_index = max_index.max(info.tile_index);
         }
         max_index + 1 // Add 1 because indices are 0-based
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new_from_texture(
         texture_key: Uuid,
         texture: wgpu::Texture,
@@ -238,6 +236,7 @@ impl TextureAtlas {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         texture_key: Uuid,
         device: &wgpu::Device,
@@ -333,7 +332,7 @@ impl TextureAtlas {
                         };
                         queue.write_buffer(
                             &uv_uniform_buffer,
-                            offset as u64,
+                            offset,
                             bytemuck::bytes_of(&uv_transform),
                         );
                     }
@@ -739,8 +738,8 @@ impl TextureAtlas {
         let svg_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("SVG Texture"),
             size: wgpu::Extent3d {
-                width: pixmap.width() as u32,
-                height: pixmap.height() as u32,
+                width: pixmap.width(),
+                height: pixmap.height(),
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -785,7 +784,7 @@ impl TextureAtlas {
                 layout: wgpu::ImageDataLayout {
                     offset: 0,
                     bytes_per_row: Some(padded_bytes_per_row as u32),
-                    rows_per_image: Some(pixmap.height() as u32),
+                    rows_per_image: Some(pixmap.height()),
                 },
             },
             wgpu::ImageCopyTexture {
@@ -805,8 +804,8 @@ impl TextureAtlas {
         Some((
             svg_texture,
             Size {
-                width: scaled_size.width as f32,
-                height: scaled_size.height as f32,
+                width: scaled_size.width,
+                height: scaled_size.height,
             },
         ))
     }

@@ -1,7 +1,6 @@
 use crate::traits::PlutoObject;
 use crate::utils::{Position, Rectangle, Size};
 use crate::PlutoniumEngine;
-use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 use uuid::Uuid;

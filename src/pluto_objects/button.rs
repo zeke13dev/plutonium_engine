@@ -1,4 +1,5 @@
 use crate::pluto_objects::text2d::Text2D;
+use crate::text::TextRenderer;
 use crate::texture_svg::TextureSVG;
 use crate::traits::{PlutoObject, UpdateContext};
 use crate::utils::{MouseInfo, Position, Rectangle};
@@ -8,7 +9,6 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use uuid::Uuid;
 use winit::keyboard::Key;
-use crate::text::TextRenderer;
 
 // Internal Representation
 pub struct ButtonInternal {
@@ -17,7 +17,7 @@ pub struct ButtonInternal {
     text_object: Text2D,
     dimensions: Rectangle,
     callback: Option<Box<dyn Fn()>>,
-    padding: f32, // Currently unused but could affect positioning
+    _padding: f32, // Currently unused but could affect positioning
 }
 
 impl ButtonInternal {
@@ -34,7 +34,7 @@ impl ButtonInternal {
             dimensions,
             text_object,
             callback,
-            padding: 0.0,
+            _padding: 0.0,
         }
     }
 

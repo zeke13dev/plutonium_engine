@@ -3,7 +3,6 @@ use std::{
     ops::Add,
     ops::Div,
     ops::Mul,
-    ops::Sub,
 };
 
 pub struct DrawingContext<'a> {

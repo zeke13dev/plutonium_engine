@@ -1,8 +1,6 @@
 use crate::pluto_objects::{button::Button, text2d::Text2D};
 use crate::text::TextRenderer;
-use crate::texture_svg::TextureSVG;
 use crate::traits::PlutoObject;
-use crate::traits::UpdateContext;
 use crate::utils::{MouseInfo, Position, Rectangle};
 use crate::PlutoniumEngine;
 use std::cell::RefCell;
