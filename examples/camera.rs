@@ -57,7 +57,7 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
             let atlas = engine.create_texture_atlas_2d(
                 "examples/media/map_atlas.svg",
                 Position { x: 0.0, y: 0.0 },
-                self.scale_factor,
+                0.5,
                 Size {
                     width: 512.0,
                     height: 512.0,
@@ -66,8 +66,7 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
 
             // Create player texture object
             let player =
-                engine.create_texture_2d("examples/media/player.svg", self.player_position, 0.2);
-
+                engine.create_texture_2d("examples/media/player.svg", self.player_position, 0.3);
             // Create boundary texture object
             let boundary = engine.create_texture_2d(
                 "examples/media/boundary.svg",

@@ -103,7 +103,6 @@ impl TextRenderer {
             }
 
             if let Some(char_info) = font_atlas.get_char_info(c) {
-                println!("pen: {} bearing: {}", pen_x, char_info.bearing.0);
                 let char_pos = Position {
                     x: pen_x + char_info.bearing.0 / scale_factor,
                     y: baseline_y - char_info.bearing.1 / scale_factor,

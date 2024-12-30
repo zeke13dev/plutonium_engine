@@ -1,6 +1,7 @@
 use std::{
     hash::{Hash, Hasher},
     ops::Add,
+    ops::Div,
     ops::Mul,
     ops::Sub,
 };
@@ -46,7 +47,7 @@ impl Add<f32> for Size {
     fn add(self, rhs: f32) -> Self::Output {
         Size {
             width: self.width + rhs,
-                   height: self.height + rhs,
+            height: self.height + rhs,
         }
     }
 }
@@ -198,6 +199,12 @@ impl Mul<f32> for Rectangle {
     }
 }
 
+impl Div<f32> for Rectangle {
+    type Output = Rectangle;
+    fn div(self, factor: f32) -> Self::Output {
+        Rectangle::new(self.x, self.y, self.width / factor, self.height / factor)
+    }
+}
 #[derive(Copy, Clone, Debug)]
 pub struct MouseInfo {
     pub is_rmb_clicked: bool,

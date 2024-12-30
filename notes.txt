@@ -18,6 +18,6 @@ space+k for inline diagnostics
 *** CURRENT ***
 text_input / button / text_input
 
--1. text not showing up in rendering for text input
+-1. CAMERA DOESN'T WORK ANYMORE
 0. button on_focus, on_onfucos
 1. setting up cursor (svg_path=None for default cursor maybe)

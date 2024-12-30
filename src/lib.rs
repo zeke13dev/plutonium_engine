@@ -75,9 +75,15 @@ pub struct PlutoniumEngine<'a> {
 impl<'a> PlutoniumEngine<'a> {
     /* CAMERA STUFF */
     pub fn set_boundary(&mut self, boundary: Rectangle) {
-        self.camera.set_boundary(boundary);
+        // Scale the boundary by DPI factor when setting it
+        let scaled_boundary = Rectangle {
+            x: boundary.x * self.dpi_scale_factor,
+            y: boundary.y * self.dpi_scale_factor,
+            width: boundary.width * self.dpi_scale_factor,
+            height: boundary.height * self.dpi_scale_factor,
+        };
+        self.camera.set_boundary(scaled_boundary);
     }
-
     pub fn clear_boundary(&mut self) {
         self.camera.clear_boundary();
     }
@@ -100,6 +106,7 @@ impl<'a> PlutoniumEngine<'a> {
             return Ok(());
         }
 
+        let font_size = font_size * self.dpi_scale_factor;
         let font_data = std::fs::read(font_path).map_err(|e| FontError::IoError(e))?;
         let font = Font::try_from_vec(font_data).ok_or(FontError::InvalidFontData)?;
         let scale = Scale::uniform(font_size);
@@ -187,11 +194,22 @@ impl<'a> PlutoniumEngine<'a> {
                 );
             }
         }
+
+        // Handle camera tethering with DPI scaling
         let (camera_position, tether_size) = if let Some(tether_target) = &self.camera.tether_target
         {
-            if let Some(tether) = self.texture_map.get(tether_target) {
-                let tether_size = Some(tether.size()); // Wrap in `Some`
-                (tether.pos(), tether_size)
+            if let Some(tether) = self.pluto_objects.get(tether_target) {
+                let tether_ref = tether.borrow();
+                let tether_dimensions = tether_ref.dimensions();
+                let scaled_size = Size {
+                    width: tether_dimensions.width,
+                    height: tether_dimensions.height,
+                };
+                let scaled_pos = Position {
+                    x: tether_dimensions.x * self.dpi_scale_factor,
+                    y: tether_dimensions.y * self.dpi_scale_factor,
+                };
+                (scaled_pos, Some(scaled_size))
             } else {
                 (self.camera.get_pos(), None)
             }
@@ -390,7 +408,6 @@ impl<'a> PlutoniumEngine<'a> {
         position: Position,
         scale_factor: f32,
     ) -> (Uuid, Rectangle) {
-        let scale_factor = scale_factor * self.dpi_scale_factor;
         let texture_key = Uuid::new_v4();
         let svg_texture = TextureSVG::new(
             texture_key,
@@ -400,11 +417,12 @@ impl<'a> PlutoniumEngine<'a> {
             &self.texture_bind_group_layout,
             &self.transform_bind_group_layout,
             position,
-            scale_factor,
+            scale_factor * self.dpi_scale_factor,
         );
 
         let texture = svg_texture.expect("texture should always be created properly");
-        let dimensions = texture.dimensions();
+        let dimensions = texture.dimensions() / self.dpi_scale_factor;
+
         self.texture_map.insert(texture_key, texture);
         (texture_key, dimensions)
     }
@@ -430,7 +448,8 @@ impl<'a> PlutoniumEngine<'a> {
             scale_factor * self.dpi_scale_factor, // Apply DPI scaling
             tile_size,
         ) {
-            let dimensions = atlas.dimensions();
+            let dimensions = atlas.dimensions() / self.dpi_scale_factor;
+
             let positioned_dimensions =
                 Rectangle::new(position.x, position.y, dimensions.width, dimensions.height);
 

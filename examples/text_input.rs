@@ -55,11 +55,16 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
 
             // Initialize the PlutoniumEngine with the adjusted size.
             let mut engine = PlutoniumEngine::new(surface, instance, size, scale_factor);
-            // Create the player texture
+            engine.load_font("examples/media/roboto.ttf", 12.0, "roboto");
 
             let pos = Position { x: 0.0, y: 0.0 };
-            self.text_input =
-                Some(engine.create_text_input("examples/media/input.svg", 12.0, pos, scale_factor));
+            self.text_input = Some(engine.create_text_input(
+                "examples/media/input.svg",
+                "roboto",
+                12.0,
+                pos,
+                scale_factor,
+            ));
 
             window_arc.request_redraw();
 
