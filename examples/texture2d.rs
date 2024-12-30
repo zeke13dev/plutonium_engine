@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use plutonium_engine::{
+    pluto_objects::texture_2d::Texture2D,
     utils::{MouseInfo, Position},
     PlutoniumEngine,
 };
@@ -14,6 +15,7 @@ use winit::{
 };
 
 struct TextureSvgExample<'a> {
+    player: Option<Texture2D>,
     window: Option<Arc<Window>>,
     engine: Option<PlutoniumEngine<'a>>,
     player_position: Position,
@@ -32,6 +34,7 @@ impl<'a> TextureSvgExample<'a> {
         };
 
         Self {
+            player: None,
             window: None,
             _surface: None,
             engine: None,
@@ -55,15 +58,11 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
             let mut engine = PlutoniumEngine::new(surface, instance, size, scale);
 
             // Create the player texture
-            engine.create_texture_svg(
-                "player",
-                "examples/media/player.svg",
-                self.player_position,
-                1.0,
-                None,
-            );
+            let player: Texture2D =
+                engine.create_texture_2d("examples/media/player.svg", self.player_position, 1.0);
             window_arc.request_redraw();
 
+            self.player = Some(player);
             self.engine = Some(engine);
             self.window = Some(window_arc);
         }
@@ -95,10 +94,10 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
                 let mut update_position = |dx, dy| {
                     self.player_position.x += dx;
                     self.player_position.y += dy;
-                    if let Some(engine) = &mut self.engine {
-                        engine.set_texture_position("player", self.player_position);
-                        self.window.as_ref().unwrap().request_redraw();
+                    if let Some(player) = &mut self.player {
+                        player.set_pos(self.player_position);
                     }
+                    self.window.as_ref().unwrap().request_redraw();
                 };
 
                 match key.as_ref() {
@@ -114,7 +113,9 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
                     // Clear the render queue before each frame
                     engine.clear_render_queue();
                     engine.update(Some(self.mouse_info), &None);
-                    engine.queue_texture("player", Some(self.player_position));
+                    if let Some(player) = &self.player {
+                        player.render(engine);
+                    }
                     engine.render().unwrap();
                 }
             }

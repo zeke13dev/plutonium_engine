@@ -1,8 +1,8 @@
 use std::{
     hash::{Hash, Hasher},
     ops::Add,
+    ops::Div,
     ops::Mul,
-    ops::Sub,
 };
 
 pub struct DrawingContext<'a> {
@@ -36,6 +36,20 @@ pub struct Size {
     pub height: f32,
 }
 
+impl Size {
+    pub fn new(width: f32, height: f32) -> Self {
+        Self { width, height }
+    }
+}
+impl Add<f32> for Size {
+    type Output = Size;
+    fn add(self, rhs: f32) -> Self::Output {
+        Size {
+            width: self.width + rhs,
+            height: self.height + rhs,
+        }
+    }
+}
 impl Mul<f32> for Size {
     type Output = Size;
 
@@ -86,6 +100,16 @@ impl Mul<f32> for Position {
         Position {
             x: self.x * factor,
             y: self.y * factor,
+        }
+    }
+}
+
+impl Add<f32> for Position {
+    type Output = Position;
+    fn add(self, other: f32) -> Self::Output {
+        Position {
+            x: self.x + other,
+            y: self.y + other,
         }
     }
 }
@@ -174,6 +198,12 @@ impl Mul<f32> for Rectangle {
     }
 }
 
+impl Div<f32> for Rectangle {
+    type Output = Rectangle;
+    fn div(self, factor: f32) -> Self::Output {
+        Rectangle::new(self.x, self.y, self.width / factor, self.height / factor)
+    }
+}
 #[derive(Copy, Clone, Debug)]
 pub struct MouseInfo {
     pub is_rmb_clicked: bool,

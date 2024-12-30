@@ -1,5 +1,6 @@
 use plutonium_engine::{
-    utils::{MouseInfo, Position, Rectangle},
+    pluto_objects::text_input::TextInput,
+    utils::{MouseInfo, Position},
     PlutoniumEngine,
 };
 use std::sync::Arc;
@@ -17,6 +18,7 @@ struct TextureSvgExample<'a> {
     engine: Option<PlutoniumEngine<'a>>,
     _surface: Option<Surface<'a>>,
     mouse_info: MouseInfo,
+    text_input: Option<TextInput>,
 }
 
 impl<'a> TextureSvgExample<'a> {
@@ -33,6 +35,7 @@ impl<'a> TextureSvgExample<'a> {
             _surface: None,
             engine: None,
             mouse_info,
+            text_input: None,
         }
     }
 }
@@ -51,15 +54,18 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
 
             // Initialize the PlutoniumEngine with the adjusted size.
             let mut engine = PlutoniumEngine::new(surface, instance, size, scale_factor);
-            // Create the player texture
-            engine.create_text_input(
-                "input",
+            engine
+                .load_font("examples/media/roboto.ttf", 12.0, "roboto")
+                .ok();
+
+            let pos = Position { x: 0.0, y: 0.0 };
+            self.text_input = Some(engine.create_text_input(
                 "examples/media/input.svg",
+                "roboto",
                 12.0,
-                "Roboto",
-                Rectangle::new(0.0, 0.0, 53.0, 16.0),
-                5.0,
-            );
+                pos,
+                scale_factor,
+            ));
 
             window_arc.request_redraw();
 
@@ -106,10 +112,11 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
             }
             WindowEvent::RedrawRequested => {
                 if let Some(engine) = &mut self.engine {
-                    // Clear the render queue before each frame
                     engine.clear_render_queue();
                     engine.update(Some(self.mouse_info), &None);
-                    engine.render_obj("input");
+                    if let Some(text_input) = &self.text_input {
+                        text_input.render(engine);
+                    }
                     engine.render().unwrap();
                 }
             }
