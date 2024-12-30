@@ -60,7 +60,6 @@ pub struct PlutoniumEngine<'a> {
     render_pipeline: wgpu::RenderPipeline,
     texture_bind_group_layout: wgpu::BindGroupLayout,
     transform_bind_group_layout: wgpu::BindGroupLayout,
-    uv_bind_group_layout: wgpu::BindGroupLayout,
     texture_map: HashMap<Uuid, TextureSVG>,
     atlas_map: HashMap<Uuid, TextureAtlas>,
     pluto_objects: HashMap<Uuid, Rc<RefCell<dyn PlutoObject>>>,
@@ -75,14 +74,7 @@ pub struct PlutoniumEngine<'a> {
 impl<'a> PlutoniumEngine<'a> {
     /* CAMERA STUFF */
     pub fn set_boundary(&mut self, boundary: Rectangle) {
-        // Scale the boundary by DPI factor when setting it
-        let scaled_boundary = Rectangle {
-            x: boundary.x * self.dpi_scale_factor,
-            y: boundary.y * self.dpi_scale_factor,
-            width: boundary.width * self.dpi_scale_factor,
-            height: boundary.height * self.dpi_scale_factor,
-        };
-        self.camera.set_boundary(scaled_boundary);
+        self.camera.set_boundary(boundary);
     }
     pub fn clear_boundary(&mut self) {
         self.camera.clear_boundary();
@@ -159,7 +151,7 @@ impl<'a> PlutoniumEngine<'a> {
                 &self.queue,
                 position,
                 self.viewport_size,
-                self.camera.get_pos(),
+                self.camera.get_pos(self.dpi_scale_factor),
             );
         }
     }
@@ -187,7 +179,7 @@ impl<'a> PlutoniumEngine<'a> {
                         device: &self.device,
                         queue: &self.queue,
                         viewport_size: &self.viewport_size,
-                        camera_position: &self.camera.get_pos(),
+                        camera_position: &self.camera.get_pos(self.dpi_scale_factor),
                     }),
                     self.dpi_scale_factor,
                     &self.text_renderer,
@@ -201,20 +193,12 @@ impl<'a> PlutoniumEngine<'a> {
             if let Some(tether) = self.pluto_objects.get(tether_target) {
                 let tether_ref = tether.borrow();
                 let tether_dimensions = tether_ref.dimensions();
-                let scaled_size = Size {
-                    width: tether_dimensions.width,
-                    height: tether_dimensions.height,
-                };
-                let scaled_pos = Position {
-                    x: tether_dimensions.x * self.dpi_scale_factor,
-                    y: tether_dimensions.y * self.dpi_scale_factor,
-                };
-                (scaled_pos, Some(scaled_size))
+                (tether_dimensions.pos(), Some(tether_dimensions.size()))
             } else {
-                (self.camera.get_pos(), None)
+                (self.camera.get_pos(self.dpi_scale_factor), None)
             }
         } else {
-            (self.camera.get_pos(), None)
+            (self.camera.get_pos(self.dpi_scale_factor), None)
         };
 
         self.camera.set_pos(camera_position);
@@ -226,7 +210,7 @@ impl<'a> PlutoniumEngine<'a> {
                 &self.device,
                 &self.queue,
                 self.viewport_size,
-                self.camera.get_pos(),
+                self.camera.get_pos(self.dpi_scale_factor),
             );
         }
         for atlas in self.atlas_map.values_mut() {
@@ -234,7 +218,7 @@ impl<'a> PlutoniumEngine<'a> {
                 &self.device,
                 &self.queue,
                 self.viewport_size,
-                self.camera.get_pos(),
+                self.camera.get_pos(self.dpi_scale_factor),
             );
         }
     }
@@ -247,8 +231,11 @@ impl<'a> PlutoniumEngine<'a> {
         if let Some(texture) = self.texture_map.get(&texture_key) {
             // Generate the transformation matrix based on the position and camera
             let position = position.unwrap_or(Position::default()) * self.dpi_scale_factor;
-            let transform_uniform =
-                texture.get_transform_uniform(self.viewport_size, position, self.camera.get_pos());
+            let transform_uniform = texture.get_transform_uniform(
+                self.viewport_size,
+                position,
+                self.camera.get_pos(self.dpi_scale_factor),
+            );
 
             let transform_uniform_buffer =
                 self.device
@@ -282,8 +269,11 @@ impl<'a> PlutoniumEngine<'a> {
         let position = position * self.dpi_scale_factor;
         if let Some(atlas) = self.atlas_map.get(texture_key) {
             // Get transform from TextureAtlas
-            let transform_uniform =
-                atlas.get_transform_uniform(self.viewport_size, position, self.camera.get_pos());
+            let transform_uniform = atlas.get_transform_uniform(
+                self.viewport_size,
+                position,
+                self.camera.get_pos(self.dpi_scale_factor),
+            );
 
             let transform_uniform_buffer =
                 self.device
@@ -908,7 +898,6 @@ impl<'a> PlutoniumEngine<'a> {
             render_pipeline,
             texture_bind_group_layout,
             transform_bind_group_layout,
-            uv_bind_group_layout,
             texture_map,
             atlas_map,
             pluto_objects,

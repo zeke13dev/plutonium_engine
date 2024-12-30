@@ -60,7 +60,7 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
 
             // Create the player texture
             let player: Texture2D =
-                engine.create_texture2d("examples/media/player.svg", self.player_position, 1.0);
+                engine.create_texture_2d("examples/media/player.svg", self.player_position, 1.0);
             window_arc.request_redraw();
 
             self.player = Some(player);

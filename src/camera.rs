@@ -27,14 +27,16 @@ impl Camera {
         self.activated = false;
     }
 
-    pub fn get_pos(&self) -> Position {
-        if self.activated {
-            self.position
-        } else {
-            Position { x: 0.0, y: 0.0 }
+pub fn get_pos(&self, scale_factor: f32) -> Position {
+    if self.activated {
+        Position {
+            x: self.position.x * scale_factor,
+            y: self.position.y * scale_factor,
         }
+    } else {
+        Position { x: 0.0, y: 0.0 }
     }
-
+}
     pub fn set_pos(&mut self, new_pos: Position) {
         if let Some(boundary) = &self.boundary {
             // Calculate the logical boundary taking into account both camera position and tether size
@@ -42,8 +44,8 @@ impl Camera {
                 Rectangle::new(
                     boundary.x + self.position.x,
                     boundary.y + self.position.y,
-                    boundary.width - tether_size.width * 2.0, // Reduce width by tether width
-                    boundary.height - tether_size.height * 2.0, // Reduce height by tether height
+                    boundary.width - tether_size.width,
+                    boundary.height - tether_size.height,
                 )
             } else {
                 Rectangle::new(
