@@ -37,49 +37,55 @@ impl Camera {
 
     pub fn set_pos(&mut self, new_pos: Position) {
         if let Some(boundary) = &self.boundary {
-            // Calculate the logical boundary taking into account the camera's position
-            let logical_boundary: Rectangle = Rectangle::new(
-                boundary.x + self.position.x,
-                boundary.y + self.position.y,
-                boundary.width,
-                boundary.height,
-            );
+            // Calculate the logical boundary taking into account both camera position and tether size
+            let logical_boundary = if let Some(tether_size) = self.tether_size {
+                Rectangle::new(
+                    boundary.x + self.position.x,
+                    boundary.y + self.position.y,
+                    boundary.width - tether_size.width * 2.0, // Reduce width by tether width
+                    boundary.height - tether_size.height * 2.0, // Reduce height by tether height
+                )
+            } else {
+                Rectangle::new(
+                    boundary.x + self.position.x,
+                    boundary.y + self.position.y,
+                    boundary.width,
+                    boundary.height,
+                )
+            };
 
             // Handle the x-direction
-            let dx_right = if let Some(tether_size) = self.tether_size {
-                new_pos.x + tether_size.width - (logical_boundary.x + logical_boundary.width)
-            } else {
-                new_pos.x - (logical_boundary.x + logical_boundary.width)
+            let dx = {
+                let right_overflow = new_pos.x - (logical_boundary.x + logical_boundary.width);
+                let left_overflow = new_pos.x - logical_boundary.x;
+                if right_overflow > 0.0 {
+                    right_overflow
+                } else if left_overflow < 0.0 {
+                    left_overflow
+                } else {
+                    0.0
+                }
             };
-            if dx_right > 0.0 {
-                self.position.x += dx_right;
-            }
-
-            let dx_left = new_pos.x - logical_boundary.x;
-            if dx_left < 0.0 {
-                self.position.x += dx_left;
-            }
+            self.position.x += dx;
 
             // Handle the y-direction
-            let dy_bottom = if let Some(tether_size) = self.tether_size {
-                new_pos.y + tether_size.height - (logical_boundary.y + logical_boundary.height)
-            } else {
-                new_pos.y - (logical_boundary.y + logical_boundary.height)
+            let dy = {
+                let bottom_overflow = new_pos.y - (logical_boundary.y + logical_boundary.height);
+                let top_overflow = new_pos.y - logical_boundary.y;
+                if bottom_overflow > 0.0 {
+                    bottom_overflow
+                } else if top_overflow < 0.0 {
+                    top_overflow
+                } else {
+                    0.0
+                }
             };
-            if dy_bottom > 0.0 {
-                self.position.y += dy_bottom;
-            }
-
-            let dy_top = new_pos.y - logical_boundary.y;
-            if dy_top < 0.0 {
-                self.position.y += dy_top;
-            }
+            self.position.y += dy;
         } else {
             // If no boundary is set, simply update the position
             self.position = new_pos;
         }
     }
-
     pub fn new(position: Position) -> Self {
         Self {
             position,
