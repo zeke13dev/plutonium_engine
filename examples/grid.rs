@@ -17,7 +17,6 @@ struct TextureSvgExample<'a> {
 
 impl<'a> TextureSvgExample<'a> {
     pub fn new() -> Self {
-
         Self {
             window: None,
             _surface: None,

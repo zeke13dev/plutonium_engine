@@ -1,7 +1,5 @@
 use plutonium_engine::text::FontError;
-use plutonium_engine::{
-    pluto_objects::text2d::Text2D,  utils::Position, PlutoniumEngine,
-};
+use plutonium_engine::{pluto_objects::text2d::Text2D, utils::Position, PlutoniumEngine};
 use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,

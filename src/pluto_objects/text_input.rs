@@ -11,11 +11,12 @@ use winit::keyboard::{Key, NamedKey};
 
 pub struct TextInputInternal {
     id: Uuid,
-    button: Button, // Owned directly
-    text: Text2D,   // Owned directly
-    cursor: Text2D, // Owned directly
+    button: Button,
+    text: Text2D,
+    cursor: Text2D,
     dimensions: Rectangle,
     focused: bool,
+    cursor_index: usize,
 }
 
 impl TextInputInternal {
@@ -26,6 +27,7 @@ impl TextInputInternal {
         cursor: Text2D,
         dimensions: Rectangle,
     ) -> Self {
+        let idx = text.get_content().len();
         Self {
             id,
             button,
@@ -33,6 +35,7 @@ impl TextInputInternal {
             cursor,
             dimensions,
             focused: false,
+            cursor_index: idx,
         }
     }
 
@@ -51,18 +54,6 @@ impl TextInputInternal {
     pub fn set_font_size(&mut self, font_size: f32) {
         self.text.set_font_size(font_size);
         self.cursor.set_font_size(font_size);
-    }
-
-    pub fn update(&mut self, key_pressed: Option<&Key>) {
-        if !self.focused || key_pressed.is_none() {
-            return;
-        }
-        match key_pressed.unwrap() {
-            Key::Character(c) => self.text.append_content(c),
-            Key::Named(NamedKey::Backspace) => self.text.pop_content(),
-            Key::Named(NamedKey::Space) => self.text.append_content(" "),
-            _ => (),
-        }
     }
 }
 
@@ -84,14 +75,31 @@ impl PlutoObject for TextInputInternal {
         _texture_map: &mut HashMap<Uuid, crate::texture_svg::TextureSVG>,
         _update_context: Option<crate::traits::UpdateContext>,
         _dpi_scale_factor: f32,
-        _text_renderer: &TextRenderer
+        text_renderer: &TextRenderer,
     ) {
         if let Some(mouse) = mouse_info {
             if mouse.is_lmb_clicked && self.dimensions.contains(mouse.mouse_pos) {
                 self.set_focus(true);
+                self.cursor_index = self
+                    .text
+                    .get_char_index_at_position(mouse.mouse_pos.x, text_renderer);
             }
         }
-        self.update(key_pressed.as_ref());
+        let cursor_pos = self
+            .text
+            .get_cursor_position(self.cursor_index, text_renderer);
+        self.cursor.set_pos(cursor_pos);
+
+        // update content
+        if !self.focused || key_pressed.is_none() {
+            return;
+        }
+        match key_pressed.as_ref().unwrap() {
+            Key::Character(c) => self.text.append_content(c),
+            Key::Named(NamedKey::Backspace) => self.text.pop_content(),
+            Key::Named(NamedKey::Space) => self.text.append_content(" "),
+            _ => (),
+        }
     }
     fn texture_key(&self) -> Uuid {
         self.button.texture_key()

@@ -38,6 +38,39 @@ impl Text2DInternal {
         }
     }
 
+    // Add this new method to get cursor position at a specific character index
+    pub fn get_cursor_position(&self, char_index: usize, text_renderer: &TextRenderer) -> Position {
+        let text = &self.content[..char_index.min(self.content.len())];
+        let width = text_renderer.measure_text(text, &self.font_key);
+
+        Position {
+            x: self.dimensions.x + width,
+            y: self.dimensions.y,
+        }
+    }
+
+    // Helper method to find character index at a given x position
+    pub fn get_char_index_at_position(&self, x_pos: f32, text_renderer: &TextRenderer) -> usize {
+        let mut current_width = 0.0;
+        let relative_x = x_pos - self.dimensions.x;
+
+        for (idx, _) in self.content.char_indices() {
+            let substr = &self.content[..idx];
+            let width = text_renderer.measure_text(substr, &self.font_key);
+
+            // If we're closer to the previous character's position, return that index
+            if width > relative_x {
+                if idx > 0 && (width - relative_x > relative_x - current_width) {
+                    return idx - 1;
+                }
+                return idx;
+            }
+            current_width = width;
+        }
+
+        self.content.len()
+    }
+
     pub fn get_font_size(&self) -> f32 {
         self.font_size
     }
@@ -125,6 +158,18 @@ pub struct Text2D {
 impl Text2D {
     pub fn new(internal: Rc<RefCell<Text2DInternal>>) -> Self {
         Self { internal }
+    }
+
+    pub fn get_cursor_position(&self, char_index: usize, text_renderer: &TextRenderer) -> Position {
+        self.internal
+            .borrow()
+            .get_cursor_position(char_index, text_renderer)
+    }
+
+    pub fn get_char_index_at_position(&self, x_pos: f32, text_renderer: &TextRenderer) -> usize {
+        self.internal
+            .borrow()
+            .get_char_index_at_position(x_pos, text_renderer)
     }
 
     pub fn set_font_size(&self, font_size: f32) {

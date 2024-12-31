@@ -170,10 +170,17 @@ impl<'a> PlutoniumEngine<'a> {
 
     pub fn update(&mut self, mouse_info: Option<MouseInfo>, key: &Option<Key>) {
         // text doesn't seem to be getting updated
+        let scaled_mouse_info = mouse_info.map(|info| MouseInfo {
+            is_rmb_clicked: info.is_rmb_clicked,
+            is_lmb_clicked: info.is_lmb_clicked,
+            is_mmb_clicked: info.is_mmb_clicked,
+            mouse_pos: info.mouse_pos / 2.0,
+        });
+
         for id in &self.update_queue {
             if let Some(obj) = self.pluto_objects.get(id) {
                 obj.borrow_mut().update(
-                    mouse_info,
+                    scaled_mouse_info,
                     key,
                     &mut self.texture_map,
                     Some(UpdateContext {

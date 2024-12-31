@@ -2,6 +2,7 @@ use std::{
     hash::{Hash, Hasher},
     ops::Add,
     ops::Div,
+    ops::DivAssign,
     ops::Mul,
 };
 
@@ -79,6 +80,22 @@ impl PartialEq for Position {
     }
 }
 
+impl DivAssign<f32> for Position {
+    fn div_assign(&mut self, rhs: f32) {
+        self.x /= rhs;
+        self.y /= rhs;
+    }
+}
+
+impl Div<f32> for Position {
+    type Output = Position;
+    fn div(self, factor: f32) -> Self::Output {
+        Position {
+            x: self.x / factor,
+            y: self.y / factor,
+        }
+    }
+}
 impl Eq for Position {}
 
 impl Hash for Position {
