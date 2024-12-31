@@ -68,6 +68,13 @@ impl<'a> ApplicationHandler<()> for TextRenderingExample<'a> {
         event: WindowEvent,
     ) {
         match event {
+            WindowEvent::Resized(new_size) => {
+                if let Some(engine) = &mut self.engine {
+                    engine.resize(&new_size)
+                }
+                self.window.as_ref().unwrap().request_redraw();
+            }
+
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }

@@ -157,14 +157,15 @@ impl<'a> PlutoniumEngine<'a> {
         }
     }
 
-    pub fn resize(&mut self, new_size: &PhysicalSize<u32>, scale_factor: f32) {
+    pub fn resize(&mut self, new_size: &PhysicalSize<u32>) {
+        // MAYBE NEEDS TO TAKE INTO ACCOUNT NEW SCALE FACTOR IF RESIZE CHANGES DEVICE
         self.size = *new_size;
         self.config.width = new_size.width;
         self.config.height = new_size.height;
         self.surface.configure(&self.device, &self.config);
         self.viewport_size = Size {
-            width: self.size.width as f32 / scale_factor,
-            height: self.size.height as f32 / scale_factor,
+            width: self.size.width as f32,
+            height: self.size.height as f32,
         };
     }
 
