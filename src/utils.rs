@@ -221,6 +221,18 @@ impl Div<f32> for Rectangle {
         Rectangle::new(self.x, self.y, self.width / factor, self.height / factor)
     }
 }
+
+impl PartialEq for Rectangle {
+    fn eq(&self, other: &Self) -> bool {
+        const EPSILON: f32 = 1e-6;
+
+        (self.x - other.x).abs() < EPSILON
+            && (self.y - other.y).abs() < EPSILON
+            && (self.width - other.width).abs() < EPSILON
+            && (self.height - other.height).abs() < EPSILON
+    }
+}
+
 #[derive(Copy, Clone, Debug)]
 pub struct MouseInfo {
     pub is_rmb_clicked: bool,

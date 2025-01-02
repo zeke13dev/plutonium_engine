@@ -5,11 +5,119 @@ use std::rc::Rc;
 use uuid::Uuid;
 use winit::keyboard::Key;
 
-use crate::traits::{PlutoObject, UpdateContext};
+use crate::pluto_objects::shapes::Shape;
 use crate::utils::{MouseInfo, Position, Rectangle};
-use crate::PlutoniumEngine;
+use crate::{
+    traits::{PlutoObject, UpdateContext},
+    PlutoniumEngine,
+};
 
 use crate::text::TextRenderer;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum HorizontalAlignment {
+    Left,   // Text starts from left edge
+    Center, // Text is centered horizontally
+    Right,  // Text ends at right edge
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum VerticalAlignment {
+    Top,    // Text starts from top edge
+    Middle, // Text is centered vertically
+    Bottom, // Text starts from bottom edge (default)
+}
+
+#[derive(Debug, Clone)]
+pub struct TextContainer {
+    pub dimensions: Rectangle,
+    pub h_align: HorizontalAlignment,
+    pub v_align: VerticalAlignment,
+    pub padding: f32,
+}
+
+impl Default for TextContainer {
+    fn default() -> Self {
+        Self {
+            dimensions: Rectangle::new(0.0, 0.0, 0.0, 0.0), // Zero-sized by default
+            h_align: HorizontalAlignment::Left,
+            v_align: VerticalAlignment::Bottom,
+            padding: 5.0,
+        }
+    }
+}
+
+impl TextContainer {
+    pub fn new(dimensions: Rectangle) -> Self {
+        Self {
+            dimensions,
+            h_align: HorizontalAlignment::Left,
+            v_align: VerticalAlignment::Top,
+            padding: 5.0,
+        }
+    }
+
+    pub fn with_alignment(
+        mut self,
+        h_align: HorizontalAlignment,
+        v_align: VerticalAlignment,
+    ) -> Self {
+        self.h_align = h_align;
+        self.v_align = v_align;
+        self
+    }
+
+    pub fn with_padding(mut self, padding: f32) -> Self {
+        self.padding = padding;
+        self
+    }
+
+    pub fn calculate_text_position(&self, text_width: f32, text_height: f32) -> Position {
+        // Calculate the content area after padding
+        let content_dimensions = Rectangle::new(
+            self.dimensions.x + self.padding,
+            self.dimensions.y + self.padding,
+            self.dimensions.width.max(0.0) - (self.padding * 2.0),
+            self.dimensions.height.max(0.0) - (self.padding * 2.0),
+        );
+
+        // Horizontal positioning (this part is correct and remains the same)
+        let x = match self.h_align {
+            HorizontalAlignment::Left => content_dimensions.x,
+            HorizontalAlignment::Center => {
+                content_dimensions.x + (content_dimensions.width - text_width) / 2.0
+            }
+            HorizontalAlignment::Right => {
+                content_dimensions.x + content_dimensions.width - text_width
+            }
+        };
+
+        // Vertical positioning needs adjustment
+        let y = match self.v_align {
+            // For top alignment, baseline starts at top of content area
+            VerticalAlignment::Top => content_dimensions.y,
+
+            // For middle alignment, center the text vertically
+            VerticalAlignment::Middle => {
+                content_dimensions.y + (content_dimensions.height - text_height) / 2.0
+            }
+
+            // For bottom alignment, baseline is at bottom of content area minus descent
+            VerticalAlignment::Bottom => {
+                content_dimensions.y + content_dimensions.height - text_height
+            }
+        };
+
+        Position { x, y }
+    }
+    pub fn set_dimensions(&mut self, dimensions: Rectangle) {
+        self.dimensions = dimensions;
+    }
+
+    fn get_dimensions(&self) -> Rectangle {
+        self.dimensions
+    }
+}
 // Text2D Implementation
 pub struct Text2DInternal {
     id: Uuid,
@@ -17,7 +125,7 @@ pub struct Text2DInternal {
     dimensions: Rectangle,
     font_size: f32,
     content: String,
-    content_changed: bool,
+    container: TextContainer,
 }
 
 impl Text2DInternal {
@@ -27,21 +135,59 @@ impl Text2DInternal {
         dimensions: Rectangle,
         font_size: f32,
         content: &str,
+        container: Option<TextContainer>,
     ) -> Self {
+        let default_container = TextContainer::new(Rectangle::new(
+            dimensions.x,
+            dimensions.y,
+            dimensions.width,
+            dimensions.height,
+        ))
+        .with_alignment(HorizontalAlignment::Left, VerticalAlignment::Top)
+        .with_padding(0.0);
+
         Self {
             id,
             font_key,
             dimensions,
             font_size,
             content: content.to_string(),
-            content_changed: false,
+            container: container.unwrap_or(default_container),
         }
+    }
+
+    pub fn set_dimensions(&mut self, dimensions: Rectangle) {
+        self.dimensions = dimensions;
+        // Update container bounds to match new dimensions if using default container
+        if self.container.get_dimensions() == self.dimensions {
+            self.container.set_dimensions(dimensions);
+        }
+    }
+    pub fn get_render_position(&self, text_width: f32) -> Position {
+        self.container
+            .calculate_text_position(text_width, self.font_size)
+    }
+
+    pub fn set_container(&mut self, container: TextContainer) {
+        self.container = container;
+    }
+
+    pub fn get_container(&self) -> &TextContainer {
+        &self.container
+    }
+
+    pub fn get_container_mut(&mut self) -> &mut TextContainer {
+        &mut self.container
+    }
+
+    pub fn reset_container(&mut self) {
+        self.container = TextContainer::new(self.dimensions);
     }
 
     // Add this new method to get cursor position at a specific character index
     pub fn get_cursor_position(&self, char_index: usize, text_renderer: &TextRenderer) -> Position {
         let text = &self.content[..char_index.min(self.content.len())];
-        let width = text_renderer.measure_text(text, &self.font_key);
+        let width = text_renderer.measure_text(text, &self.font_key).0;
 
         Position {
             x: self.dimensions.x + width,
@@ -56,7 +202,7 @@ impl Text2DInternal {
 
         for (idx, _) in self.content.char_indices() {
             let substr = &self.content[..idx];
-            let width = text_renderer.measure_text(substr, &self.font_key);
+            let width = text_renderer.measure_text(substr, &self.font_key).0;
 
             // If we're closer to the previous character's position, return that index
             if width > relative_x {
@@ -76,25 +222,25 @@ impl Text2DInternal {
     }
 
     pub fn set_font_size(&mut self, font_size: f32) {
-        self.content_changed = font_size != self.font_size;
         self.font_size = font_size;
     }
 
     pub fn set_content(&mut self, new_content: &str) {
-        self.content_changed = self.content != new_content;
         self.content = new_content.to_string();
     }
 
     pub fn append_content(&mut self, new_content: &str) {
-        self.content_changed = true;
         self.content.push_str(new_content);
     }
 
-    pub fn pop_content(&mut self) {
-        self.content_changed = true;
-        self.content.pop();
+    pub fn pop_content(&mut self) -> bool {
+        if !self.content.is_empty() {
+            self.content.pop();
+            true
+        } else {
+            false
+        }
     }
-
     pub fn get_text(&self) -> &str {
         &self.content
     }
@@ -138,16 +284,32 @@ impl PlutoObject for Text2DInternal {
         _dpi_scale_factor: f32,
         text_renderer: &TextRenderer, // Add this parameter
     ) {
-        if self.content_changed {
-            let width = text_renderer // Use the parameter directly
-                .measure_text(&self.content, &self.font_key);
-            self.dimensions.width = width;
-            self.dimensions.height = self.font_size;
-            self.content_changed = false;
-        }
+        let width = text_renderer // Use the parameter directly
+            .measure_text(&self.content, &self.font_key)
+            .0;
+        self.dimensions.width = width;
+        self.dimensions.height = self.font_size;
     }
+
     fn render(&self, engine: &mut PlutoniumEngine) {
-        engine.queue_text(&self.content, &self.font_key, self.dimensions.pos());
+        // First measure the text
+        let (text_width, line_count) = engine
+            .text_renderer
+            .measure_text(&self.content, &self.font_key);
+        let text_height = self.font_size * line_count as f32;
+
+        // Get the final position from the container
+        let container_pos = self
+            .container
+            .calculate_text_position(text_width, text_height);
+
+        // Now use text renderer to layout the text at the container-specified position
+        engine.queue_text(
+            &self.content,
+            &self.font_key,
+            container_pos,
+            &self.container,
+        );
     }
 }
 
@@ -156,6 +318,38 @@ pub struct Text2D {
 }
 
 impl Text2D {
+    pub fn create_debug_visualization(&self, engine: &mut PlutoniumEngine) -> Shape {
+        let inner = self.internal.borrow();
+        let container = inner.get_container();
+
+        // Create a rectangle shape that matches the container's dimensions
+        let rect = engine.create_rect(
+            container.dimensions,
+            container.dimensions.pos(),
+            "rgba(0, 0, 255, 0.1)".to_string(), // Semi-transparent blue fill
+            "rgba(0, 0, 255, 0.8)".to_string(), // Solid blue outline
+            1.0,
+        );
+
+        // If you want to visualize the padding area, create another rectangle
+        let content_area = Rectangle::new(
+            container.dimensions.x + container.padding,
+            container.dimensions.y + container.padding,
+            container.dimensions.width - (container.padding * 2.0),
+            container.dimensions.height - (container.padding * 2.0),
+        );
+
+        let _padding_rect = engine.create_rect(
+            content_area,
+            content_area.pos(),
+            "rgba(255, 0, 0, 0.1)".to_string(), // Semi-transparent red fill
+            "rgba(255, 0, 0, 0.8)".to_string(), // Solid red outline
+            1.0,
+        );
+
+        rect
+    }
+
     pub fn new(internal: Rc<RefCell<Text2DInternal>>) -> Self {
         Self { internal }
     }
@@ -188,8 +382,8 @@ impl Text2D {
         self.internal.borrow_mut().append_content(content);
     }
 
-    pub fn pop_content(&self) {
-        self.internal.borrow_mut().pop_content();
+    pub fn pop_content(&self) -> bool {
+        self.internal.borrow_mut().pop_content()
     }
 
     pub fn get_font_size(&self) -> f32 {
@@ -218,5 +412,21 @@ impl Text2D {
 
     pub fn get_id(&self) -> Uuid {
         self.internal.borrow().get_id()
+    }
+
+    pub fn set_container(&mut self, container: TextContainer) {
+        self.internal.borrow_mut().set_container(container);
+    }
+
+    pub fn log_container(&self) {
+        println!("{:?}", self.internal.borrow().get_container());
+    }
+
+    pub fn container_bounds(&self) -> Rectangle {
+        self.internal.borrow().get_container().dimensions
+    }
+
+    pub fn reset_container(&self) {
+        self.internal.borrow_mut().reset_container();
     }
 }

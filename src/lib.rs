@@ -2,6 +2,7 @@ extern crate image;
 pub mod camera;
 pub mod pluto_objects {
     pub mod button;
+    pub mod shapes;
     pub mod text2d;
     pub mod text_input;
     pub mod texture_2d;
@@ -17,7 +18,8 @@ use crate::traits::UpdateContext;
 use camera::Camera;
 use pluto_objects::{
     button::{Button, ButtonInternal},
-    text2d::{Text2D, Text2DInternal},
+    shapes::{Shape, ShapeInternal, ShapeType},
+    text2d::{Text2D, Text2DInternal, TextContainer},
     text_input::{TextInput, TextInputInternal},
     texture_2d::{Texture2D, Texture2DInternal},
     texture_atlas_2d::{TextureAtlas2D, TextureAtlas2DInternal},
@@ -91,26 +93,26 @@ impl<'a> PlutoniumEngine<'a> {
     pub fn load_font(
         &mut self,
         font_path: &str,
-        font_size: f32,
+        logical_font_size: f32,
         font_key: &str,
     ) -> Result<(), FontError> {
         if self.loaded_fonts.contains_key(font_key) {
             return Ok(());
         }
 
-        let font_size = font_size * self.dpi_scale_factor;
+        // Generate the physical-sized atlas for actual texture rendering
+        let physical_font_size = logical_font_size * self.dpi_scale_factor;
         let font_data = std::fs::read(font_path).map_err(FontError::IoError)?;
         let font = Font::try_from_vec(font_data).ok_or(FontError::InvalidFontData)?;
-        let scale = Scale::uniform(font_size);
+        let scale = Scale::uniform(physical_font_size);
         let padding = 2;
 
-        // Get atlas dimensions and max tile sizes
+        // Calculate atlas dimensions in physical space
         let (atlas_width, atlas_height, char_dimensions, max_tile_width, max_tile_height) =
             TextRenderer::calculate_atlas_size(&font, scale, padding);
 
-        let tile_size = Size::new(max_tile_width as f32, max_tile_height as f32);
-
-        let (texture_data, char_map) = TextRenderer::render_glyphs_to_atlas(
+        // Generate the physical texture atlas
+        let (texture_data, physical_char_map) = TextRenderer::render_glyphs_to_atlas(
             &font,
             scale,
             (atlas_width, atlas_height),
@@ -119,27 +121,52 @@ impl<'a> PlutoniumEngine<'a> {
         )
         .ok_or(FontError::AtlasRenderError)?;
 
+        // Create a new char_map with logical coordinates
+        let mut logical_char_map = HashMap::new();
+        for (c, physical_info) in physical_char_map {
+            logical_char_map.insert(
+                c,
+                CharacterInfo {
+                    tile_index: physical_info.tile_index, // Texture index stays the same
+                    advance_width: physical_info.advance_width / self.dpi_scale_factor,
+                    bearing: (
+                        physical_info.bearing.0 / self.dpi_scale_factor,
+                        physical_info.bearing.1 / self.dpi_scale_factor,
+                    ),
+                    size: physical_info.size, // Keep physical size for texture coordinates
+                },
+            );
+        }
+
         let atlas_id = Uuid::new_v4();
+        // Create texture atlas keeping physical dimensions for the actual texture
         let atlas = self.create_font_texture_atlas(
             atlas_id,
             &texture_data,
             atlas_width,
             atlas_height,
-            tile_size,
-            &char_map,
-        );
-
-        // Pass max dimensions to store_font_atlas
-        self.text_renderer.store_font_atlas(
-            font_key,
-            atlas,
-            char_map,
-            font_size,
-            padding,
             Size {
                 width: max_tile_width as f32,
                 height: max_tile_height as f32,
             },
+            &logical_char_map, // Use logical char map for consistency
+        );
+
+        // Store everything with logical coordinates except the texture dimensions
+        let ascent = font.v_metrics(scale).ascent / self.dpi_scale_factor;
+        let descent = font.v_metrics(scale).descent / self.dpi_scale_factor;
+        self.text_renderer.store_font_atlas(
+            font_key,
+            atlas,
+            logical_char_map,
+            logical_font_size, // Store logical size
+            ascent,
+            descent,
+            Size {
+                width: max_tile_width as f32, // Keep physical size for texture coordinates
+                height: max_tile_height as f32,
+            },
+            self.dpi_scale_factor,
         );
 
         self.loaded_fonts.insert(font_key.to_string(), true);
@@ -313,21 +340,20 @@ impl<'a> PlutoniumEngine<'a> {
         }
     }
 
-    pub fn queue_text(&mut self, text: &str, font_key: &str, position: Position) {
-        let chars = self.text_renderer.calculate_text_layout(
-            text,
-            font_key,
-            position,
-            self.dpi_scale_factor,
-        );
+    pub fn queue_text(
+        &mut self,
+        text: &str,
+        font_key: &str,
+        position: Position,
+        container: &TextContainer,
+    ) {
+        let chars = self
+            .text_renderer
+            .calculate_text_layout(text, font_key, position, container);
         for char in chars {
-            // Scale position here instead
-            // let scaled_position = char.position * self.dpi_scale_factor;
-            let scaled_position = char.position;
-            self.queue_tile(&char.atlas_id, char.tile_index, scaled_position);
+            self.queue_tile(&char.atlas_id, char.tile_index, char.position);
         }
     }
-
     pub fn clear_render_queue(&mut self) {
         self.render_queue.clear();
     }
@@ -413,6 +439,31 @@ impl<'a> PlutoniumEngine<'a> {
             &self.device,
             &self.queue,
             file_path,
+            &self.texture_bind_group_layout,
+            &self.transform_bind_group_layout,
+            position,
+            scale_factor * self.dpi_scale_factor,
+        );
+
+        let texture = svg_texture.expect("texture should always be created properly");
+        let dimensions = texture.dimensions() / self.dpi_scale_factor;
+
+        self.texture_map.insert(texture_key, texture);
+        (texture_key, dimensions)
+    }
+
+    pub fn create_texture_svg_from_data(
+        &mut self,
+        svg_data: &str,
+        position: Position,
+        scale_factor: f32,
+    ) -> (Uuid, Rectangle) {
+        let texture_key = Uuid::new_v4();
+        let svg_texture = TextureSVG::new_from_data(
+            texture_key,
+            &self.device,
+            &self.queue,
+            svg_data,
             &self.texture_bind_group_layout,
             &self.transform_bind_group_layout,
             position,
@@ -608,8 +659,13 @@ impl<'a> PlutoniumEngine<'a> {
         }
 
         // Create text dimensions based on measurement - now needs font_key
-        let width = self.text_renderer.measure_text(text, font_key);
-        let dimensions = Rectangle::new(position.x, position.y, width, font_size);
+        let text_size = self.text_renderer.measure_text(text, font_key);
+        let dimensions = Rectangle::new(
+            position.x,
+            position.y,
+            text_size.0,
+            text_size.1 as f32 * font_size,
+        );
 
         let internal = Text2DInternal::new(
             id,
@@ -617,6 +673,7 @@ impl<'a> PlutoniumEngine<'a> {
             dimensions,
             font_size,
             text,
+            None,
         );
 
         let rc_internal = Rc::new(RefCell::new(internal));
@@ -625,6 +682,7 @@ impl<'a> PlutoniumEngine<'a> {
 
         Text2D::new(rc_internal)
     }
+
     pub fn create_texture_atlas_2d(
         &mut self,
         svg_path: &str,
@@ -735,6 +793,115 @@ impl<'a> PlutoniumEngine<'a> {
         TextInput::new(rc_internal)
     }
 
+    pub fn create_rect(
+        &mut self,
+        bounds: Rectangle,
+        position: Position,
+        fill: String,
+        outline: String,
+        stroke: f32,
+    ) -> Shape {
+        let id = Uuid::new_v4();
+        let texture_id = Uuid::new_v4();
+
+        let internal = ShapeInternal::new(
+            id,
+            texture_id,
+            bounds,
+            position,
+            fill,
+            outline,
+            stroke,
+            ShapeType::Rectangle,
+        );
+
+        let rc_internal = Rc::new(RefCell::new(internal));
+        let svg_data = rc_internal.borrow().generate_svg_data();
+
+        // Create the texture using svg data directly
+        let (texture_key, _dimensions) =
+            self.create_texture_svg_from_data(&svg_data, position, 1.0);
+
+        rc_internal.borrow_mut().set_ids(id, texture_key);
+
+        self.pluto_objects.insert(id, rc_internal.clone());
+        self.update_queue.push(id);
+
+        Shape::new(rc_internal)
+    }
+
+    pub fn create_circle(
+        &mut self,
+        radius: f32,
+        position: Position,
+        fill: String,
+        outline: String,
+        stroke: f32,
+    ) -> Shape {
+        let id = Uuid::new_v4();
+        let texture_id = Uuid::new_v4();
+        let bounds = Rectangle::new(0.0, 0.0, radius * 2.0, radius * 2.0);
+
+        let internal = ShapeInternal::new(
+            id,
+            texture_id,
+            bounds,
+            position,
+            fill,
+            outline,
+            stroke,
+            ShapeType::Circle,
+        );
+
+        let rc_internal = Rc::new(RefCell::new(internal));
+        let svg_data = rc_internal.borrow().generate_svg_data();
+
+        let (texture_key, _dimensions) =
+            self.create_texture_svg_from_data(&svg_data, position, 1.0);
+        rc_internal.borrow_mut().set_ids(id, texture_key);
+
+        self.pluto_objects.insert(id, rc_internal.clone());
+        self.update_queue.push(id);
+
+        Shape::new(rc_internal)
+    }
+
+    pub fn create_polygon(
+        &mut self,
+        radius: f32,
+        points: u32,
+        position: Position,
+        fill: String,
+        outline: String,
+        stroke: f32,
+    ) -> Shape {
+        let id = Uuid::new_v4();
+        let texture_id = Uuid::new_v4();
+        let bounds = Rectangle::new(0.0, 0.0, radius * 2.0, radius * 2.0);
+
+        let internal = ShapeInternal::new(
+            id,
+            texture_id,
+            bounds,
+            position,
+            fill,
+            outline,
+            stroke,
+            ShapeType::Polygon(points),
+        );
+
+        let rc_internal = Rc::new(RefCell::new(internal));
+        let svg_data = rc_internal.borrow().generate_svg_data();
+
+        let (texture_key, _dimensions) =
+            self.create_texture_svg_from_data(&svg_data, position, 1.0);
+        rc_internal.borrow_mut().set_ids(id, texture_key);
+
+        self.pluto_objects.insert(id, rc_internal.clone());
+        self.update_queue.push(id);
+
+        Shape::new(rc_internal)
+    }
     pub fn new(
         surface: wgpu::Surface<'a>,
         instance: wgpu::Instance,

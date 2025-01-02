@@ -81,7 +81,7 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
         event: WindowEvent,
     ) {
         match event {
-                        WindowEvent::Resized(new_size) => {
+            WindowEvent::Resized(new_size) => {
                 if let Some(engine) = &mut self.engine {
                     engine.resize(&new_size)
                 }

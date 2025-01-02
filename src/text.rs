@@ -1,4 +1,7 @@
-use crate::pluto_objects::texture_atlas_2d::TextureAtlas2D;
+use crate::pluto_objects::{
+    text2d::{HorizontalAlignment, TextContainer, VerticalAlignment},
+    texture_atlas_2d::TextureAtlas2D,
+};
 use crate::utils::{Position, Size};
 use rusttype::{point, Font, Scale};
 use std::collections::HashMap;
@@ -30,8 +33,9 @@ pub struct FontAtlas {
     atlas: TextureAtlas2D,
     char_map: HashMap<char, CharacterInfo>,
     font_size: f32,
-    _padding: u32,
     max_tile_size: Size,
+    ascent: f32,
+    descent: f32,
 }
 
 impl FontAtlas {
@@ -67,73 +71,6 @@ impl TextRenderer {
         }
     }
 
-    pub fn calculate_text_layout(
-        &self,
-        text: &str,
-        font_key: &str,
-        position: Position,
-        scale_factor: f32,
-    ) -> Vec<CharacterRenderInfo> {
-        let mut chars_to_render = Vec::new();
-        let font_atlas = match self.font_atlases.get(font_key) {
-            Some(atlas) => atlas,
-            _ => return chars_to_render,
-        };
-        let mut pen_x = position.x;
-        // Calculate the initial baseline by offsetting from the top by the font ascender
-        let initial_baseline = position.y + (font_atlas.font_size * 0.35); // Approximate ascender height
-        let mut baseline_y = initial_baseline;
-
-        for c in text.chars() {
-            if c == '\n' {
-                baseline_y += font_atlas.font_size * 0.8;
-                pen_x = position.x;
-                continue;
-            }
-
-            // Handle space character
-            if c == ' ' {
-                // Use a fraction of the font size for space width
-                pen_x += (font_atlas.font_size * 0.25) / scale_factor;
-                continue;
-            }
-
-            if let Some(char_info) = font_atlas.get_char_info(c) {
-                let char_pos = Position {
-                    x: pen_x + char_info.bearing.0 / scale_factor,
-                    y: baseline_y - char_info.bearing.1 / scale_factor,
-                };
-
-                chars_to_render.push(CharacterRenderInfo {
-                    atlas_id: font_atlas.atlas.get_id(),
-                    tile_index: char_info.tile_index,
-                    position: char_pos,
-                });
-
-                pen_x += char_info.advance_width / scale_factor;
-            }
-        }
-        chars_to_render
-    }
-    pub fn store_font_atlas(
-        &mut self,
-        font_key: &str,
-        atlas: TextureAtlas2D,
-        char_map: HashMap<char, CharacterInfo>,
-        font_size: f32,
-        _padding: u32,
-        max_tile_size: Size,
-    ) {
-        let font_atlas = FontAtlas {
-            atlas,
-            char_map,
-            font_size,
-            _padding,
-            max_tile_size,
-        };
-        self.font_atlases.insert(font_key.to_string(), font_atlas);
-    }
-
     pub fn calculate_atlas_size(
         font: &Font,
         scale: Scale,
@@ -144,6 +81,7 @@ impl TextRenderer {
         let mut char_dimensions = HashMap::new();
 
         // Calculate dimensions for all printable ASCII characters
+
         for c in (32..=126).map(|c| c as u8 as char) {
             let glyph = font.glyph(c).scaled(scale).positioned(point(0.0, 0.0));
 
@@ -174,14 +112,37 @@ impl TextRenderer {
             max_height,
         )
     }
-    pub fn measure_text(&self, text: &str, font_key: &str) -> f32 {
+    pub fn measure_text(&self, text: &str, font_key: &str) -> (f32, usize) {
         if let Some(font_atlas) = self.font_atlases.get(font_key) {
-            text.chars()
-                .filter_map(|c| font_atlas.char_map.get(&c))
-                .map(|info| info.advance_width)
-                .sum()
+            let mut max_width: f32 = 0.0;
+            let mut current_width = 0.0;
+            let mut line_count = 1;
+
+            for c in text.chars() {
+                if c == '\n' {
+                    // Track the maximum width and reset current line width
+                    max_width = max_width.max(current_width);
+                    current_width = 0.0;
+                    line_count += 1;
+                    continue;
+                }
+
+                if c == ' ' {
+                    current_width += font_atlas.font_size * 0.3;
+                    continue;
+                }
+
+                if let Some(info) = font_atlas.char_map.get(&c) {
+                    current_width += info.advance_width;
+                }
+            }
+
+            // Don't forget to compare the last line's width
+            max_width = max_width.max(current_width);
+
+            (max_width, line_count)
         } else {
-            0.0
+            (0.0, 1)
         }
     }
     pub fn render_glyphs_to_atlas(
@@ -248,5 +209,143 @@ impl TextRenderer {
         }
 
         Some((texture_data, char_map))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn store_font_atlas(
+        &mut self,
+        font_key: &str,
+        atlas: TextureAtlas2D,
+        char_map: HashMap<char, CharacterInfo>,
+        font_size: f32,
+        ascent: f32,
+        descent: f32,
+        physical_tile_size: Size,
+        dpi_scale_factor: f32,
+    ) {
+        let logical_tile_size = Size {
+            width: physical_tile_size.width / dpi_scale_factor,
+            height: physical_tile_size.height / dpi_scale_factor,
+        };
+
+        let font_atlas = FontAtlas {
+            atlas,
+            char_map,
+            font_size,
+            max_tile_size: logical_tile_size, // Store in logical units
+            ascent,
+            descent,
+        };
+        self.font_atlases.insert(font_key.to_string(), font_atlas);
+    }
+
+    pub fn calculate_text_layout(
+        &self,
+        text: &str,
+        font_key: &str,
+        container_pos: Position,
+        container: &TextContainer,
+    ) -> Vec<CharacterRenderInfo> {
+        let mut chars_to_render = Vec::new();
+
+        // Early return if text is empty
+        if text.is_empty() {
+            return chars_to_render;
+        }
+
+        let font_atlas = match self.font_atlases.get(font_key) {
+            Some(atlas) => atlas,
+            _ => {
+                eprintln!("Font atlas not found: {}", font_key);
+                return chars_to_render;
+            }
+        };
+
+        // Calculate metrics
+        let line_height = font_atlas.font_size * 1.2;
+        let space_width = font_atlas.font_size * 0.3;
+        let lines: Vec<&str> = text.split('\n').collect();
+        let line_count = lines.len();
+
+        // Compute line widths
+        let line_widths: Vec<f32> = lines
+            .iter()
+            .map(|line| {
+                line.chars().fold(0.0, |width, c| {
+                    width
+                        + if c == ' ' {
+                            space_width
+                        } else {
+                            font_atlas
+                                .get_char_info(c)
+                                .map(|info| info.advance_width)
+                                .unwrap_or(0.0)
+                        }
+                })
+            })
+            .collect();
+
+        let total_text_height = line_height * (line_count as f32);
+
+        // Calculate baseline Y position
+        let base_y = match container.v_align {
+            // Align top of text block with top of container
+            VerticalAlignment::Top => container_pos.y + font_atlas.ascent,
+
+            // Center the text block vertically in the container
+            VerticalAlignment::Middle => {
+                container_pos.y
+                    + (container.dimensions.height - total_text_height) / 2.0
+                    + font_atlas.ascent
+            }
+
+            // Align bottom of text block with bottom of container
+            VerticalAlignment::Bottom => {
+                container_pos.y + container.dimensions.height
+                    - total_text_height
+                    - font_atlas.descent // Adjust for descent if you track it
+            }
+        };
+
+        // Render characters
+        for (line_idx, (line, &line_width)) in lines.iter().zip(line_widths.iter()).enumerate() {
+            let start_x = match container.h_align {
+                HorizontalAlignment::Left => container_pos.x,
+                HorizontalAlignment::Center => {
+                    container_pos.x + (container.dimensions.width - line_width) / 2.0
+                }
+                HorizontalAlignment::Right => {
+                    container_pos.x + container.dimensions.width - line_width
+                }
+            };
+
+            let baseline_y = base_y + (line_idx as f32 * line_height);
+            let mut pen_x = start_x;
+
+            for c in line.chars() {
+                if c == ' ' {
+                    pen_x += space_width;
+                    continue;
+                }
+
+                if let Some(char_info) = font_atlas.get_char_info(c) {
+                    let logical_x = pen_x + char_info.bearing.0;
+                    let logical_y = baseline_y - char_info.bearing.1;
+
+                    chars_to_render.push(CharacterRenderInfo {
+                        atlas_id: font_atlas.atlas.get_id(),
+                        tile_index: char_info.tile_index,
+                        position: Position {
+                            x: logical_x,
+                            y: logical_y,
+                        },
+                    });
+
+                    pen_x += char_info.advance_width;
+                }
+            }
+        }
+
+        chars_to_render
     }
 }

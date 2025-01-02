@@ -1,5 +1,9 @@
 use plutonium_engine::text::FontError;
-use plutonium_engine::{pluto_objects::text2d::Text2D, utils::Position, PlutoniumEngine};
+use plutonium_engine::{
+    pluto_objects::{shapes::Shape, text2d::Text2D},
+    utils::Position,
+    PlutoniumEngine,
+};
 use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
@@ -12,6 +16,7 @@ struct TextRenderingExample<'a> {
     window: Option<Arc<Window>>,
     engine: Option<PlutoniumEngine<'a>>,
     text2d: Option<Text2D>,
+    debug_shape: Option<Shape>,
 }
 
 impl<'a> TextRenderingExample<'a> {
@@ -20,6 +25,7 @@ impl<'a> TextRenderingExample<'a> {
             window: None,
             engine: None,
             text2d: None,
+            debug_shape: None,
         }
     }
 }
@@ -46,13 +52,16 @@ impl<'a> ApplicationHandler<()> for TextRenderingExample<'a> {
             }
 
             // Create text with the specified font
-            let text_position = Position { x: 0.0, y: 0.0 };
+            let text_position = Position { x: 100.0, y: 100.0 };
             self.text2d = Some(engine.create_text2d(
-                "Hello, World! \n New Line",
+                "Hello, World!\nNew Line",
                 "roboto", // Use the loaded font
                 50.0,
                 text_position,
             ));
+            if let Some(text) = &self.text2d {
+                self.debug_shape = Some(text.create_debug_visualization(&mut engine));
+            }
 
             window_arc.request_redraw();
 
@@ -88,6 +97,9 @@ impl<'a> ApplicationHandler<()> for TextRenderingExample<'a> {
                     // Queue text for rendering
                     if let Some(text2d) = &self.text2d {
                         text2d.render(engine);
+                        if let Some(debug) = &self.debug_shape {
+                            debug.render(engine);
+                        }
                     }
 
                     // Render everything

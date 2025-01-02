@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.X.X]
+### Removed
+src/text_input.rs (wasn't being used anyways)
+
+### Fixed
+- HOPEFULLY text_input cursor placement and text alignemnt
+
 ## [0.2.2] - 2024-12-31
 ### Fixed
 - Fixed window resizing behavior in examples

@@ -78,28 +78,44 @@ impl PlutoObject for TextInputInternal {
         text_renderer: &TextRenderer,
     ) {
         if let Some(mouse) = mouse_info {
-            if mouse.is_lmb_clicked && self.dimensions.contains(mouse.mouse_pos) {
-                self.set_focus(true);
-                self.cursor_index = self
-                    .text
-                    .get_char_index_at_position(mouse.mouse_pos.x, text_renderer);
+            if mouse.is_lmb_clicked {
+                if self.dimensions.contains(mouse.mouse_pos) {
+                    self.set_focus(true);
+                    self.cursor_index = self
+                        .text
+                        .get_char_index_at_position(mouse.mouse_pos.x, text_renderer);
+                } else {
+                    self.set_focus(false);
+                }
             }
         }
-        let cursor_pos = self
-            .text
-            .get_cursor_position(self.cursor_index, text_renderer);
-        self.cursor.set_pos(cursor_pos);
 
-        // update content
         if !self.focused || key_pressed.is_none() {
             return;
         }
+
         match key_pressed.as_ref().unwrap() {
-            Key::Character(c) => self.text.append_content(c),
-            Key::Named(NamedKey::Backspace) => self.text.pop_content(),
-            Key::Named(NamedKey::Space) => self.text.append_content(" "),
+            Key::Character(c) => {
+                self.text.append_content(c);
+                self.cursor_index += 1;
+            }
+            Key::Named(NamedKey::Backspace) => {
+                if self.text.pop_content() && self.cursor_index > 0 {
+                    self.cursor_index -= 1;
+                }
+            }
+            Key::Named(NamedKey::Space) => {
+                self.text.append_content(" ");
+                self.cursor_index += 1;
+            }
             _ => (),
         }
+
+        // Update cursor position
+        self.cursor.set_pos(
+            self.text
+                .get_cursor_position(self.cursor_index, text_renderer),
+        );
     }
     fn texture_key(&self) -> Uuid {
         self.button.texture_key()
@@ -135,7 +151,6 @@ impl TextInput {
             .button
             .set_callback(Some(Box::new(move || {
                 internal_clone.borrow_mut().set_focus(true);
-                println!("TextInput: Focused");
             })));
 
         Self { internal }
