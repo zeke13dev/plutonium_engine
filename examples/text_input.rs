@@ -101,7 +101,12 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
                 }
                 if let Some(engine) = &mut self.engine {
                     engine.update(Some(self.mouse_info), &None);
+                    self.window.as_ref().unwrap().request_redraw();
                 }
+                if state == ElementState::Released {
+                    self.mouse_info.is_lmb_clicked = false;
+                }
+                self.mouse_info.is_lmb_clicked = false;
             }
             WindowEvent::KeyboardInput {
                 event:

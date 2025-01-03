@@ -1,11 +1,16 @@
 # Changelog
 
 ## [0.X.X]
+### Added
+- text alignment options using text container
+- Shape PlutoObject for drawing primitive shapes (rectangle, circle, polygon)
+
 ### Removed
-src/text_input.rs (wasn't being used anyways)
+-src/text_input.rs (wasn't being used anyways)
 
 ### Fixed
 - HOPEFULLY text_input cursor placement and text alignemnt
+- text renderer fixes for text positioning
 
 ## [0.2.2] - 2024-12-31
 ### Fixed

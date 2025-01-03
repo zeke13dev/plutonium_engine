@@ -184,43 +184,109 @@ impl Text2DInternal {
         self.container = TextContainer::new(self.dimensions);
     }
 
-    // Add this new method to get cursor position at a specific character index
-    pub fn get_cursor_position(&self, char_index: usize, text_renderer: &TextRenderer) -> Position {
+    pub fn get_cursor_position(
+        &self,
+        char_index: usize,
+        text_renderer: &TextRenderer,
+        current_line: usize,
+    ) -> Position {
+        let padding = self.font_size * 0.15;
+        let line_height = self.font_size * 1.2;
+
+        // Split text into lines
         let text = &self.content[..char_index.min(self.content.len())];
-        let width = text_renderer.measure_text(text, &self.font_key).0;
+        let lines: Vec<&str> = text.split('\n').collect();
+
+        // Handle case where current_line is beyond available lines
+        if current_line >= lines.len() {
+            return Position {
+                x: self.dimensions.x + padding,
+                y: self.dimensions.y + current_line as f32 * line_height,
+            };
+        }
+
+        // Get the text of just the current line
+        let current_line_text = lines[current_line];
+
+        // Measure the width of the current line
+        let line_width = text_renderer
+            .measure_text(current_line_text, &self.font_key)
+            .0;
 
         Position {
-            x: self.dimensions.x + width,
-            y: self.dimensions.y,
+            x: self.dimensions.x + line_width + padding,
+            y: self.dimensions.y + current_line as f32 * line_height,
         }
     }
+    pub fn get_cursor_position_info(
+        &self,
+        x_pos: f32,
+        y_pos: f32,
+        text_renderer: &TextRenderer,
+    ) -> (usize, usize) {
+        // Returns (cursor_index, line_number)
+        // Split content into lines
+        let lines: Vec<&str> = self.content.split('\n').collect();
 
-    // Helper method to find character index at a given x position
-    pub fn get_char_index_at_position(&self, x_pos: f32, text_renderer: &TextRenderer) -> usize {
-        let mut current_width = 0.0;
+        // Calculate line height
+        let line_height = self.font_size * 1.2;
+
+        // Find which line was clicked
+        let relative_y = y_pos - self.dimensions.y;
+        let clicked_line = (relative_y / line_height).floor() as usize;
+        let clicked_line = clicked_line.min(lines.len().saturating_sub(1));
+
+        // Get text up to the clicked line
+        let index_offset = lines
+            .iter()
+            .take(clicked_line)
+            .fold(0, |offset, line| offset + line.len() + 1);
+
+        // Now handle horizontal position within the line
+        let line_content = lines[clicked_line];
         let relative_x = x_pos - self.dimensions.x;
 
-        for (idx, _) in self.content.char_indices() {
-            let substr = &self.content[..idx];
-            let width = text_renderer.measure_text(substr, &self.font_key).0;
-
-            // If we're closer to the previous character's position, return that index
-            if width > relative_x {
-                if idx > 0 && (width - relative_x > relative_x - current_width) {
-                    return idx - 1;
-                }
-                return idx;
-            }
-            current_width = width;
+        // Handle click before line start
+        if relative_x <= 0.0 {
+            return (index_offset, clicked_line);
         }
 
-        self.content.len()
-    }
+        let line_width = text_renderer.measure_text(line_content, &self.font_key).0;
 
-    pub fn get_font_size(&self) -> f32 {
+        // Handle click beyond line end
+        if relative_x >= line_width {
+            return (index_offset + line_content.len(), clicked_line);
+        }
+
+        // Measure each character position in the current line
+        let mut prev_width = 0.0;
+        for (idx, _) in line_content.char_indices() {
+            let substr = &line_content[..=idx];
+            let width = text_renderer.measure_text(substr, &self.font_key).0;
+
+            // Find the midpoint between current and previous character
+            let char_midpoint = (width + prev_width) / 2.0;
+
+            // If click position is before the midpoint, place cursor before current char
+            if relative_x < char_midpoint {
+                return (index_offset + idx, clicked_line);
+            }
+
+            // If this is the last character and we haven't returned yet,
+            // the cursor should go after it
+            if idx == line_content.len() - 1 {
+                return (index_offset + idx + 1, clicked_line);
+            }
+
+            prev_width = width;
+        }
+
+        // If line is empty, return cursor at line start
+        (index_offset, clicked_line)
+    }
+    pub fn get_font_size(&mut self) -> f32 {
         self.font_size
     }
-
     pub fn set_font_size(&mut self, font_size: f32) {
         self.font_size = font_size;
     }
@@ -284,11 +350,15 @@ impl PlutoObject for Text2DInternal {
         _dpi_scale_factor: f32,
         text_renderer: &TextRenderer, // Add this parameter
     ) {
-        let width = text_renderer // Use the parameter directly
-            .measure_text(&self.content, &self.font_key)
-            .0;
-        self.dimensions.width = width;
-        self.dimensions.height = self.font_size;
+        // Measure the text dimensions
+        let (text_width, line_count) = text_renderer.measure_text(&self.content, &self.font_key);
+
+        // Update the dimensions of the text container
+        self.dimensions.width = text_width;
+        self.dimensions.height = self.font_size * line_count as f32;
+
+        // Update the container's dimensions to reflect changes
+        self.container.set_dimensions(self.dimensions);
     }
 
     fn render(&self, engine: &mut PlutoniumEngine) {
@@ -354,16 +424,27 @@ impl Text2D {
         Self { internal }
     }
 
-    pub fn get_cursor_position(&self, char_index: usize, text_renderer: &TextRenderer) -> Position {
+    pub fn get_cursor_position(
+        &self,
+        char_index: usize,
+        text_renderer: &TextRenderer,
+        current_line: usize,
+    ) -> Position {
         self.internal
             .borrow()
-            .get_cursor_position(char_index, text_renderer)
+            .get_cursor_position(char_index, text_renderer, current_line)
     }
 
-    pub fn get_char_index_at_position(&self, x_pos: f32, text_renderer: &TextRenderer) -> usize {
+
+    pub fn get_cursor_position_info(
+        &self,
+        x_pos: f32,
+        y_pos: f32,
+        text_renderer: &TextRenderer,
+    ) -> (usize, usize) {
         self.internal
             .borrow()
-            .get_char_index_at_position(x_pos, text_renderer)
+            .get_cursor_position_info(x_pos, y_pos, text_renderer)
     }
 
     pub fn set_font_size(&self, font_size: f32) {
@@ -387,7 +468,7 @@ impl Text2D {
     }
 
     pub fn get_font_size(&self) -> f32 {
-        self.internal.borrow().get_font_size()
+        self.internal.borrow().font_size
     }
 
     pub fn get_dimensions(&self) -> Rectangle {
@@ -428,5 +509,44 @@ impl Text2D {
 
     pub fn reset_container(&self) {
         self.internal.borrow_mut().reset_container();
+    }
+
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> usize {
+        self.internal.borrow().content.len()
+    }
+
+    pub fn insert_at(&mut self, index: usize, c: &str) {
+        let mut internal = self.internal.borrow_mut();
+        let content = &mut internal.content;
+
+        // Ensure index is within bounds (including allowing insertion at the end)
+        if index > content.len() {
+            return;
+        }
+
+        // Handle different insertion cases
+        if content.is_empty() || index == content.len() {
+            content.push_str(c);
+        } else {
+            let (before, after) = content.split_at(index);
+            *content = format!("{}{}{}", before, c, after);
+        }
+    }
+
+    pub fn remove_at(&mut self, index: usize) -> bool {
+        let mut internal = self.internal.borrow_mut();
+        let content = &mut internal.content;
+
+        // Check if index is valid
+        if index >= content.len() {
+            return false;
+        }
+
+        // Remove character at index
+        let (before, after) = content.split_at(index);
+        let after = &after[1..]; // Skip the character we're removing
+        *content = format!("{}{}", before, after);
+        true
     }
 }

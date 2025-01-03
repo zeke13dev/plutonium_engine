@@ -777,10 +777,43 @@ impl<'a> PlutoniumEngine<'a> {
         };
         let text = self.create_text2d("", font_key, font_size, text_position);
 
-        // Create cursor
-        let cursor = self.create_text2d("|", font_key, font_size, position);
+        // Create cursor using Texture2D with embedded SVG data
+        let cursor_height = font_size * 1.05 / self.dpi_scale_factor;
+        let cursor_width = scale_factor / self.dpi_scale_factor;
+        let cursor_svg_data = format!(
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {} {}\">
+        <rect width=\"{}\" height=\"{}\" fill=\"#000\">
+            <animate 
+                attributeName=\"opacity\"
+                values=\"1;0;1\" 
+                dur=\"1s\"
+                repeatCount=\"indefinite\"/>
+        </rect>
+    </svg>",
+            cursor_width, cursor_height, cursor_width, cursor_height
+        );
 
-        // Create internal representation
+        let cursor_position = Position {
+            x: text_position.x,
+            y: button.get_dimensions().y + (button.get_dimensions().height * 0.1),
+        };
+
+        let cursor_id = Uuid::new_v4();
+        let (texture_key, dimensions) =
+            self.create_texture_svg_from_data(&cursor_svg_data, cursor_position, scale_factor);
+
+        // Create the internal representation for cursor
+        let cursor_internal = Texture2DInternal::new(cursor_id, texture_key, dimensions);
+        let rc_cursor_internal = Rc::new(RefCell::new(cursor_internal));
+
+        // Add cursor to pluto objects and update queue
+        self.pluto_objects
+            .insert(cursor_id, rc_cursor_internal.clone());
+        self.update_queue.push(cursor_id);
+
+        let cursor = Texture2D::new(rc_cursor_internal);
+
+        // Create internal representation for text input
         let dimensions = button.get_dimensions();
         let internal = TextInputInternal::new(input_id, button, text, cursor, dimensions);
 
