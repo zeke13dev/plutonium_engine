@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.0]
+### Changed
+- button now has on_click, on_focus, on_unfocus
+- updated all dependencies
+- added wrapper to refactor api
+
 ## [0.3.0]
 ### Added
 - text alignment options using text container

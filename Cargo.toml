@@ -13,24 +13,24 @@ categories = ["graphics", "rendering"]
 edition = "2021"
 
 [dependencies]
-image = "0.25.1"
-winit = "0.30.0"
-wgpu = "0.20.0"
-env_logger = "0.11.1"
-pollster = "0.3.0"
-tiny-skia = "0.11.3"
-resvg = "0.41.0"
-fontdb = "0.17.0"
-smol_str = "0.2.1"
-futures = "0.3.30"
-tokio = "1.37.0"
-glyphon = "0.5.0"
-queues = "1.0.2"
+image = "0.25.5"
+winit = "0.30.8"
+wgpu = "23.0.1"
+env_logger = "0.11.6"
+pollster = "0.4.0"
+tiny-skia = "0.11.4"
+resvg = "0.44.0"
+fontdb = "0.23.0"
+smol_str = "0.3.2"
+futures = "0.3.31"
+tokio = "1.42.0"
+glyphon = "0.7.0"
+queues = "1.1.0"
 rusttype = "0.9.3"
 ab_glyph_rasterizer = "0.1.8"
 
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1.11.0", features = ["v4"] }
 
 [dependencies.bytemuck]
-version = "1.14.1"
+version = "1.21.0"
 features = ["derive"]

@@ -16,25 +16,23 @@ pub struct ButtonInternal {
     texture_key: Uuid,
     text_object: Text2D,
     dimensions: Rectangle,
-    callback: Option<Box<dyn Fn()>>,
-    _padding: f32, // Currently unused but could affect positioning
+    on_click: Option<Box<dyn Fn()>>,
+    on_focus: Option<Box<dyn Fn()>>,
+    on_unfocus: Option<Box<dyn Fn()>>,
+    is_focused: bool,
 }
 
 impl ButtonInternal {
-    pub fn new(
-        id: Uuid,
-        texture_key: Uuid,
-        dimensions: Rectangle,
-        text_object: Text2D,
-        callback: Option<Box<dyn Fn()>>,
-    ) -> Self {
+    pub fn new(id: Uuid, texture_key: Uuid, dimensions: Rectangle, text_object: Text2D) -> Self {
         Self {
             id,
             texture_key,
             dimensions,
             text_object,
-            callback,
-            _padding: 0.0,
+            on_click: None,
+            on_focus: None,
+            on_unfocus: None,
+            is_focused: false,
         }
     }
 
@@ -46,8 +44,16 @@ impl ButtonInternal {
         self.text_object.set_content("");
     }
 
-    pub fn set_callback(&mut self, callback: Option<Box<dyn Fn()>>) {
-        self.callback = callback;
+    pub fn set_on_click(&mut self, callback: Option<Box<dyn Fn()>>) {
+        self.on_click = callback;
+    }
+
+    pub fn set_on_focus(&mut self, callback: Option<Box<dyn Fn()>>) {
+        self.on_focus = callback;
+    }
+
+    pub fn set_on_unfocus(&mut self, callback: Option<Box<dyn Fn()>>) {
+        self.on_unfocus = callback;
     }
 
     pub fn render(&self, engine: &mut PlutoniumEngine) {
@@ -57,8 +63,28 @@ impl ButtonInternal {
 
     pub fn update(&mut self, mouse_info: Option<MouseInfo>, _key_pressed: &Option<Key>) {
         if let Some(mouse) = mouse_info {
-            if mouse.is_lmb_clicked && self.dimensions.contains(mouse.mouse_pos) {
-                if let Some(ref callback) = self.callback {
+            let contains_mouse = self.dimensions.contains(mouse.mouse_pos);
+
+            // Handle focus/unfocus events
+            match (self.is_focused, contains_mouse) {
+                (false, true) => {
+                    self.is_focused = true;
+                    if let Some(ref callback) = self.on_focus {
+                        callback();
+                    }
+                }
+                (true, false) => {
+                    self.is_focused = false;
+                    if let Some(ref callback) = self.on_unfocus {
+                        callback();
+                    }
+                }
+                _ => {}
+            }
+
+            // Handle click events
+            if mouse.is_lmb_clicked && contains_mouse {
+                if let Some(ref callback) = self.on_click {
                     callback();
                 }
             }
@@ -122,8 +148,16 @@ impl Button {
         self.internal.borrow_mut().clear();
     }
 
-    pub fn set_callback(&self, callback: Option<Box<dyn Fn()>>) {
-        self.internal.borrow_mut().set_callback(callback);
+    pub fn set_on_click(&self, callback: Option<Box<dyn Fn()>>) {
+        self.internal.borrow_mut().set_on_click(callback);
+    }
+
+    pub fn set_on_focus(&self, callback: Option<Box<dyn Fn()>>) {
+        self.internal.borrow_mut().set_on_focus(callback);
+    }
+
+    pub fn set_on_unfocus(&self, callback: Option<Box<dyn Fn()>>) {
+        self.internal.borrow_mut().set_on_unfocus(callback);
     }
 
     pub fn render(&self, engine: &mut PlutoniumEngine) {
@@ -141,6 +175,7 @@ impl Button {
     pub fn texture_key(&self) -> Uuid {
         self.internal.borrow().texture_key()
     }
+
     pub fn get_dimensions(&self) -> Rectangle {
         self.internal.borrow().dimensions()
     }
@@ -153,3 +188,4 @@ impl Button {
         self.internal.borrow_mut().set_pos(position);
     }
 }
+

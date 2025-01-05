@@ -67,10 +67,8 @@ impl TextureSVG {
 
         // Parse SVG
         let opt = Options::default();
-        let mut fontdb = resvg::usvg::fontdb::Database::new();
-        fontdb.load_system_fonts(); // Ensure system fonts are loaded
-        let rtree = Tree::from_str(&svg_data, &opt, &fontdb)
-            .map_err(|e| format!("Failed to parse SVG: {}", e))?;
+        let rtree =
+            Tree::from_str(&svg_data, &opt).map_err(|e| format!("Failed to parse SVG: {}", e))?;
         let svg_size = rtree.size();
         let svg_width = svg_size.width().ceil() as u32;
         let svg_height = svg_size.height().ceil() as u32;
@@ -408,19 +406,19 @@ impl TextureSVG {
     fn initialize_buffers(device: &wgpu::Device) -> (Vec<Vertex>, wgpu::Buffer, wgpu::Buffer) {
         let vertices = vec![
             Vertex {
-                position: [-0.5, 0.5, 0.0],
+                position: [-0.5, 0.5],
                 tex_coords: [0.0, 0.0],
             },
             Vertex {
-                position: [0.5, 0.5, 0.0],
+                position: [0.5, 0.5],
                 tex_coords: [1.0, 0.0],
             },
             Vertex {
-                position: [-0.5, -0.5, 0.0],
+                position: [-0.5, -0.5],
                 tex_coords: [0.0, 1.0],
             },
             Vertex {
-                position: [0.5, -0.5, 0.0],
+                position: [0.5, -0.5],
                 tex_coords: [1.0, 1.0],
             },
         ];
@@ -607,19 +605,19 @@ impl TextureSVG {
 
         self.vertices = vec![
             Vertex {
-                position: [-width_ndc, height_ndc, 0.0],
+                position: [-width_ndc, height_ndc],
                 tex_coords: tex_coords[0],
             },
             Vertex {
-                position: [width_ndc, height_ndc, 0.0],
+                position: [width_ndc, height_ndc],
                 tex_coords: tex_coords[1],
             },
             Vertex {
-                position: [-width_ndc, -height_ndc, 0.0],
+                position: [-width_ndc, -height_ndc],
                 tex_coords: tex_coords[2],
             },
             Vertex {
-                position: [width_ndc, -height_ndc, 0.0],
+                position: [width_ndc, -height_ndc],
                 tex_coords: tex_coords[3],
             },
         ];
@@ -641,8 +639,7 @@ impl TextureSVG {
             return None;
         };
         let opt = Options::default();
-        let fontdb = resvg::usvg::fontdb::Database::new();
-        let rtree = Tree::from_str(&svg_content, &opt, &fontdb).ok()?;
+        let rtree = Tree::from_str(&svg_content, &opt).ok()?;
         let original_size = rtree.size();
         let scaled_size = Size {
             width: original_size.width() * scale_factor,
@@ -665,9 +662,9 @@ impl TextureSVG {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            format: wgpu::TextureFormat::Bgra8UnormSrgb,
+            view_formats: &[wgpu::TextureFormat::Bgra8UnormSrgb],
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[wgpu::TextureFormat::Rgba8UnormSrgb],
         });
 
         let bytes_per_pixel = 4;

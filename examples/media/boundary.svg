@@ -1,1 +1,9 @@
-<?xml version="1.0" encoding="UTF-8"?><svg id="Layer_2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><style>.cls-1{fill:#d4145a;stroke-width:0px;}</style></defs><g id="Layer_1-2"><path class="cls-1" d="m99,1v98H1V1h98m1-1H0v100h100V0h0Z"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <path 
+    d="M99,1 V99 H1 V1 Z" 
+    fill="none"
+    stroke="#d4145a"
+    stroke-width="1"
+  />
+</svg>
+

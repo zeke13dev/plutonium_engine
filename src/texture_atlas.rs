@@ -170,6 +170,7 @@ impl TextureAtlas {
             let offset = (tile_index * aligned_element_size) as u64;
 
             // Calculate UV coordinates using grid-based approach
+            // TODO: FIGURE OUT WHAT THE 4.0 IS
             if let Some(tile_rect) = Self::tile_uv_coordinates(tile_index, tile_size + 4.0, size) {
                 let uv_transform = UVTransform {
                     uv_offset: [tile_rect.x, tile_rect.y],
@@ -423,19 +424,19 @@ impl TextureAtlas {
     fn initialize_buffers(device: &wgpu::Device) -> (Vec<Vertex>, wgpu::Buffer, wgpu::Buffer) {
         let vertices = vec![
             Vertex {
-                position: [-0.5, 0.5, 0.0],
+                position: [-0.5, 0.5],
                 tex_coords: [0.0, 0.0],
             },
             Vertex {
-                position: [0.5, 0.5, 0.0],
+                position: [0.5, 0.5],
                 tex_coords: [1.0, 0.0],
             },
             Vertex {
-                position: [-0.5, -0.5, 0.0],
+                position: [-0.5, -0.5],
                 tex_coords: [0.0, 1.0],
             },
             Vertex {
-                position: [0.5, -0.5, 0.0],
+                position: [0.5, -0.5],
                 tex_coords: [1.0, 1.0],
             },
         ];
@@ -650,19 +651,19 @@ impl TextureAtlas {
 
         self.vertices = vec![
             Vertex {
-                position: [-width_ndc, height_ndc, 0.0],
+                position: [-width_ndc, height_ndc],
                 tex_coords: tex_coords[0],
             },
             Vertex {
-                position: [width_ndc, height_ndc, 0.0],
+                position: [width_ndc, height_ndc],
                 tex_coords: tex_coords[1],
             },
             Vertex {
-                position: [-width_ndc, -height_ndc, 0.0],
+                position: [-width_ndc, -height_ndc],
                 tex_coords: tex_coords[2],
             },
             Vertex {
-                position: [width_ndc, -height_ndc, 0.0],
+                position: [width_ndc, -height_ndc],
                 tex_coords: tex_coords[3],
             },
         ];
@@ -721,8 +722,7 @@ impl TextureAtlas {
         let svg_data = fs::read_to_string(file_path)
             .unwrap_or_else(|_| panic!("file not found: {}", file_path));
         let opt = Options::default();
-        let fontdb = resvg::usvg::fontdb::Database::new();
-        let rtree = Tree::from_str(&svg_data, &opt, &fontdb).ok()?;
+        let rtree = Tree::from_str(&svg_data, &opt).ok()?;
         let original_size = rtree.size();
         let scaled_size = Size {
             width: original_size.width() * scale_factor,

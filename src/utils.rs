@@ -21,7 +21,7 @@ pub struct UVTransform {
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug)]
 pub struct Vertex {
-    pub position: [f32; 3],   // x, y, z coordinates
+    pub position: [f32; 2],   
     pub tex_coords: [f32; 2], // u, v texture coordinates
 }
 

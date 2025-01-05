@@ -1,4 +1,3 @@
-extern crate image;
 pub mod camera;
 pub mod pluto_objects {
     pub mod button;
@@ -8,6 +7,8 @@ pub mod pluto_objects {
     pub mod texture_2d;
     pub mod texture_atlas_2d;
 }
+pub mod app;
+pub use app::{FrameContext, PlutoniumApp, WindowConfig};
 pub mod text;
 pub mod texture_atlas;
 pub mod texture_svg;
@@ -535,9 +536,8 @@ impl<'a> PlutoniumEngine<'a> {
             usage: wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
+            view_formats: &[wgpu::TextureFormat::Rgba8UnormSrgb],
         });
-
         self.queue.write_texture(
             wgpu::ImageCopyTexture {
                 texture: &texture,
@@ -715,7 +715,6 @@ impl<'a> PlutoniumEngine<'a> {
         font_size: f32,
         position: Position,
         scale_factor: f32,
-        callback: Option<Box<dyn Fn()>>,
     ) -> Button {
         let id = Uuid::new_v4();
 
@@ -732,13 +731,7 @@ impl<'a> PlutoniumEngine<'a> {
 
         text_object.set_pos(Position { x: 0.0, y: 0.0 });
         // Create internal representation
-        let internal = ButtonInternal::new(
-            id,
-            button_texture_key,
-            button_dimensions,
-            text_object,
-            callback,
-        );
+        let internal = ButtonInternal::new(id, button_texture_key, button_dimensions, text_object);
 
         // Wrap in Rc<RefCell> and store
         let rc_internal = Rc::new(RefCell::new(internal));
@@ -760,15 +753,7 @@ impl<'a> PlutoniumEngine<'a> {
         let input_id = Uuid::new_v4();
 
         // Create button
-        let button = self.create_button(
-            svg_path,
-            "",
-            font_key,
-            font_size,
-            position,
-            scale_factor,
-            None,
-        );
+        let button = self.create_button(svg_path, "", font_key, font_size, position, scale_factor);
 
         // Create text object
         let text_position = Position {
@@ -935,6 +920,7 @@ impl<'a> PlutoniumEngine<'a> {
 
         Shape::new(rc_internal)
     }
+
     pub fn new(
         surface: wgpu::Surface<'a>,
         instance: wgpu::Instance,
@@ -954,25 +940,24 @@ impl<'a> PlutoniumEngine<'a> {
             &wgpu::DeviceDescriptor {
                 label: None,
                 required_features: wgpu::Features::empty(),
-                // Make sure we use the texture resolution limits from the adapter, so we can support images the size of the swapchain.
                 required_limits:
                     wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits()),
+                memory_hints: Default::default(),
             },
             None,
         ))
-        .expect("Failed to create device");
+        .expect("Failed to create device"); // Handle the Result
 
         let config = wgpu::SurfaceConfiguration {
             desired_maximum_frame_latency: 2,
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
             view_formats: vec![wgpu::TextureFormat::Bgra8UnormSrgb],
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: wgpu::TextureFormat::Bgra8UnormSrgb, // Assume `surface` and `adapter` are already defined
-            width: size.width,                           // Set to your window's initial width
-            height: size.height,                         // Set to your window's initial height
-            present_mode: wgpu::PresentMode::Fifo,       // This enables V-Sync
+            format: wgpu::TextureFormat::Bgra8UnormSrgb,
+            width: size.width,
+            height: size.height,
+            present_mode: wgpu::PresentMode::Fifo,
         };
-
         surface.configure(&device, &config);
 
         let transform_bind_group_layout =
@@ -1057,20 +1042,31 @@ impl<'a> PlutoniumEngine<'a> {
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: "vs_main",
+                entry_point: Some("vs_main"),
                 buffers: &[wgpu::VertexBufferLayout {
                     array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
                     step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2],
+                    attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2],
                 }],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: wgpu::TextureFormat::Bgra8UnormSrgb,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    blend: Some(wgpu::BlendState {
+    color: wgpu::BlendComponent {
+        src_factor: wgpu::BlendFactor::One,
+        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+        operation: wgpu::BlendOperation::Add,
+    },
+    alpha: wgpu::BlendComponent {
+        src_factor: wgpu::BlendFactor::One,
+        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+        operation: wgpu::BlendOperation::Add,
+    },
+}),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
@@ -1079,6 +1075,7 @@ impl<'a> PlutoniumEngine<'a> {
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
+            cache: None,
         });
 
         let texture_map: HashMap<Uuid, TextureSVG> = HashMap::new();

@@ -267,8 +267,16 @@ impl TextInput {
         internal
             .borrow_mut()
             .button
-            .set_callback(Some(Box::new(move || {
+            .set_on_click(Some(Box::new(move || {
                 internal_clone.borrow_mut().set_focus(true);
+            })));
+
+        let internal_clone = Rc::clone(&internal);
+        internal
+            .borrow_mut()
+            .button
+            .set_on_unfocus(Some(Box::new(move || {
+                internal_clone.borrow_mut().set_focus(false);
             })));
 
         Self { internal }
