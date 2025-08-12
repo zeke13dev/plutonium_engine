@@ -36,7 +36,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             player.set_pos(player_pos);
             engine.begin_frame();
             // Use immediate-mode draw with rotation example
-            let _params = plutonium_engine::DrawParams { z: 0, scale: 1.0, rotation: 0.0 };
+            let _params = plutonium_engine::DrawParams {
+                z: 0,
+                scale: 1.0,
+                rotation: 0.0,
+                tint: [1.0, 1.0, 1.0, 1.0],
+            };
             player.render(engine);
             engine.end_frame().unwrap();
         }

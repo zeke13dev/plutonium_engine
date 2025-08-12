@@ -188,4 +188,3 @@ impl Button {
         self.internal.borrow_mut().set_pos(position);
     }
 }
-

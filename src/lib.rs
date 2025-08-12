@@ -1,33 +1,37 @@
 pub mod camera;
 pub mod pluto_objects {
-    #[cfg(feature = "widgets")] pub mod button;
+    #[cfg(feature = "widgets")]
+    pub mod button;
     pub mod shapes;
     pub mod text2d;
-    #[cfg(feature = "widgets")] pub mod text_input;
+    #[cfg(feature = "widgets")]
+    pub mod text_input;
     pub mod texture_2d;
     pub mod texture_atlas_2d;
 }
 pub mod app;
 pub use app::{FrameContext, PlutoniumApp, WindowConfig};
+#[cfg(feature = "layout")]
+pub mod layout;
+pub mod renderer;
 pub mod text;
 pub mod texture_atlas;
 pub mod texture_svg;
 pub mod traits;
-pub mod renderer;
 pub mod utils;
 
 use crate::traits::UpdateContext;
 use camera::Camera;
+#[cfg(feature = "widgets")]
+use pluto_objects::button::{Button, ButtonInternal};
+#[cfg(feature = "widgets")]
+use pluto_objects::text_input::{TextInput, TextInputInternal};
 use pluto_objects::{
     shapes::{Shape, ShapeInternal, ShapeType},
     text2d::{Text2D, Text2DInternal, TextContainer},
     texture_2d::{Texture2D, Texture2DInternal},
     texture_atlas_2d::{TextureAtlas2D, TextureAtlas2DInternal},
 };
-#[cfg(feature = "widgets")]
-use pluto_objects::button::{Button, ButtonInternal};
-#[cfg(feature = "widgets")]
-use pluto_objects::text_input::{TextInput, TextInputInternal};
 use rusttype::{Font, Scale};
 
 use pollster::block_on;
@@ -54,6 +58,7 @@ pub struct DrawParams {
     pub z: i32,
     pub scale: f32,
     pub rotation: f32,
+    pub tint: [f32; 4],
 }
 
 pub(crate) enum RenderItem {
@@ -77,14 +82,21 @@ struct TransformPool {
     buffers: Vec<wgpu::Buffer>,
     bind_groups: Vec<wgpu::BindGroup>,
     cursor: usize,
+    cpu_mats: Vec<[[f32; 4]; 4]>,
 }
 
 impl TransformPool {
     fn new() -> Self {
-        Self { buffers: Vec::new(), bind_groups: Vec::new(), cursor: 0 }
+        Self {
+            buffers: Vec::new(),
+            bind_groups: Vec::new(),
+            cursor: 0,
+            cpu_mats: Vec::new(),
+        }
     }
     fn reset(&mut self) {
         self.cursor = 0;
+        self.cpu_mats.clear();
     }
 }
 
@@ -95,9 +107,11 @@ pub struct PlutoniumEngine<'a> {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
+    #[allow(dead_code)]
     render_pipeline: wgpu::RenderPipeline,
     texture_bind_group_layout: wgpu::BindGroupLayout,
     transform_bind_group_layout: wgpu::BindGroupLayout,
+    instance_bind_group_layout: wgpu::BindGroupLayout,
     texture_map: HashMap<Uuid, TextureSVG>,
     atlas_map: HashMap<Uuid, TextureAtlas>,
     pluto_objects: HashMap<Uuid, Rc<RefCell<dyn PlutoObject>>>,
@@ -108,6 +122,7 @@ pub struct PlutoniumEngine<'a> {
     text_renderer: TextRenderer,
     loaded_fonts: HashMap<String, bool>,
     transform_pool: TransformPool,
+    // reserved for future instancing bind group
 }
 
 impl<'a> PlutoniumEngine<'a> {
@@ -417,8 +432,7 @@ impl<'a> PlutoniumEngine<'a> {
 
         {
             // sort by z, stable to preserve submission order within same layer
-            self.render_queue
-                .sort_by(|a, b| a.z.cmp(&b.z));
+            self.render_queue.sort_by(|a, b| a.z.cmp(&b.z));
 
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
@@ -440,19 +454,340 @@ impl<'a> PlutoniumEngine<'a> {
                 occlusion_query_set: None,
             });
 
-            // Delegate submission to the renderer backend
-            for queued in &self.render_queue {
-                match &queued.item {
-                    RenderItem::Texture { texture_key, transform_index } => {
-                        if let Some(texture) = self.texture_map.get(texture_key) {
-                            let bg = &self.transform_pool.bind_groups[*transform_index];
-                            texture.render(&mut rpass, &self.render_pipeline, bg);
+            // Streaming batcher that preserves z-order and interleaves atlas draws
+            let mut current_tex: Option<Uuid> = None;
+            let mut batch_indices: Vec<usize> = Vec::new();
+            let mut current_atlas: Option<Uuid> = None;
+            let mut atlas_instances: Vec<crate::utils::InstanceRaw> = Vec::new();
+
+            // Helper to flush a pending sprite batch
+            let flush_batch = |rpass: &mut wgpu::RenderPass<'_>,
+                                   tex_id: Option<Uuid>,
+                                   indices: &mut Vec<usize>| {
+                if indices.is_empty() {
+                    return;
+                }
+                if let Some(tid) = tex_id {
+                    if let Some(texture) = self.texture_map.get(&tid) {
+                        // Build per-instance data: model + uv (full sprite)
+                        let instances: Vec<crate::utils::InstanceRaw> = indices
+                            .iter()
+                            .map(|i| crate::utils::InstanceRaw {
+                                model: self.transform_pool.cpu_mats[*i],
+                                uv_offset: [0.0, 0.0],
+                                uv_scale: [1.0, 1.0],
+                            })
+                            .collect();
+                        let instance_buffer =
+                            self.device
+                                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                    label: Some("instance data (sprite)"),
+                                    contents: bytemuck::cast_slice(&instances),
+                                    usage: wgpu::BufferUsages::STORAGE,
+                                });
+                        let instance_bg =
+                            self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                                layout: &self.instance_bind_group_layout,
+                                entries: &[wgpu::BindGroupEntry {
+                                    binding: 0,
+                                    resource: instance_buffer.as_entire_binding(),
+                                }],
+                                label: Some("instance_bind_group"),
+                            });
+
+                        // Bind texture, identity world, uv and instance buffer
+                        rpass.set_bind_group(0, texture.bind_group(), &[]);
+                        rpass.set_bind_group(3, &instance_bg, &[]);
+
+                        let identity = TransformUniform {
+                            transform: [
+                                [1.0, 0.0, 0.0, 0.0],
+                                [0.0, 1.0, 0.0, 0.0],
+                                [0.0, 0.0, 1.0, 0.0],
+                                [0.0, 0.0, 0.0, 1.0],
+                            ],
+                        };
+                        let id_buf =
+                            self.device
+                                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                    label: Some("id-ubo"),
+                                    contents: bytemuck::bytes_of(&identity),
+                                    usage: wgpu::BufferUsages::UNIFORM,
+                                });
+                        let id_bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                            layout: &self.transform_bind_group_layout,
+                            entries: &[wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: id_buf.as_entire_binding(),
+                            }],
+                            label: Some("id-bg"),
+                        });
+                        rpass.set_bind_group(1, &id_bg, &[]);
+                        rpass.set_bind_group(2, texture.uv_bind_group(), &[]);
+                        rpass.set_vertex_buffer(0, texture.vertex_buffer_slice());
+                        rpass.set_index_buffer(
+                            texture.index_buffer_slice(),
+                            wgpu::IndexFormat::Uint16,
+                        );
+                        rpass.draw_indexed(0..texture.num_indices(), 0, 0..(indices.len() as u32));
+                    }
+                }
+                indices.clear();
+            };
+
+            for q in &self.render_queue {
+                match &q.item {
+                    RenderItem::Texture {
+                        texture_key,
+                        transform_index,
+                    } => {
+                        match current_tex {
+                            Some(tid) if tid == *texture_key => {
+                                batch_indices.push(*transform_index);
+                            }
+                            _ => {
+                                // different texture; flush previous
+                                flush_batch(&mut rpass, current_tex, &mut batch_indices);
+                                // also flush any atlas batch
+                                if !atlas_instances.is_empty() {
+                                    let _ = ();
+                                }
+                                // flush atlas using helper
+                                // (inline since closures can't borrow self twice safely here)
+                                if !atlas_instances.is_empty() {
+                                    if let Some(aid) = current_atlas {
+                                        if let Some(atlas) = self.atlas_map.get(&aid) {
+                                            let instance_buffer = self.device.create_buffer_init(
+                                                &wgpu::util::BufferInitDescriptor {
+                                                    label: Some("instance data (atlas)"),
+                                                    contents: bytemuck::cast_slice(
+                                                        &atlas_instances,
+                                                    ),
+                                                    usage: wgpu::BufferUsages::STORAGE,
+                                                },
+                                            );
+                                            let instance_bg = self.device.create_bind_group(
+                                                &wgpu::BindGroupDescriptor {
+                                                    layout: &self.instance_bind_group_layout,
+                                                    entries: &[wgpu::BindGroupEntry {
+                                                        binding: 0,
+                                                        resource: instance_buffer
+                                                            .as_entire_binding(),
+                                                    }],
+                                                    label: Some("atlas-instance-bg"),
+                                                },
+                                            );
+                                            let identity = TransformUniform {
+                                                transform: [
+                                                    [1.0, 0.0, 0.0, 0.0],
+                                                    [0.0, 1.0, 0.0, 0.0],
+                                                    [0.0, 0.0, 1.0, 0.0],
+                                                    [0.0, 0.0, 0.0, 1.0],
+                                                ],
+                                            };
+                                            let id_buf = self.device.create_buffer_init(
+                                                &wgpu::util::BufferInitDescriptor {
+                                                    label: Some("id-ubo"),
+                                                    contents: bytemuck::bytes_of(&identity),
+                                                    usage: wgpu::BufferUsages::UNIFORM,
+                                                },
+                                            );
+                                            let id_bg = self.device.create_bind_group(
+                                                &wgpu::BindGroupDescriptor {
+                                                    layout: &self.transform_bind_group_layout,
+                                                    entries: &[wgpu::BindGroupEntry {
+                                                        binding: 0,
+                                                        resource: id_buf.as_entire_binding(),
+                                                    }],
+                                                    label: Some("id-bg"),
+                                                },
+                                            );
+                                            rpass.set_bind_group(0, &atlas.bind_group, &[]);
+                                            rpass.set_bind_group(1, &id_bg, &[]);
+                                            rpass.set_bind_group(
+                                                2,
+                                                atlas.default_uv_bind_group(),
+                                                &[],
+                                            );
+                                            rpass.set_bind_group(3, &instance_bg, &[]);
+                                            rpass.set_vertex_buffer(
+                                                0,
+                                                atlas.vertex_buffer.slice(..),
+                                            );
+                                            rpass.set_index_buffer(
+                                                atlas.index_buffer.slice(..),
+                                                wgpu::IndexFormat::Uint16,
+                                            );
+                                            rpass.draw_indexed(
+                                                0..atlas.num_indices,
+                                                0,
+                                                0..(atlas_instances.len() as u32),
+                                            );
+                                        }
+                                    }
+                                    atlas_instances.clear();
+                                    current_atlas = None;
+                                }
+                                current_tex = Some(*texture_key);
+                                batch_indices.push(*transform_index);
+                            }
                         }
                     }
-                    RenderItem::AtlasTile { texture_key, transform_index, tile_index } => {
+                    RenderItem::AtlasTile {
+                        texture_key,
+                        transform_index,
+                        tile_index,
+                    } => {
+                        // flush any sprite batch first
+                        flush_batch(&mut rpass, current_tex, &mut batch_indices);
+                        current_tex = None;
+                        // switch atlas batch if needed
+                        if current_atlas != Some(*texture_key) {
+                            // flush previous atlas
+                            if !atlas_instances.is_empty() {
+                                if let Some(aid) = current_atlas {
+                                    if let Some(atlas) = self.atlas_map.get(&aid) {
+                                        let instance_buffer = self.device.create_buffer_init(
+                                            &wgpu::util::BufferInitDescriptor {
+                                                label: Some("instance data (atlas)"),
+                                                contents: bytemuck::cast_slice(&atlas_instances),
+                                                usage: wgpu::BufferUsages::STORAGE,
+                                            },
+                                        );
+                                        let instance_bg = self.device.create_bind_group(
+                                            &wgpu::BindGroupDescriptor {
+                                                layout: &self.instance_bind_group_layout,
+                                                entries: &[wgpu::BindGroupEntry {
+                                                    binding: 0,
+                                                    resource: instance_buffer.as_entire_binding(),
+                                                }],
+                                                label: Some("atlas-instance-bg"),
+                                            },
+                                        );
+                                        let identity = TransformUniform {
+                                            transform: [
+                                                [1.0, 0.0, 0.0, 0.0],
+                                                [0.0, 1.0, 0.0, 0.0],
+                                                [0.0, 0.0, 1.0, 0.0],
+                                                [0.0, 0.0, 0.0, 1.0],
+                                            ],
+                                        };
+                                        let id_buf = self.device.create_buffer_init(
+                                            &wgpu::util::BufferInitDescriptor {
+                                                label: Some("id-ubo"),
+                                                contents: bytemuck::bytes_of(&identity),
+                                                usage: wgpu::BufferUsages::UNIFORM,
+                                            },
+                                        );
+                                        let id_bg = self.device.create_bind_group(
+                                            &wgpu::BindGroupDescriptor {
+                                                layout: &self.transform_bind_group_layout,
+                                                entries: &[wgpu::BindGroupEntry {
+                                                    binding: 0,
+                                                    resource: id_buf.as_entire_binding(),
+                                                }],
+                                                label: Some("id-bg"),
+                                            },
+                                        );
+                                        rpass.set_bind_group(0, &atlas.bind_group, &[]);
+                                        rpass.set_bind_group(1, &id_bg, &[]);
+                                        rpass.set_bind_group(2, atlas.default_uv_bind_group(), &[]);
+                                        rpass.set_bind_group(3, &instance_bg, &[]);
+                                        rpass.set_vertex_buffer(0, atlas.vertex_buffer.slice(..));
+                                        rpass.set_index_buffer(
+                                            atlas.index_buffer.slice(..),
+                                            wgpu::IndexFormat::Uint16,
+                                        );
+                                        rpass.draw_indexed(
+                                            0..atlas.num_indices,
+                                            0,
+                                            0..(atlas_instances.len() as u32),
+                                        );
+                                    }
+                                }
+                                atlas_instances.clear();
+                            }
+                            current_atlas = Some(*texture_key);
+                        }
                         if let Some(atlas) = self.atlas_map.get(texture_key) {
-                            let bg = &self.transform_pool.bind_groups[*transform_index];
-                            atlas.render_tile(&mut rpass, &self.render_pipeline, *tile_index, bg);
+                            let model = self.transform_pool.cpu_mats[*transform_index];
+                            if let Some(uv_rect) =
+                                crate::texture_atlas::TextureAtlas::tile_uv_coordinates(
+                                    *tile_index,
+                                    atlas.tile_size,
+                                    atlas.dimensions.size(),
+                                )
+                            {
+                                atlas_instances.push(crate::utils::InstanceRaw {
+                                    model,
+                                    uv_offset: [uv_rect.x, uv_rect.y],
+                                    uv_scale: [uv_rect.width, uv_rect.height],
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            // flush any remaining sprite batch
+            flush_batch(&mut rpass, current_tex, &mut batch_indices);
+            // flush any remaining atlas batch
+            if !atlas_instances.is_empty() {
+                if let Some(aid) = current_atlas {
+                    if let Some(atlas) = self.atlas_map.get(&aid) {
+                        let instance_buffer =
+                            self.device
+                                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                    label: Some("instance data (atlas)"),
+                                    contents: bytemuck::cast_slice(&atlas_instances),
+                                    usage: wgpu::BufferUsages::STORAGE,
+                                });
+                        let instance_bg =
+                            self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                                layout: &self.instance_bind_group_layout,
+                                entries: &[wgpu::BindGroupEntry {
+                                    binding: 0,
+                                    resource: instance_buffer.as_entire_binding(),
+                                }],
+                                label: Some("atlas-instance-bg"),
+                            });
+                        let identity = TransformUniform {
+                            transform: [
+                                [1.0, 0.0, 0.0, 0.0],
+                                [0.0, 1.0, 0.0, 0.0],
+                                [0.0, 0.0, 1.0, 0.0],
+                                [0.0, 0.0, 0.0, 1.0],
+                            ],
+                        };
+                        let id_buf =
+                            self.device
+                                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                    label: Some("id-ubo"),
+                                    contents: bytemuck::bytes_of(&identity),
+                                    usage: wgpu::BufferUsages::UNIFORM,
+                                });
+                        let id_bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                            layout: &self.transform_bind_group_layout,
+                            entries: &[wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: id_buf.as_entire_binding(),
+                            }],
+                            label: Some("id-bg"),
+                        });
+                        if let Some(atlas) = self.atlas_map.get(&aid) {
+                            rpass.set_bind_group(0, &atlas.bind_group, &[]);
+                            rpass.set_bind_group(1, &id_bg, &[]);
+                            rpass.set_bind_group(2, atlas.default_uv_bind_group(), &[]);
+                            rpass.set_bind_group(3, &instance_bg, &[]);
+                            rpass.set_vertex_buffer(0, atlas.vertex_buffer.slice(..));
+                            rpass.set_index_buffer(
+                                atlas.index_buffer.slice(..),
+                                wgpu::IndexFormat::Uint16,
+                            );
+                            rpass.draw_indexed(
+                                0..atlas.num_indices,
+                                0,
+                                0..(atlas_instances.len() as u32),
+                            );
                         }
                     }
                 }
@@ -484,7 +819,13 @@ impl<'a> PlutoniumEngine<'a> {
                 params.rotation,
             );
             let idx = self.allocate_transform_bind_group(transform_uniform);
-            self.render_queue.push(QueuedItem { z: params.z, item: RenderItem::Texture { texture_key: *texture_key, transform_index: idx } });
+            self.render_queue.push(QueuedItem {
+                z: params.z,
+                item: RenderItem::Texture {
+                    texture_key: *texture_key,
+                    transform_index: idx,
+                },
+            });
         }
     }
 
@@ -495,7 +836,11 @@ impl<'a> PlutoniumEngine<'a> {
         position: Position,
         params: DrawParams,
     ) {
-        let user_scale = if params.scale == 0.0 { 1.0 } else { params.scale };
+        let user_scale = if params.scale == 0.0 {
+            1.0
+        } else {
+            params.scale
+        };
         self.queue_tile_with_layer(atlas_key, tile_index, position, user_scale, params.z);
     }
 
@@ -509,13 +854,18 @@ impl<'a> PlutoniumEngine<'a> {
                 bytemuck::bytes_of(&transform_uniform),
             );
             self.transform_pool.cursor += 1;
+            self.transform_pool
+                .cpu_mats
+                .push(transform_uniform.transform);
             idx
         } else {
-            let buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Transform UBO (pooled)"),
-                contents: bytemuck::bytes_of(&transform_uniform),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
+            let buffer = self
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Transform UBO (pooled)"),
+                    contents: bytemuck::bytes_of(&transform_uniform),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                });
             let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 layout: &self.transform_bind_group_layout,
                 entries: &[wgpu::BindGroupEntry {
@@ -532,6 +882,9 @@ impl<'a> PlutoniumEngine<'a> {
             self.transform_pool.bind_groups.push(bind_group);
             let idx = self.transform_pool.cursor;
             self.transform_pool.cursor += 1;
+            self.transform_pool
+                .cpu_mats
+                .push(transform_uniform.transform);
             idx
         }
     }
@@ -1077,8 +1430,7 @@ impl<'a> PlutoniumEngine<'a> {
             &wgpu::DeviceDescriptor {
                 label: None,
                 required_features: wgpu::Features::empty(),
-                required_limits:
-                    wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits()),
+                required_limits: wgpu::Limits::default().using_resolution(adapter.limits()),
                 memory_hints: Default::default(),
             },
             None,
@@ -1162,12 +1514,29 @@ impl<'a> PlutoniumEngine<'a> {
         });
 
         // Now update the pipeline layout to include all four bind group layouts
+
+        // Persistent instance bind group layout (group 3)
+        let instance_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("instance_bind_group_layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Texture Pipeline Layout"),
             bind_group_layouts: &[
                 &texture_bind_group_layout,
                 &transform_bind_group_layout,
                 &uv_bind_group_layout,
+                &instance_bind_group_layout,
             ],
             push_constant_ranges: &[],
         });
@@ -1250,6 +1619,7 @@ impl<'a> PlutoniumEngine<'a> {
             text_renderer,
             loaded_fonts,
             transform_pool,
+            instance_bind_group_layout,
         }
     }
 }

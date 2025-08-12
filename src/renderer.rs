@@ -12,11 +12,11 @@ use crate::texture_svg::TextureSVG;
 pub trait Renderer {
     fn submit<'a>(
         &mut self,
-        rpass: &mut wgpu::RenderPass<'a>,
-        pipeline: &'a wgpu::RenderPipeline,
-        items: &'a [crate::QueuedItem],
-        texture_map: &'a HashMap<Uuid, TextureSVG>,
-        atlas_map: &'a HashMap<Uuid, TextureAtlas>,
+        _rpass: &mut wgpu::RenderPass<'a>,
+        _pipeline: &'a wgpu::RenderPipeline,
+        _items: &'a [crate::QueuedItem],
+        _texture_map: &'a HashMap<Uuid, TextureSVG>,
+        _atlas_map: &'a HashMap<Uuid, TextureAtlas>,
     );
 }
 
@@ -31,16 +31,14 @@ impl WgpuRenderer {
 impl Renderer for WgpuRenderer {
     fn submit<'a>(
         &mut self,
-        rpass: &mut wgpu::RenderPass<'a>,
-        pipeline: &'a wgpu::RenderPipeline,
-        items: &'a [crate::QueuedItem],
-        texture_map: &'a HashMap<Uuid, TextureSVG>,
-        atlas_map: &'a HashMap<Uuid, TextureAtlas>,
+        _rpass: &mut wgpu::RenderPass<'a>,
+        _pipeline: &'a wgpu::RenderPipeline,
+        _items: &'a [crate::QueuedItem],
+        _texture_map: &'a HashMap<Uuid, TextureSVG>,
+        _atlas_map: &'a HashMap<Uuid, TextureAtlas>,
     ) {
-        // Engine currently issues the actual bind groups during queueing;
+        // Engine currently issues the actual bind groups during submission;
         // this backend seam is reserved for future full refactor.
         // No-op here to keep behavior unchanged while indices are introduced in the queue.
     }
 }
-
-

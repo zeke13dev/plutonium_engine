@@ -89,7 +89,6 @@ impl Camera {
         }
     }
 
-    
     pub fn new(position: Position) -> Self {
         Self {
             position,

@@ -37,19 +37,19 @@ pub struct TextureAtlas {
     texture_key: Uuid,
     texture: wgpu::Texture,
     view: wgpu::TextureView,
-    bind_group: wgpu::BindGroup,
+    pub(crate) bind_group: wgpu::BindGroup,
     transform_uniform: TransformUniform,
     transform_uniform_buffer: wgpu::Buffer,
     transform_bind_group: wgpu::BindGroup,
     vertices: Vec<Vertex>,
-    dimensions: Rectangle,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    num_indices: u32,
+    pub(crate) dimensions: Rectangle,
+    pub(crate) vertex_buffer: wgpu::Buffer,
+    pub(crate) index_buffer: wgpu::Buffer,
+    pub(crate) num_indices: u32,
     uv_uniform_buffer: wgpu::Buffer,
     uv_bind_groups: Vec<wgpu::BindGroup>,
     uv_bind_group: wgpu::BindGroup,
-    tile_size: Size,
+    pub(crate) tile_size: Size,
 }
 
 impl TextureAtlas {
@@ -155,6 +155,7 @@ impl TextureAtlas {
                 UVTransform {
                     uv_offset: [0.0, 0.0],
                     uv_scale: [1.0, 1.0],
+                    tint: [1.0, 1.0, 1.0, 1.0],
                 };
                 buffer_size / element_size
             ]),
@@ -174,6 +175,7 @@ impl TextureAtlas {
                 let uv_transform = UVTransform {
                     uv_offset: [tile_rect.x, tile_rect.y],
                     uv_scale: [tile_rect.width, tile_rect.height],
+                    tint: [1.0, 1.0, 1.0, 1.0],
                 };
 
                 // Write UV transform to buffer at the correct offset
@@ -302,7 +304,8 @@ impl TextureAtlas {
             contents: bytemuck::cast_slice(&vec![
                 UVTransform {
                     uv_offset: [0.0, 0.0],
-                    uv_scale: [1.0, 1.0]
+                    uv_scale: [1.0, 1.0],
+                    tint: [1.0, 1.0, 1.0, 1.0],
                 };
                 buffer_size / element_size
             ]),
@@ -328,6 +331,7 @@ impl TextureAtlas {
                         let uv_transform = UVTransform {
                             uv_offset: [tile_rect.x, tile_rect.y],
                             uv_scale: [tile_rect.width, tile_rect.height],
+                            tint: [1.0, 1.0, 1.0, 1.0],
                         };
                         queue.write_buffer(
                             &uv_uniform_buffer,
@@ -571,11 +575,15 @@ impl TextureAtlas {
         rpass: &mut wgpu::RenderPass<'a>,
         render_pipeline: &'a wgpu::RenderPipeline,
         transform_bind_group: &'a wgpu::BindGroup,
+        instance_bind_group: Option<&'a wgpu::BindGroup>,
     ) {
         rpass.set_pipeline(render_pipeline);
         rpass.set_bind_group(0, &self.bind_group, &[]);
         rpass.set_bind_group(1, transform_bind_group, &[]);
         rpass.set_bind_group(2, &self.uv_bind_group, &[]);
+        if let Some(bg) = instance_bind_group {
+            rpass.set_bind_group(3, bg, &[]);
+        }
         rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..)); // Add this line
         rpass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
         rpass.draw_indexed(0..self.num_indices, 0, 0..1);
@@ -587,6 +595,7 @@ impl TextureAtlas {
         render_pipeline: &'a wgpu::RenderPipeline,
         tile_index: usize,
         tile_bind_group: &'a wgpu::BindGroup,
+        instance_bind_group: Option<&'a wgpu::BindGroup>,
     ) {
         rpass.set_pipeline(render_pipeline);
         rpass.set_bind_group(0, &self.bind_group, &[]);
@@ -605,9 +614,29 @@ impl TextureAtlas {
         };
 
         rpass.set_bind_group(2, uv_bind_group, &[]);
+        if let Some(bg) = instance_bind_group {
+            rpass.set_bind_group(3, bg, &[]);
+        }
         rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         rpass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
         rpass.draw_indexed(0..self.num_indices, 0, 0..1);
+    }
+
+    // Accessors for snapshots/tests where direct binding is useful
+    pub fn texture_bind_group(&self) -> &wgpu::BindGroup {
+        &self.bind_group
+    }
+    pub fn default_uv_bind_group(&self) -> &wgpu::BindGroup {
+        &self.uv_bind_group
+    }
+    pub fn vertex_buffer_slice(&self) -> wgpu::BufferSlice {
+        self.vertex_buffer.slice(..)
+    }
+    pub fn index_buffer_slice(&self) -> wgpu::BufferSlice {
+        self.index_buffer.slice(..)
+    }
+    pub fn num_indices(&self) -> u32 {
+        self.num_indices
     }
 
     pub fn get_transform_uniform(
@@ -765,7 +794,6 @@ impl TextureAtlas {
         Some(Rectangle::new(uv_x, uv_y, uv_width, uv_height))
     }
 
-    
     /// Converts an SVG file to a wgpu texture.
     fn svg_to_texture(
         file_path: &str,

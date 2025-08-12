@@ -22,3 +22,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
   Ok(())
 }
 ```
+
+For performance and batching details, see `docs/instancing-and-batching.md`.

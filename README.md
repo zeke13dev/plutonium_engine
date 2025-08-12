@@ -15,6 +15,7 @@ Coordinate system:
 API styles:
 - Immediate-mode: `begin_frame()`, `draw_*`, `end_frame()`
 - Optional retained widgets (feature `widgets`): higher-level objects that render via the same draw path
+- `DrawParams` supports `z`, `scale`, `rotation`, and `tint` (RGBA) for sprites
 
 Cargo features:
 ```toml
@@ -30,11 +31,14 @@ Versioning:
 - The public API may evolve; see `CHANGELOG.md` for details.
 
 Testing and CI:
-- Unit tests (math, transforms, UVs, text measurement) and headless rendering tests are planned.
-- GitHub Actions CI with fmt/clippy/test will be added to keep quality high.
+- Unit tests (math, transforms, UVs) and headless snapshots (checkerboard, atlas, sprite, many sprites) are provided.
+- Snapshots are intended to run locally; keep large perf snapshots out of CI.
 
 Further docs in `docs/`:
 - `docs/coordinates-and-dpi.md`
 - `docs/api-styles.md`
 - `docs/features-and-modules.md`
 - `docs/layering.md`
+- `docs/getting-started.md`
+- `docs/layout.md`
+- `docs/instancing-and-batching.md`

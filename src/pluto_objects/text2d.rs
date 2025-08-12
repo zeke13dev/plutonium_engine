@@ -435,7 +435,6 @@ impl Text2D {
             .get_cursor_position(char_index, text_renderer, current_line)
     }
 
-
     pub fn get_cursor_position_info(
         &self,
         x_pos: f32,

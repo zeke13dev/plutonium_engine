@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.6.0] - Released
+
+- True instancing for single-texture sprites
+  - Added persistent instance bind group layout (group 3)
+  - Batching by texture with per-batch storage buffer of `mat4x4`
+  - Vertex shader now uses `@builtin(instance_index)`
+- Snapshot: many sprites perf scene (local only)
+- Docs: instancing-and-batching, layout HUD example
+- Minor API polish: `DrawParams` keeps `rotation` (tint planned)
+- Warning hygiene: clippy clean
+
+## [0.5.0]
+- Initial public crate with textures, atlas, text, widgets, camera
+# Changelog
+
 ## [0.5.0]
 ### Added
 - Immediate-mode helpers: `begin_frame()` and `end_frame()`
@@ -14,6 +29,7 @@
 - Transform pooling to reduce per-draw allocations (batching groundwork)
 - DrawParams now includes `rotation` for sprites
 - New examples: raster texture example; local snapshot scenes (atlas, checkerboard, sprite)
+- Layout v1 (feature `layout`): anchors, percent sizing, margins; basic example and unit test
 
 ### Changed
 - Input: keys are now forwarded to engine updates so interactive widgets receive keystrokes

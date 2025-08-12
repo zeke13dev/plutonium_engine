@@ -10,5 +10,3 @@ fn camera_stays_within_boundary() {
     let pos = cam.get_pos(1.0);
     assert!(pos.x >= 50.0 && pos.y >= 50.0);
 }
-
-

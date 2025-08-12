@@ -16,6 +16,7 @@ pub struct DrawingContext<'a> {
 pub struct UVTransform {
     pub uv_offset: [f32; 2],
     pub uv_scale: [f32; 2],
+    pub tint: [f32; 4],
 }
 
 #[repr(C)]
@@ -29,6 +30,14 @@ pub struct Vertex {
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct TransformUniform {
     pub transform: [[f32; 4]; 4], // 4x4 transformation matrix
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct InstanceRaw {
+    pub model: [[f32; 4]; 4],
+    pub uv_offset: [f32; 2],
+    pub uv_scale: [f32; 2],
 }
 
 #[derive(Debug, Clone, Copy)]

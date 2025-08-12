@@ -212,7 +212,8 @@ impl TextureSVG {
             contents: bytemuck::cast_slice(&vec![
                 UVTransform {
                     uv_offset: [0.0, 0.0],
-                    uv_scale: [1.0, 1.0]
+                    uv_scale: [1.0, 1.0],
+                    tint: [1.0, 1.0, 1.0, 1.0],
                 };
                 buffer_size / element_size
             ]),
@@ -274,7 +275,11 @@ impl TextureSVG {
         // Create texture
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Raster Texture"),
-            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -297,20 +302,27 @@ impl TextureSVG {
                 bytes_per_row: Some(width * 4),
                 rows_per_image: Some(height),
             },
-            wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
         );
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let sampler = Self::create_sampler(device);
-        let bind_group = Self::create_bind_group(device, &view, &sampler, texture_bind_group_layout);
+        let bind_group =
+            Self::create_bind_group(device, &view, &sampler, texture_bind_group_layout);
 
         let (vertices, vertex_buffer, index_buffer) = Self::initialize_buffers(device);
-        let transform_uniform = TransformUniform { transform: [
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0],
-        ]};
+        let transform_uniform = TransformUniform {
+            transform: [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+        };
         let transform_uniform_buffer = Self::create_uniform_buffer(device, &transform_uniform);
         let transform_bind_group = Self::create_bind_group_for_transform(
             device,
@@ -318,22 +330,29 @@ impl TextureSVG {
             transform_bind_group_layout,
         );
 
-        let uv_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<UVTransform>() as u64),
-                },
-                count: None,
-            }],
-            label: Some("UV Bind Group Layout"),
-        });
+        let uv_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(
+                            std::mem::size_of::<UVTransform>() as u64
+                        ),
+                    },
+                    count: None,
+                }],
+                label: Some("UV Bind Group Layout"),
+            });
         let uv_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("UV Uniform Buffer"),
-            contents: bytemuck::bytes_of(&UVTransform { uv_offset: [0.0, 0.0], uv_scale: [1.0, 1.0] }),
+            contents: bytemuck::bytes_of(&UVTransform {
+                uv_offset: [0.0, 0.0],
+                uv_scale: [1.0, 1.0],
+                tint: [1.0, 1.0, 1.0, 1.0],
+            }),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let default_uv_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -436,7 +455,8 @@ impl TextureSVG {
             contents: bytemuck::cast_slice(&vec![
                 UVTransform {
                     uv_offset: [0.0, 0.0],
-                    uv_scale: [1.0, 1.0]
+                    uv_scale: [1.0, 1.0],
+                    tint: [1.0, 1.0, 1.0, 1.0],
                 };
                 buffer_size / element_size
             ]),
@@ -663,14 +683,34 @@ impl TextureSVG {
         rpass: &mut wgpu::RenderPass<'a>,
         render_pipeline: &'a wgpu::RenderPipeline,
         transform_bind_group: &'a wgpu::BindGroup,
+        instance_bind_group: Option<&'a wgpu::BindGroup>,
     ) {
         rpass.set_pipeline(render_pipeline);
         rpass.set_bind_group(0, &self.bind_group, &[]);
         rpass.set_bind_group(1, transform_bind_group, &[]);
         rpass.set_bind_group(2, &self.uv_bind_group, &[]);
+        if let Some(bg) = instance_bind_group {
+            rpass.set_bind_group(3, bg, &[]);
+        }
         rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..)); // Add this line
         rpass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
         rpass.draw_indexed(0..self.num_indices, 0, 0..1);
+    }
+
+    pub fn bind_group(&self) -> &wgpu::BindGroup {
+        &self.bind_group
+    }
+    pub fn uv_bind_group(&self) -> &wgpu::BindGroup {
+        &self.uv_bind_group
+    }
+    pub fn vertex_buffer_slice(&self) -> wgpu::BufferSlice {
+        self.vertex_buffer.slice(..)
+    }
+    pub fn index_buffer_slice(&self) -> wgpu::BufferSlice {
+        self.index_buffer.slice(..)
+    }
+    pub fn num_indices(&self) -> u32 {
+        self.num_indices
     }
 
     /// gets the transform uniform based on the viewport size and adjusts for position.
@@ -696,8 +736,8 @@ impl TextureSVG {
         let (s, c) = (rotation.sin(), rotation.cos());
         TransformUniform {
             transform: [
-                [ c,  s, 0.0, 0.0],
-                [-s,  c, 0.0, 0.0],
+                [c, s, 0.0, 0.0],
+                [-s, c, 0.0, 0.0],
                 [0.0, 0.0, 1.0, 0.0],
                 [ndc_x, ndc_y, 0.0, 1.0],
             ],
