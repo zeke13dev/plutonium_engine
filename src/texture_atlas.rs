@@ -648,6 +648,41 @@ impl TextureAtlas {
         }
     }
 
+    // Pure helper for tests: compute transform without accessing self
+    pub fn compute_transform_uniform(
+        viewport_size: Size,
+        pos: Position,
+        camera_pos: Position,
+        scale: f32,
+        tile_size: Size,
+    ) -> TransformUniform {
+        let scaled_tile_w = tile_size.width * scale;
+        let scaled_tile_h = tile_size.height * scale;
+
+        let final_x = (pos.x - camera_pos.x) * scale;
+        let final_y = (pos.y - camera_pos.y) * scale;
+
+        let ndc_left = 2.0 * (final_x / viewport_size.width) - 1.0;
+        let ndc_top = -2.0 * (final_y / viewport_size.height) + 1.0;
+
+        let tile_w_ndc = 2.0 * (scaled_tile_w / viewport_size.width);
+        let tile_h_ndc = 2.0 * (scaled_tile_h / viewport_size.height);
+
+        TransformUniform {
+            transform: [
+                [tile_w_ndc, 0.0, 0.0, 0.0],
+                [0.0, -tile_h_ndc, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [
+                    ndc_left + tile_w_ndc * 0.5,
+                    ndc_top - tile_h_ndc * 0.5,
+                    0.0,
+                    1.0,
+                ],
+            ],
+        }
+    }
+
     /// Adjusts the vertex texture coordinates based on the tile size and viewport size.
     pub fn adjust_vertex_texture_coordinates(&mut self, tile_size: Size, viewport_size: Size) {
         let tex_coords = [
@@ -680,7 +715,7 @@ impl TextureAtlas {
         ];
     }
 
-    fn tile_uv_coordinates(
+    pub fn tile_uv_coordinates(
         tile_index: usize,
         tile_size: Size,
         atlas_size: Size,
@@ -713,10 +748,6 @@ impl TextureAtlas {
             return None;
         }
 
-        // Half-texel inset to avoid bleeding when using filtering
-        let half_texel_u = 0.5 / atlas_size.width.max(1.0);
-        let half_texel_v = 0.5 / atlas_size.height.max(1.0);
-
         // Convert to normalized UV coordinates (0.0 to 1.0 range) with inset
         let mut uv_x = (pixel_x + 0.5) / atlas_size.width;
         let mut uv_y = (pixel_y + 0.5) / atlas_size.height;
@@ -733,6 +764,8 @@ impl TextureAtlas {
 
         Some(Rectangle::new(uv_x, uv_y, uv_width, uv_height))
     }
+
+    
     /// Converts an SVG file to a wgpu texture.
     fn svg_to_texture(
         file_path: &str,

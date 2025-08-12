@@ -32,3 +32,9 @@ Versioning:
 Testing and CI:
 - Unit tests (math, transforms, UVs, text measurement) and headless rendering tests are planned.
 - GitHub Actions CI with fmt/clippy/test will be added to keep quality high.
+
+Further docs in `docs/`:
+- `docs/coordinates-and-dpi.md`
+- `docs/api-styles.md`
+- `docs/features-and-modules.md`
+- `docs/layering.md`

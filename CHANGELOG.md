@@ -9,6 +9,8 @@
 - Raster textures (feature `raster`): load PNG/JPEG via `create_texture_raster_from_path`
 - Renderer seam: Introduced `renderer` module with a `Renderer` trait and a `WgpuRenderer` implementation used internally
 - Documentation: README updated with features, coordinates, API styles, features, and testing/CI notes
+- CI: GitHub Actions workflow for fmt, clippy, tests (default and raster features)
+- Docs scaffolding under `docs/` (coordinates/DPI, API styles, features, layering)
 
 ### Changed
 - Input: keys are now forwarded to engine updates so interactive widgets receive keystrokes
