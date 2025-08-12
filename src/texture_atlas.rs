@@ -170,8 +170,7 @@ impl TextureAtlas {
             let offset = (tile_index * aligned_element_size) as u64;
 
             // Calculate UV coordinates using grid-based approach
-            // TODO: FIGURE OUT WHAT THE 4.0 IS
-            if let Some(tile_rect) = Self::tile_uv_coordinates(tile_index, tile_size + 4.0, size) {
+            if let Some(tile_rect) = Self::tile_uv_coordinates(tile_index, tile_size, size) {
                 let uv_transform = UVTransform {
                     uv_offset: [tile_rect.x, tile_rect.y],
                     uv_scale: [tile_rect.width, tile_rect.height],
@@ -246,10 +245,9 @@ impl TextureAtlas {
         texture_bind_group_layout: &wgpu::BindGroupLayout,
         transform_bind_group_layout: &wgpu::BindGroupLayout,
         screen_pos: Position,
-        scale_factor: f32,
         tile_size: Size,
     ) -> Option<Self> {
-        let (texture, pixel_size) = Self::svg_to_texture(file_path, device, queue, scale_factor)?;
+        let (texture, pixel_size) = Self::svg_to_texture(file_path, device, queue)?;
 
         let view: wgpu::TextureView = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -345,7 +343,8 @@ impl TextureAtlas {
                             resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                                 buffer: &uv_uniform_buffer,
                                 offset,
-                                size: NonZeroU64::new(aligned_element_size as u64),
+                                // Bind only the size of the UVTransform; the offset is already 256-byte aligned
+                                size: NonZeroU64::new(std::mem::size_of::<UVTransform>() as u64),
                             }),
                         }],
                         label: Some("UV Bind Group"),
@@ -389,9 +388,13 @@ impl TextureAtlas {
 
     /// Creates a sampler for texture filtering.
     fn create_sampler(device: &wgpu::Device) -> wgpu::Sampler {
+        // Use nearest filtering and clamp to edge for atlas sampling to avoid bleeding between tiles
         device.create_sampler(&wgpu::SamplerDescriptor {
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
             mipmap_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
         })
@@ -537,7 +540,6 @@ impl TextureAtlas {
         let viewport_height = viewport_size.height;
 
         let tile_size = self.tile_size;
-        self.adjust_vertex_texture_coordinates(tile_size, viewport_size);
         self.update_vertex_buffer(device);
 
         // Calculate NDC scaling factors
@@ -573,7 +575,6 @@ impl TextureAtlas {
         rpass.set_pipeline(render_pipeline);
         rpass.set_bind_group(0, &self.bind_group, &[]);
         rpass.set_bind_group(1, transform_bind_group, &[]);
-
         rpass.set_bind_group(2, &self.uv_bind_group, &[]);
         rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..)); // Add this line
         rpass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
@@ -608,31 +609,41 @@ impl TextureAtlas {
         rpass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
         rpass.draw_indexed(0..self.num_indices, 0, 0..1);
     }
-    /// gets the transform uniform based on the viewport size and adjusts for position.
+
     pub fn get_transform_uniform(
         &self,
         viewport_size: Size,
-        pos: Position,
-        camera_position: Position,
+        pos: Position, // Logical top-left position
+        camera_pos: Position,
+        scale: f32, // Combined user scale * DPI scale
     ) -> TransformUniform {
-        let tile_width = self.tile_size.width;
-        let tile_height = self.tile_size.height;
-        let width_ndc = tile_width / viewport_size.width;
-        let height_ndc = tile_height / viewport_size.height;
+        // Scaled tile size
+        let scaled_tile_w = self.tile_size.width * scale;
+        let scaled_tile_h = self.tile_size.height * scale;
 
-        // Calculate NDC position
-        let ndc_dx = (2.0 * (pos.x - camera_position.x)) / viewport_size.width - 1.0;
-        let ndc_dy = 1.0 - (2.0 * (pos.y - camera_position.y)) / viewport_size.height;
+        // Logical position -> Final on-screen pixels
+        let final_x = (pos.x - camera_pos.x) * scale;
+        let final_y = (pos.y - camera_pos.y) * scale;
 
-        let ndc_x = ndc_dx + width_ndc;
-        let ndc_y = ndc_dy - height_ndc;
+        // Convert to NDC
+        let ndc_left = 2.0 * (final_x / viewport_size.width) - 1.0;
+        let ndc_top = -2.0 * (final_y / viewport_size.height) + 1.0;
+
+        // Width and height in NDC
+        let tile_w_ndc = 2.0 * (scaled_tile_w / viewport_size.width);
+        let tile_h_ndc = 2.0 * (scaled_tile_h / viewport_size.height);
 
         TransformUniform {
             transform: [
-                [1.0, 0.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
-                [ndc_x, ndc_y, 0.0, 1.0],
+                [tile_w_ndc, 0.0, 0.0, 0.0],  // Scale X
+                [0.0, -tile_h_ndc, 0.0, 0.0], // Scale Y (negative to flip)
+                [0.0, 0.0, 1.0, 0.0],         // Z remains untouched
+                [
+                    ndc_left + tile_w_ndc * 0.5, // Translate X
+                    ndc_top - tile_h_ndc * 0.5,  // Translate Y
+                    0.0,
+                    1.0,
+                ], // Homogeneous coord
             ],
         }
     }
@@ -702,13 +713,23 @@ impl TextureAtlas {
             return None;
         }
 
-        // Convert to normalized UV coordinates (0.0 to 1.0 range)
-        let uv_x = pixel_x / atlas_size.width;
-        let uv_y = pixel_y / atlas_size.height;
+        // Half-texel inset to avoid bleeding when using filtering
+        let half_texel_u = 0.5 / atlas_size.width.max(1.0);
+        let half_texel_v = 0.5 / atlas_size.height.max(1.0);
 
-        // Calculate UV size
-        let uv_width = tile_size.width / atlas_size.width;
-        let uv_height = tile_size.height / atlas_size.height;
+        // Convert to normalized UV coordinates (0.0 to 1.0 range) with inset
+        let mut uv_x = (pixel_x + 0.5) / atlas_size.width;
+        let mut uv_y = (pixel_y + 0.5) / atlas_size.height;
+
+        // Calculate UV size with a 1px shrink to keep sampling fully inside the tile
+        let mut uv_width = (tile_size.width - 1.0).max(0.0) / atlas_size.width;
+        let mut uv_height = (tile_size.height - 1.0).max(0.0) / atlas_size.height;
+
+        // Clamp to [0,1] to be safe
+        uv_x = uv_x.clamp(0.0, 1.0);
+        uv_y = uv_y.clamp(0.0, 1.0);
+        uv_width = uv_width.clamp(0.0, 1.0 - uv_x);
+        uv_height = uv_height.clamp(0.0, 1.0 - uv_y);
 
         Some(Rectangle::new(uv_x, uv_y, uv_width, uv_height))
     }
@@ -717,7 +738,6 @@ impl TextureAtlas {
         file_path: &str,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        scale_factor: f32,
     ) -> Option<(wgpu::Texture, Size)> {
         let svg_data = fs::read_to_string(file_path)
             .unwrap_or_else(|_| panic!("file not found: {}", file_path));
@@ -725,14 +745,14 @@ impl TextureAtlas {
         let rtree = Tree::from_str(&svg_data, &opt).ok()?;
         let original_size = rtree.size();
         let scaled_size = Size {
-            width: original_size.width() * scale_factor,
-            height: original_size.height() * scale_factor,
+            width: original_size.width(),
+            height: original_size.height(),
         };
         let mut pixmap =
             tiny_skia::Pixmap::new(scaled_size.width as u32, scaled_size.height as u32)?;
         pixmap.fill(tiny_skia::Color::TRANSPARENT);
 
-        let transform = tiny_skia::Transform::from_scale(scale_factor, scale_factor);
+        let transform = tiny_skia::Transform::identity();
         resvg::render(&rtree, transform, &mut pixmap.as_mut());
 
         let svg_texture = device.create_texture(&wgpu::TextureDescriptor {

@@ -32,11 +32,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        // Update
         if let Some(player) = &mut player {
+            // Perform Updates
             player.set_pos(player_pos);
             // Render
-            engine.clear_render_queue();
+            engine.clear_render_queue(); 
             player.render(engine);
             engine.render().unwrap();
         }

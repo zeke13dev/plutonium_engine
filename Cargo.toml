@@ -1,6 +1,6 @@
 [package]
 name = "plutonium_engine"
-version = "0.3.0"
+version = "0.4.1"
 authors = ["Zeke Barnett coding@zeke13.com"]
 description = "Pure Rust Graphics Engine"
 license = "Apache-2.0"
@@ -20,17 +20,17 @@ env_logger = "0.11.6"
 pollster = "0.4.0"
 tiny-skia = "0.11.4"
 resvg = "0.44.0"
-fontdb = "0.23.0"
-smol_str = "0.3.2"
-futures = "0.3.31"
-tokio = "1.42.0"
-glyphon = "0.7.0"
-queues = "1.1.0"
 rusttype = "0.9.3"
-ab_glyph_rasterizer = "0.1.8"
 
 uuid = { version = "1.11.0", features = ["v4"] }
 
 [dependencies.bytemuck]
 version = "1.21.0"
 features = ["derive"]
+
+[features]
+default = ["backend-wgpu", "widgets"]
+backend-wgpu = []
+raster = []        # enable PNG/JPEG helper APIs
+widgets = []       # enable retained-mode widgets (Button, TextInput, etc.)
+layout = []        # enable simple layout helpers (anchors/percent)

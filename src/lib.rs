@@ -1,9 +1,9 @@
 pub mod camera;
 pub mod pluto_objects {
-    pub mod button;
+    #[cfg(feature = "widgets")] pub mod button;
     pub mod shapes;
     pub mod text2d;
-    pub mod text_input;
+    #[cfg(feature = "widgets")] pub mod text_input;
     pub mod texture_2d;
     pub mod texture_atlas_2d;
 }
@@ -13,18 +13,21 @@ pub mod text;
 pub mod texture_atlas;
 pub mod texture_svg;
 pub mod traits;
+pub mod renderer;
 pub mod utils;
 
 use crate::traits::UpdateContext;
 use camera::Camera;
 use pluto_objects::{
-    button::{Button, ButtonInternal},
     shapes::{Shape, ShapeInternal, ShapeType},
     text2d::{Text2D, Text2DInternal, TextContainer},
-    text_input::{TextInput, TextInputInternal},
     texture_2d::{Texture2D, Texture2DInternal},
     texture_atlas_2d::{TextureAtlas2D, TextureAtlas2DInternal},
 };
+#[cfg(feature = "widgets")]
+use pluto_objects::button::{Button, ButtonInternal};
+#[cfg(feature = "widgets")]
+use pluto_objects::text_input::{TextInput, TextInputInternal};
 use rusttype::{Font, Scale};
 
 use pollster::block_on;
@@ -41,7 +44,18 @@ use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 use winit::keyboard::Key;
 
-enum RenderItem {
+use crate::renderer::Renderer;
+
+#[cfg(feature = "raster")]
+use image;
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DrawParams {
+    pub z: i32,
+    pub scale: f32,
+}
+
+pub(crate) enum RenderItem {
     Texture {
         texture_key: Uuid,
         transform_bind_group: wgpu::BindGroup,
@@ -51,6 +65,11 @@ enum RenderItem {
         transform_bind_group: wgpu::BindGroup,
         tile_index: usize,
     },
+}
+
+pub struct QueuedItem {
+    z: i32,
+    item: RenderItem,
 }
 
 pub struct PlutoniumEngine<'a> {
@@ -67,7 +86,7 @@ pub struct PlutoniumEngine<'a> {
     atlas_map: HashMap<Uuid, TextureAtlas>,
     pluto_objects: HashMap<Uuid, Rc<RefCell<dyn PlutoObject>>>,
     update_queue: Vec<Uuid>,
-    render_queue: Vec<RenderItem>,
+    render_queue: Vec<QueuedItem>,
     viewport_size: Size,
     camera: Camera,
     text_renderer: TextRenderer,
@@ -203,7 +222,7 @@ impl<'a> PlutoniumEngine<'a> {
             is_rmb_clicked: info.is_rmb_clicked,
             is_lmb_clicked: info.is_lmb_clicked,
             is_mmb_clicked: info.is_mmb_clicked,
-            mouse_pos: info.mouse_pos / 2.0,
+            mouse_pos: info.mouse_pos / self.dpi_scale_factor,
         });
 
         for id in &self.update_queue {
@@ -265,6 +284,15 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     pub fn queue_texture(&mut self, texture_key: &Uuid, position: Option<Position>) {
+        self.queue_texture_with_layer(texture_key, position, 0);
+    }
+
+    pub fn queue_texture_with_layer(
+        &mut self,
+        texture_key: &Uuid,
+        position: Option<Position>,
+        z: i32,
+    ) {
         if let Some(texture) = self.texture_map.get(texture_key) {
             // Generate the transformation matrix based on the position and camera
             let position = position.unwrap_or_default() * self.dpi_scale_factor;
@@ -295,21 +323,40 @@ impl<'a> PlutoniumEngine<'a> {
                 label: Some("Transform Bind Group"),
             });
 
-            self.render_queue.push(RenderItem::Texture {
-                texture_key: *texture_key,
-                transform_bind_group,
+            self.render_queue.push(QueuedItem {
+                z,
+                item: RenderItem::Texture {
+                    texture_key: *texture_key,
+                    transform_bind_group,
+                },
             });
         }
     }
 
-    pub fn queue_tile(&mut self, texture_key: &Uuid, tile_index: usize, position: Position) {
-        let position = position * self.dpi_scale_factor;
+    pub fn queue_tile(
+        &mut self,
+        texture_key: &Uuid,
+        tile_index: usize,
+        position: Position,
+        user_scale: f32,
+    ) {
+        self.queue_tile_with_layer(texture_key, tile_index, position, user_scale, 0);
+    }
+
+    pub fn queue_tile_with_layer(
+        &mut self,
+        texture_key: &Uuid,
+        tile_index: usize,
+        position: Position,
+        user_scale: f32,
+        z: i32,
+    ) {
         if let Some(atlas) = self.atlas_map.get(texture_key) {
-            // Get transform from TextureAtlas
             let transform_uniform = atlas.get_transform_uniform(
                 self.viewport_size,
                 position,
                 self.camera.get_pos(self.dpi_scale_factor),
+                self.dpi_scale_factor * user_scale,
             );
 
             let transform_uniform_buffer =
@@ -333,10 +380,13 @@ impl<'a> PlutoniumEngine<'a> {
                 label: Some("Transform Bind Group"),
             });
 
-            self.render_queue.push(RenderItem::AtlasTile {
-                texture_key: *texture_key,
-                transform_bind_group,
-                tile_index,
+            self.render_queue.push(QueuedItem {
+                z,
+                item: RenderItem::AtlasTile {
+                    texture_key: *texture_key,
+                    transform_bind_group,
+                    tile_index,
+                },
             });
         }
     }
@@ -352,7 +402,7 @@ impl<'a> PlutoniumEngine<'a> {
             .text_renderer
             .calculate_text_layout(text, font_key, position, container);
         for char in chars {
-            self.queue_tile(&char.atlas_id, char.tile_index, char.position);
+            self.queue_tile_with_layer(&char.atlas_id, char.tile_index, char.position, 1.0, 0);
         }
     }
     pub fn clear_render_queue(&mut self) {
@@ -360,10 +410,25 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        let frame = self
-            .surface
-            .get_current_texture()
-            .expect("Failed to acquire next swap chain texture");
+        let frame = match self.surface.get_current_texture() {
+            Ok(frame) => frame,
+            Err(e) => {
+                match e {
+                    wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated => {
+                        // Reconfigure the surface and skip this frame
+                        self.surface.configure(&self.device, &self.config);
+                        return Ok(());
+                    }
+                    wgpu::SurfaceError::OutOfMemory => {
+                        return Err(e);
+                    }
+                    wgpu::SurfaceError::Timeout => {
+                        // Skip this frame and try again on the next one
+                        return Ok(());
+                    }
+                }
+            }
+        };
         let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -375,6 +440,10 @@ impl<'a> PlutoniumEngine<'a> {
             });
 
         {
+            // sort by z, stable to preserve submission order within same layer
+            self.render_queue
+                .sort_by(|a, b| a.z.cmp(&b.z));
+
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -395,37 +464,43 @@ impl<'a> PlutoniumEngine<'a> {
                 occlusion_query_set: None,
             });
 
-            for item in &self.render_queue {
-                match item {
-                    RenderItem::Texture {
-                        texture_key,
-                        transform_bind_group,
-                    } => {
-                        // Render the texture, using the precomputed transform
-                        if let Some(texture) = self.texture_map.get(texture_key) {
-                            texture.render(&mut rpass, &self.render_pipeline, transform_bind_group);
-                        }
-                    }
-                    RenderItem::AtlasTile {
-                        texture_key,
-                        transform_bind_group,
-                        tile_index,
-                    } => {
-                        if let Some(atlas) = self.atlas_map.get(texture_key) {
-                            atlas.render_tile(
-                                &mut rpass,
-                                &self.render_pipeline,
-                                *tile_index,
-                                transform_bind_group,
-                            );
-                        }
-                    }
-                }
-            }
+            // Delegate submission to the renderer backend
+            crate::renderer::WgpuRenderer::new().submit(
+                &mut rpass,
+                &self.render_pipeline,
+                &self.render_queue,
+                &self.texture_map,
+                &self.atlas_map,
+            );
         }
         self.queue.submit(Some(encoder.finish()));
         frame.present();
         Ok(())
+    }
+
+    // Frame helpers for an immediate-mode style
+    pub fn begin_frame(&mut self) {
+        self.clear_render_queue();
+    }
+
+    pub fn end_frame(&mut self) -> Result<(), wgpu::SurfaceError> {
+        self.render()
+    }
+
+    // Convenience immediate-mode draws for consistent naming
+    pub fn draw_texture(&mut self, texture_key: &Uuid, position: Position, params: DrawParams) {
+        self.queue_texture_with_layer(texture_key, Some(position), params.z);
+    }
+
+    pub fn draw_tile(
+        &mut self,
+        atlas_key: &Uuid,
+        tile_index: usize,
+        position: Position,
+        params: DrawParams,
+    ) {
+        let user_scale = if params.scale == 0.0 { 1.0 } else { params.scale };
+        self.queue_tile_with_layer(atlas_key, tile_index, position, user_scale, params.z);
     }
 
     pub fn create_texture_svg(
@@ -478,11 +553,40 @@ impl<'a> PlutoniumEngine<'a> {
         (texture_key, dimensions)
     }
 
+    #[cfg(feature = "raster")]
+    pub fn create_texture_raster_from_path(
+        &mut self,
+        path: &str,
+        position: Position,
+    ) -> (Uuid, Rectangle) {
+        let img = image::open(path).expect("failed to open image").to_rgba8();
+        let (width, height) = img.dimensions();
+        let rgba = img.as_raw();
+
+        let texture_key = Uuid::new_v4();
+        let svg_texture = TextureSVG::new_from_rgba(
+            texture_key,
+            &self.device,
+            &self.queue,
+            width,
+            height,
+            rgba,
+            &self.texture_bind_group_layout,
+            &self.transform_bind_group_layout,
+            position,
+        );
+
+        let texture = svg_texture.expect("texture should always be created properly");
+        let dimensions = texture.dimensions() / self.dpi_scale_factor;
+
+        self.texture_map.insert(texture_key, texture);
+        (texture_key, dimensions)
+    }
+
     pub fn create_texture_atlas(
         &mut self,
         svg_path: &str,
         position: Position,
-        scale_factor: f32,
         tile_size: Size,
     ) -> (Uuid, Rectangle) {
         let texture_key = Uuid::new_v4();
@@ -496,10 +600,9 @@ impl<'a> PlutoniumEngine<'a> {
             &self.texture_bind_group_layout,
             &self.transform_bind_group_layout,
             position,
-            scale_factor * self.dpi_scale_factor, // Apply DPI scaling
             tile_size,
         ) {
-            let dimensions = atlas.dimensions() / self.dpi_scale_factor;
+            let dimensions = atlas.dimensions();
 
             let positioned_dimensions =
                 Rectangle::new(position.x, position.y, dimensions.width, dimensions.height);
@@ -560,9 +663,9 @@ impl<'a> PlutoniumEngine<'a> {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
         });
 
@@ -605,6 +708,7 @@ impl<'a> PlutoniumEngine<'a> {
             let internal = TextureAtlas2DInternal::new(
                 atlas_id,
                 atlas_id,
+                1.0,
                 Rectangle::new(0.0, 0.0, width as f32, height as f32),
                 tile_size,
             );
@@ -693,11 +797,11 @@ impl<'a> PlutoniumEngine<'a> {
         let id = Uuid::new_v4();
 
         // Create texture atlas instead of regular texture
-        let (texture_key, dimensions) =
-            self.create_texture_atlas(svg_path, position, scale_factor, tile_size);
+        let (texture_key, dimensions) = self.create_texture_atlas(svg_path, position, tile_size);
 
         // Create the internal representation
-        let internal = TextureAtlas2DInternal::new(id, texture_key, dimensions, tile_size);
+        let internal =
+            TextureAtlas2DInternal::new(id, texture_key, scale_factor, dimensions, tile_size);
         let rc_internal = Rc::new(RefCell::new(internal));
 
         self.pluto_objects.insert(id, rc_internal.clone());
@@ -1056,17 +1160,17 @@ impl<'a> PlutoniumEngine<'a> {
                 targets: &[Some(wgpu::ColorTargetState {
                     format: wgpu::TextureFormat::Bgra8UnormSrgb,
                     blend: Some(wgpu::BlendState {
-    color: wgpu::BlendComponent {
-        src_factor: wgpu::BlendFactor::One,
-        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-        operation: wgpu::BlendOperation::Add,
-    },
-    alpha: wgpu::BlendComponent {
-        src_factor: wgpu::BlendFactor::One,
-        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-        operation: wgpu::BlendOperation::Add,
-    },
-}),
+                        color: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::One,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                        alpha: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::One,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                    }),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),

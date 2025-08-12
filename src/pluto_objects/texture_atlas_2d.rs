@@ -9,20 +9,31 @@ use uuid::Uuid;
 pub struct TextureAtlas2DInternal {
     id: Uuid,
     texture_key: Uuid,
+    scale_factor: f32,
     dimensions: Rectangle,
     tile_size: Size,
 }
 
 impl TextureAtlas2DInternal {
-    pub fn new(id: Uuid, texture_key: Uuid, dimensions: Rectangle, tile_size: Size) -> Self {
+    pub fn new(
+        id: Uuid,
+        texture_key: Uuid,
+        scale_factor: f32,
+        dimensions: Rectangle,
+        tile_size: Size,
+    ) -> Self {
         Self {
             id,
             texture_key,
+            scale_factor,
             dimensions,
             tile_size,
         }
     }
 
+    pub fn set_scale_factor(&mut self, factor: f32) {
+        self.scale_factor = factor;
+    }
     pub fn set_dimensions(&mut self, new_dimensions: Rectangle) {
         self.dimensions = new_dimensions;
     }
@@ -32,7 +43,11 @@ impl TextureAtlas2DInternal {
     }
 
     pub fn render_tile(&self, engine: &mut PlutoniumEngine, tile_index: usize, position: Position) {
-        engine.queue_tile(&self.texture_key, tile_index, position);
+        engine.queue_tile(&self.texture_key, tile_index, position, self.scale_factor);
+    }
+
+    pub fn scale_factor(&self) -> f32 {
+        self.scale_factor
     }
 }
 
@@ -100,5 +115,9 @@ impl TextureAtlas2D {
 
     pub fn get_tile_size(&self) -> Size {
         self.internal.borrow().tile_size
+    }
+
+    pub fn set_scale_factor(&mut self, factor: f32) {
+        self.internal.borrow_mut().set_scale_factor(factor);
     }
 }

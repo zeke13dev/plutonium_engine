@@ -258,6 +258,118 @@ impl TextureSVG {
         })
     }
 
+    #[cfg(feature = "raster")]
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_from_rgba(
+        texture_key: Uuid,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        width: u32,
+        height: u32,
+        rgba: &[u8],
+        texture_bind_group_layout: &wgpu::BindGroupLayout,
+        transform_bind_group_layout: &wgpu::BindGroupLayout,
+        screen_pos: Position,
+    ) -> Option<Self> {
+        // Create texture
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Raster Texture"),
+            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            view_formats: &[wgpu::TextureFormat::Rgba8UnormSrgb],
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        });
+
+        // Write data
+        queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            rgba,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(width * 4),
+                rows_per_image: Some(height),
+            },
+            wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+        );
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let sampler = Self::create_sampler(device);
+        let bind_group = Self::create_bind_group(device, &view, &sampler, texture_bind_group_layout);
+
+        let (vertices, vertex_buffer, index_buffer) = Self::initialize_buffers(device);
+        let transform_uniform = TransformUniform { transform: [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]};
+        let transform_uniform_buffer = Self::create_uniform_buffer(device, &transform_uniform);
+        let transform_bind_group = Self::create_bind_group_for_transform(
+            device,
+            &transform_uniform_buffer,
+            transform_bind_group_layout,
+        );
+
+        let uv_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<UVTransform>() as u64),
+                },
+                count: None,
+            }],
+            label: Some("UV Bind Group Layout"),
+        });
+        let uv_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("UV Uniform Buffer"),
+            contents: bytemuck::bytes_of(&UVTransform { uv_offset: [0.0, 0.0], uv_scale: [1.0, 1.0] }),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let default_uv_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &uv_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: &uv_uniform_buffer,
+                    offset: 0,
+                    size: NonZeroU64::new(std::mem::size_of::<UVTransform>() as u64),
+                }),
+            }],
+            label: Some("Default UV Bind Group"),
+        });
+
+        let dimensions = Rectangle::new(screen_pos.x, screen_pos.y, width as f32, height as f32);
+
+        Some(Self {
+            texture_key,
+            texture,
+            view,
+            bind_group,
+            active_buffer_index: 0,
+            transform_uniform,
+            transform_uniform_buffer,
+            transform_bind_group,
+            vertices,
+            dimensions,
+            vertex_buffer,
+            index_buffer,
+            num_indices: 6,
+            uv_uniform_buffer,
+            uv_bind_group: default_uv_bind_group,
+        })
+    }
+
     /// Creates a new `TextureSVG` instance.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -592,7 +704,7 @@ impl TextureSVG {
     }
 
     /// Adjusts the vertex texture coordinates based on the tile size and viewport size.
-    pub fn adjust_vertex_texture_coordinates(&mut self, tile_size: Size, viewport_size: Size) {
+    pub fn adjust_vertex_texture_coordinates(&mut self, size: Size, viewport_size: Size) {
         let tex_coords = [
             [0.0, 0.0], // Top-left
             [1.0, 0.0], // Top-right
@@ -600,8 +712,8 @@ impl TextureSVG {
             [1.0, 1.0], // Bottom-right
         ];
 
-        let width_ndc = tile_size.width / viewport_size.width;
-        let height_ndc = tile_size.height / viewport_size.height;
+        let width_ndc = size.width / viewport_size.width;
+        let height_ndc = size.height / viewport_size.height;
 
         self.vertices = vec![
             Vertex {

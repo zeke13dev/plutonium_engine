@@ -1,3 +1,4 @@
+/// THIS IS AN EXAMPLE USING THE OLD STEUP WHICH IS STILL COMPATIBLE AND ALLOWS MORE CONTROL
 use plutonium_engine::{pluto_objects::texture_2d::Texture2D, utils::Position, PlutoniumEngine};
 use std::sync::Arc;
 use wgpu::Surface;
