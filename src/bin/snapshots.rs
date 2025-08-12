@@ -377,7 +377,7 @@ fn snapshot_single_sprite() -> anyhow::Result<()> {
     // Transform for position
     let viewport = Size { width: 256.0, height: 256.0 };
     let pos = Position { x: 50.0, y: 50.0 };
-    let tf = texture.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 });
+    let tf = texture.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0);
     let tf_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("sprite-tf-ubo"),
         contents: bytemuck::cast_slice(&[tf]),

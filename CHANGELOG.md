@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.4.1]
+## [0.5.0]
 ### Added
 - Immediate-mode helpers: `begin_frame()` and `end_frame()`
 - Z-layered rendering with stable sorting; `queue_*_with_layer` and `draw_*` APIs
@@ -11,6 +11,9 @@
 - Documentation: README updated with features, coordinates, API styles, features, and testing/CI notes
 - CI: GitHub Actions workflow for fmt, clippy, tests (default and raster features)
 - Docs scaffolding under `docs/` (coordinates/DPI, API styles, features, layering)
+- Transform pooling to reduce per-draw allocations (batching groundwork)
+- DrawParams now includes `rotation` for sprites
+- New examples: raster texture example; local snapshot scenes (atlas, checkerboard, sprite)
 
 ### Changed
 - Input: keys are now forwarded to engine updates so interactive widgets receive keystrokes

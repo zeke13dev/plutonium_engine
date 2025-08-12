@@ -7,17 +7,7 @@ use crate::texture_svg::TextureSVG;
 // use crate::PlutoniumEngine; // not needed right now
 
 // Expose the queued items to the renderer backend
-pub(crate) enum RenderItemRef<'a> {
-    Texture {
-        texture: &'a TextureSVG,
-        transform_bind_group: &'a wgpu::BindGroup,
-    },
-    AtlasTile {
-        atlas: &'a TextureAtlas,
-        transform_bind_group: &'a wgpu::BindGroup,
-        tile_index: usize,
-    },
-}
+// Reserved for future use
 
 pub trait Renderer {
     fn submit<'a>(
@@ -47,27 +37,9 @@ impl Renderer for WgpuRenderer {
         texture_map: &'a HashMap<Uuid, TextureSVG>,
         atlas_map: &'a HashMap<Uuid, TextureAtlas>,
     ) {
-        for queued in items {
-            match &queued.item {
-                crate::RenderItem::Texture {
-                    texture_key,
-                    transform_bind_group,
-                } => {
-                    if let Some(texture) = texture_map.get(texture_key) {
-                        texture.render(rpass, pipeline, transform_bind_group);
-                    }
-                }
-                crate::RenderItem::AtlasTile {
-                    texture_key,
-                    transform_bind_group,
-                    tile_index,
-                } => {
-                    if let Some(atlas) = atlas_map.get(texture_key) {
-                        atlas.render_tile(rpass, pipeline, *tile_index, transform_bind_group);
-                    }
-                }
-            }
-        }
+        // Engine currently issues the actual bind groups during queueing;
+        // this backend seam is reserved for future full refactor.
+        // No-op here to keep behavior unchanged while indices are introduced in the queue.
     }
 }
 

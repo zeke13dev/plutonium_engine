@@ -679,6 +679,7 @@ impl TextureSVG {
         viewport_size: Size,
         pos: Position,
         camera_position: Position,
+        rotation: f32,
     ) -> TransformUniform {
         let width = self.dimensions.width;
         let height = self.dimensions.height;
@@ -692,11 +693,11 @@ impl TextureSVG {
 
         let ndc_x = ndc_dx + width_ndc;
         let ndc_y = ndc_dy - height_ndc;
-
+        let (s, c) = (rotation.sin(), rotation.cos());
         TransformUniform {
             transform: [
-                [1.0, 0.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0, 0.0],
+                [ c,  s, 0.0, 0.0],
+                [-s,  c, 0.0, 0.0],
                 [0.0, 0.0, 1.0, 0.0],
                 [ndc_x, ndc_y, 0.0, 1.0],
             ],

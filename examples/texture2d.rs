@@ -33,12 +33,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         if let Some(player) = &mut player {
-            // Perform Updates
             player.set_pos(player_pos);
-            // Render
-            engine.clear_render_queue(); 
+            engine.begin_frame();
+            // Use immediate-mode draw with rotation example
+            let _params = plutonium_engine::DrawParams { z: 0, scale: 1.0, rotation: 0.0 };
             player.render(engine);
-            engine.render().unwrap();
+            engine.end_frame().unwrap();
         }
     })?;
 

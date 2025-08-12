@@ -38,6 +38,7 @@ pub struct PlutoniumApp {
     last_frame: std::time::Instant,
     frame_callback: Box<dyn FnMut(&mut PlutoniumEngine, &FrameContext)>,
     frame_context: FrameContext,
+    config: WindowConfig,
 }
 
 impl PlutoniumApp {
@@ -60,6 +61,7 @@ impl PlutoniumApp {
                 },
                 delta_time: 0.0,
             },
+            config,
         }
     }
 
@@ -76,10 +78,10 @@ impl ApplicationHandler<()> for PlutoniumApp {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
         let window_attributes = Window::default_attributes()
-            .with_title(&WindowConfig::default().title)
+            .with_title(&self.config.title)
             .with_inner_size(winit::dpi::LogicalSize::new(
-                WindowConfig::default().width,
-                WindowConfig::default().height,
+                self.config.width,
+                self.config.height,
             ));
 
         if let Ok(window) = event_loop.create_window(window_attributes) {

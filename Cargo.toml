@@ -1,6 +1,6 @@
 [package]
 name = "plutonium_engine"
-version = "0.4.1"
+version = "0.5.0"
 authors = ["Zeke Barnett coding@zeke13.com"]
 description = "Pure Rust Graphics Engine"
 license = "Apache-2.0"
