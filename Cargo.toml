@@ -21,6 +21,7 @@ pollster = "0.4.0"
 tiny-skia = "0.11.4"
 resvg = "0.44.0"
 rusttype = "0.9.3"
+anyhow = "1.0.86"
 
 uuid = { version = "1.11.0", features = ["v4"] }
 
@@ -34,3 +35,8 @@ backend-wgpu = []
 raster = []        # enable PNG/JPEG helper APIs
 widgets = []       # enable retained-mode widgets (Button, TextInput, etc.)
 layout = []        # enable simple layout helpers (anchors/percent)
+
+[workspace]
+members = [
+    ".",
+]
