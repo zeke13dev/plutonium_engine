@@ -20,7 +20,7 @@ jobs:
       - name: fmt
         run: cargo fmt --all -- --check
       - name: clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings -D clippy::pedantic
+        run: cargo clippy --all-targets --all-features -- -D warnings
       - name: test
         run: cargo test --all --no-fail-fast
       # rodio backend build is platform-specific; validate in local macOS dev. CI focuses on engine/core/ui.

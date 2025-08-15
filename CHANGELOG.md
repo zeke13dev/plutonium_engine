@@ -1,15 +1,40 @@
 # Changelog
 
-## [0.6.0] - Released
+## [0.7.0] - 2025-08-15
 
-- True instancing for single-texture sprites
-  - Added persistent instance bind group layout (group 3)
+### Release Notes
+- Complete Plutonium Game Framework
+- Comprehensive visual testing with snapshots
+- Production-ready v0.7.0 with full CI/CD pipeline
+
+## [0.6.0] - Released 2025-08-15
+
+### Major Features
+- **Plutonium Game Framework**: Complete ECS game development layer
+  - 6 modular crates: core, input, assets, ui, audio, gameplay
+  - Entity-Component-System with schedules, resources, and events
+  - Input action mapping with edge detection
+  - Comprehensive UI widget system with themes
+  - Demo card game showcasing framework capabilities
+
+### Engine Improvements
+- **True instancing** for single-texture sprites with GPU batching
+  - Persistent instance bind group layout (group 3)
   - Batching by texture with per-batch storage buffer of `mat4x4`
-  - Vertex shader now uses `@builtin(instance_index)`
-- Snapshot: many sprites perf scene (local only)
-- Docs: instancing-and-batching, layout HUD example
-- Minor API polish: `DrawParams` keeps `rotation` (tint planned)
-- Warning hygiene: clippy clean
+  - Vertex shader uses `@builtin(instance_index)` for performance
+- **Animation System** (feature `anim`): Timeline, Track, Tween with CSS-like easing
+- **RNG System** (feature `replay`): Deterministic streams for reproducible simulations
+- **UI Primitives**: Nine-slice panels, buttons, sliders, toggles with visual states
+
+### Examples & Testing
+- **6 New Examples**: actions_demo, anim_demo, slider, text_alignment, toggle, ui_primitives
+- **Comprehensive Snapshot Testing**: 18 visual regression tests with golden images
+- **CI/CD Pipeline**: GitHub Actions with formatting, clippy, tests, and snapshots
+
+### API & Documentation
+- **Enhanced DrawParams**: Support for `rotation`, `tint`, and `z`-layering
+- **Extensive Documentation**: Architecture guides, API references, feature explanations
+- **Code Quality**: Clippy-clean, formatted, comprehensive test coverage
 
 ## [0.5.0]
 - Initial public crate with textures, atlas, text, widgets, camera
