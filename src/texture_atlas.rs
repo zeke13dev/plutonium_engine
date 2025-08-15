@@ -629,6 +629,9 @@ impl TextureAtlas {
     pub fn default_uv_bind_group(&self) -> &wgpu::BindGroup {
         &self.uv_bind_group
     }
+    pub fn transform_bind_group(&self) -> &wgpu::BindGroup {
+        &self.transform_bind_group
+    }
     pub fn vertex_buffer_slice(&self) -> wgpu::BufferSlice {
         self.vertex_buffer.slice(..)
     }
@@ -642,17 +645,18 @@ impl TextureAtlas {
     pub fn get_transform_uniform(
         &self,
         viewport_size: Size,
-        pos: Position, // Logical top-left position
+        pos: Position, // logical top-left position
         camera_pos: Position,
-        scale: f32, // Combined user scale * DPI scale
+        position_scale: f32, // e.g., DPI scale
+        tile_scale: f32,     // fraction of tile size in physical pixels
     ) -> TransformUniform {
-        // Scaled tile size
-        let scaled_tile_w = self.tile_size.width * scale;
-        let scaled_tile_h = self.tile_size.height * scale;
+        // tile_size is stored in physical pixels already for font atlases; only apply tile_scale
+        let scaled_tile_w = self.tile_size.width * tile_scale;
+        let scaled_tile_h = self.tile_size.height * tile_scale;
 
-        // Logical position -> Final on-screen pixels
-        let final_x = (pos.x - camera_pos.x) * scale;
-        let final_y = (pos.y - camera_pos.y) * scale;
+        // Convert logical positions to physical using only position_scale
+        let final_x = (pos.x - camera_pos.x) * position_scale;
+        let final_y = (pos.y - camera_pos.y) * position_scale;
 
         // Convert to NDC
         let ndc_left = 2.0 * (final_x / viewport_size.width) - 1.0;
@@ -664,15 +668,15 @@ impl TextureAtlas {
 
         TransformUniform {
             transform: [
-                [tile_w_ndc, 0.0, 0.0, 0.0],  // Scale X
-                [0.0, -tile_h_ndc, 0.0, 0.0], // Scale Y (negative to flip)
-                [0.0, 0.0, 1.0, 0.0],         // Z remains untouched
+                [tile_w_ndc, 0.0, 0.0, 0.0], // Scale X
+                [0.0, tile_h_ndc, 0.0, 0.0], // Scale Y (no flip)
+                [0.0, 0.0, 1.0, 0.0],        // Z remains untouched
                 [
-                    ndc_left + tile_w_ndc * 0.5, // Translate X
-                    ndc_top - tile_h_ndc * 0.5,  // Translate Y
+                    ndc_left + tile_w_ndc * 0.5, // Translate X (centered)
+                    ndc_top - tile_h_ndc * 0.5,  // Translate Y (centered)
                     0.0,
                     1.0,
-                ], // Homogeneous coord
+                ],
             ],
         }
     }
@@ -690,6 +694,43 @@ impl TextureAtlas {
 
         let final_x = (pos.x - camera_pos.x) * scale;
         let final_y = (pos.y - camera_pos.y) * scale;
+
+        let ndc_left = 2.0 * (final_x / viewport_size.width) - 1.0;
+        let ndc_top = -2.0 * (final_y / viewport_size.height) + 1.0;
+
+        let tile_w_ndc = 2.0 * (scaled_tile_w / viewport_size.width);
+        let tile_h_ndc = 2.0 * (scaled_tile_h / viewport_size.height);
+
+        TransformUniform {
+            transform: [
+                [tile_w_ndc, 0.0, 0.0, 0.0],
+                [0.0, -tile_h_ndc, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [
+                    ndc_left + tile_w_ndc * 0.5,
+                    ndc_top - tile_h_ndc * 0.5,
+                    0.0,
+                    1.0,
+                ],
+            ],
+        }
+    }
+
+    // Non-uniform variant: separate width/height scale factors
+    pub fn compute_transform_uniform_nonuniform(
+        viewport_size: Size,
+        pos: Position,
+        camera_pos: Position,
+        position_scale: f32,
+        tile_size: Size,
+        tile_scale_x: f32,
+        tile_scale_y: f32,
+    ) -> TransformUniform {
+        let scaled_tile_w = tile_size.width * tile_scale_x;
+        let scaled_tile_h = tile_size.height * tile_scale_y;
+
+        let final_x = (pos.x - camera_pos.x) * position_scale;
+        let final_y = (pos.y - camera_pos.y) * position_scale;
 
         let ndc_left = 2.0 * (final_x / viewport_size.width) - 1.0;
         let ndc_top = -2.0 * (final_y / viewport_size.height) + 1.0;
@@ -777,11 +818,11 @@ impl TextureAtlas {
             return None;
         }
 
-        // Convert to normalized UV coordinates (0.0 to 1.0 range) with inset
+        // Convert to normalized UV coordinates (0.0 to 1.0 range) with half-texel inset
+        // and 1px shrink to avoid bleeding and precision edge hits.
         let mut uv_x = (pixel_x + 0.5) / atlas_size.width;
         let mut uv_y = (pixel_y + 0.5) / atlas_size.height;
 
-        // Calculate UV size with a 1px shrink to keep sampling fully inside the tile
         let mut uv_width = (tile_size.width - 1.0).max(0.0) / atlas_size.width;
         let mut uv_height = (tile_size.height - 1.0).max(0.0) / atlas_size.height;
 

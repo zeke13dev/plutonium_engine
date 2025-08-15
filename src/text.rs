@@ -3,7 +3,7 @@ use crate::pluto_objects::{
     texture_atlas_2d::TextureAtlas2D,
 };
 use crate::utils::{Position, Size};
-use rusttype::{point, Font, Scale};
+use rusttype::{point, Font, GlyphId, Scale};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -20,6 +20,7 @@ pub struct CharacterRenderInfo {
     pub atlas_id: Uuid,
     pub tile_index: usize,
     pub position: Position,
+    pub size: (u32, u32),
 }
 
 pub enum FontError {
@@ -36,6 +37,8 @@ pub struct FontAtlas {
     max_tile_size: Size,
     ascent: f32,
     descent: f32,
+    // logical pixels (after dividing by DPI)
+    padding: f32,
 }
 
 impl FontAtlas {
@@ -61,13 +64,15 @@ impl FontAtlas {
 }
 #[derive(Default)]
 pub struct TextRenderer {
-    font_atlases: HashMap<String, FontAtlas>,
+    pub(crate) font_atlases: HashMap<String, FontAtlas>,
+    pub(crate) fonts: HashMap<String, Font<'static>>,
 }
 
 impl TextRenderer {
     pub fn new() -> Self {
         Self {
             font_atlases: HashMap::new(),
+            fonts: HashMap::new(),
         }
     }
 
@@ -117,6 +122,9 @@ impl TextRenderer {
             let mut max_width: f32 = 0.0;
             let mut current_width = 0.0;
             let mut line_count = 1;
+            let mut prev: Option<GlyphId> = None;
+            let font_opt = self.fonts.get(font_key);
+            let scale = Scale::uniform(font_atlas.font_size);
 
             for c in text.chars() {
                 if c == '\n' {
@@ -124,16 +132,31 @@ impl TextRenderer {
                     max_width = max_width.max(current_width);
                     current_width = 0.0;
                     line_count += 1;
+                    prev = None;
                     continue;
                 }
 
                 if c == ' ' {
-                    current_width += font_atlas.font_size * 0.3;
+                    current_width += font_atlas
+                        .get_char_info(' ')
+                        .map(|i| i.advance_width)
+                        .unwrap_or(font_atlas.font_size * 0.3);
+                    prev = font_opt.map(|f| f.glyph(' ').id());
                     continue;
                 }
 
-                if let Some(info) = font_atlas.char_map.get(&c) {
+                // Fallback to '?' for characters outside ASCII 32–126
+                let use_char = if font_atlas.char_map.contains_key(&c) {
+                    c
+                } else {
+                    '?'
+                };
+                if let Some(info) = font_atlas.char_map.get(&use_char) {
+                    if let (Some(f), Some(p)) = (font_opt, prev) {
+                        current_width += f.pair_kerning(scale, p, f.glyph(use_char).id());
+                    }
                     current_width += info.advance_width;
+                    prev = font_opt.map(|f| f.glyph(use_char).id());
                 }
             }
 
@@ -155,10 +178,14 @@ impl TextRenderer {
         let (atlas_width, atlas_height) = atlas_size;
         let mut texture_data = vec![0; (atlas_width * atlas_height * 4) as usize];
         let mut char_map = HashMap::new();
-        let max_width = char_dimensions.values().map(|(w, _)| w).max().unwrap_or(&0) + padding * 2;
-        let max_height = char_dimensions.values().map(|(_, h)| h).max().unwrap_or(&0) + padding * 2;
-        let mut current_x = padding;
-        let mut current_y = padding;
+        // Use the pre-padded glyph cell size computed in calculate_atlas_size.
+        // Do NOT add padding again here, or the packing grid and tile UVs will diverge.
+        let max_width = *char_dimensions.values().map(|(w, _)| w).max().unwrap_or(&0);
+        let max_height = *char_dimensions.values().map(|(_, h)| h).max().unwrap_or(&0);
+        // Start packing tiles at (0,0) on a strict grid so tile indices map
+        // exactly to grid cells used by tile_uv_coordinates.
+        let mut current_x = 0;
+        let mut current_y = 0;
         let mut next_tile_index = 0;
 
         for c in (32..=126).map(|c| c as u8 as char) {
@@ -168,44 +195,48 @@ impl TextRenderer {
                 .map(|bb| -bb.min.y)
                 .unwrap_or(0.0);
 
-            if let Some((width, height)) = char_dimensions.get(&c) {
-                if current_x + max_width > atlas_width {
-                    current_x = padding;
-                    current_y += max_height;
-                }
-
-                let glyph = base_glyph.positioned(point(0.0, bearing_y));
-                let glyph_x = current_x + padding;
-                let glyph_y = current_y + padding;
-
-                if let Some(_bb) = glyph.pixel_bounding_box() {
-                    glyph.draw(|x, y, v| {
-                        let px = glyph_x + x;
-                        let py = glyph_y + y;
-                        if px < atlas_width && py < atlas_height {
-                            let index = ((py * atlas_width + px) * 4) as usize;
-                            let alpha = (v * 255.0) as u8;
-                            texture_data[index] = 255; // R
-                            texture_data[index + 1] = 255; // G
-                            texture_data[index + 2] = 255; // B
-                            texture_data[index + 3] = alpha; // A
-                        }
-                    });
-
-                    let h_metrics = glyph.unpositioned().h_metrics();
-                    char_map.insert(
-                        c,
-                        CharacterInfo {
-                            tile_index: next_tile_index,
-                            advance_width: h_metrics.advance_width,
-                            bearing: (h_metrics.left_side_bearing, bearing_y),
-                            size: (*width, *height),
-                        },
-                    );
-                    current_x += max_width;
-                    next_tile_index += 1;
-                }
+            // Always allocate a cell per codepoint to keep tile_index deterministic
+            if current_x + max_width > atlas_width {
+                current_x = 0;
+                current_y += max_height;
             }
+
+            let (width, height) = char_dimensions
+                .get(&c)
+                .copied()
+                .unwrap_or((padding * 2, padding * 2));
+
+            let glyph = base_glyph.clone().positioned(point(0.0, bearing_y));
+            let glyph_x = current_x + padding;
+            let glyph_y = current_y + padding;
+
+            if let Some(_bb) = glyph.pixel_bounding_box() {
+                glyph.draw(|x, y, v| {
+                    let px = glyph_x + x;
+                    let py = glyph_y + y;
+                    if px < atlas_width && py < atlas_height {
+                        let index = ((py * atlas_width + px) * 4) as usize;
+                        let alpha = (v * 255.0) as u8;
+                        texture_data[index] = 255; // R
+                        texture_data[index + 1] = 255; // G
+                        texture_data[index + 2] = 255; // B
+                        texture_data[index + 3] = alpha; // A
+                    }
+                });
+            }
+
+            let h_metrics = base_glyph.clone().h_metrics();
+            char_map.insert(
+                c,
+                CharacterInfo {
+                    tile_index: next_tile_index,
+                    advance_width: h_metrics.advance_width,
+                    bearing: (h_metrics.left_side_bearing, bearing_y),
+                    size: (width, height),
+                },
+            );
+            current_x += max_width;
+            next_tile_index += 1;
         }
 
         Some((texture_data, char_map))
@@ -222,11 +253,13 @@ impl TextRenderer {
         descent: f32,
         physical_tile_size: Size,
         dpi_scale_factor: f32,
+        padding_pixels: u32,
     ) {
         let logical_tile_size = Size {
             width: physical_tile_size.width / dpi_scale_factor,
             height: physical_tile_size.height / dpi_scale_factor,
         };
+        let logical_padding = (padding_pixels as f32) / dpi_scale_factor;
 
         let font_atlas = FontAtlas {
             atlas,
@@ -235,6 +268,7 @@ impl TextRenderer {
             max_tile_size: logical_tile_size, // Store in logical units
             ascent,
             descent,
+            padding: logical_padding,
         };
         self.font_atlases.insert(font_key.to_string(), font_atlas);
     }
@@ -245,6 +279,8 @@ impl TextRenderer {
         font_key: &str,
         container_pos: Position,
         container: &TextContainer,
+        letter_spacing: f32,
+        word_spacing: f32,
     ) -> Vec<CharacterRenderInfo> {
         let mut chars_to_render = Vec::new();
 
@@ -261,49 +297,61 @@ impl TextRenderer {
             }
         };
 
-        // Calculate metrics
-        let line_height = font_atlas.font_size * 1.2;
-        let space_width = font_atlas.font_size * 0.3;
+        // Calculate metrics: use ascent/descent with configurable leading
+        let base_line_height = (font_atlas.ascent - font_atlas.descent).abs();
+        let line_height = base_line_height * container.line_height_mul.max(0.8);
+        // Measure actual space advance from metrics if available
+        let space_width = font_atlas
+            .get_char_info(' ')
+            .map(|i| i.advance_width)
+            .unwrap_or(font_atlas.font_size * 0.3);
+        let scale = Scale::uniform(font_atlas.font_size);
+        let font_opt = self.fonts.get(font_key);
         let lines: Vec<&str> = text.split('\n').collect();
         let line_count = lines.len();
 
-        // Compute line widths
+        // Compute line widths with spacing and fallback glyphs
         let line_widths: Vec<f32> = lines
             .iter()
             .map(|line| {
-                line.chars().fold(0.0, |width, c| {
-                    width
-                        + if c == ' ' {
-                            space_width
+                let chars: Vec<char> = line.chars().collect();
+                let mut width: f32 = 0.0;
+                for (i, c) in chars.iter().copied().enumerate() {
+                    if c == ' ' {
+                        width += space_width + word_spacing;
+                    } else {
+                        let use_char = if font_atlas.get_char_info(c).is_some() {
+                            c
                         } else {
-                            font_atlas
-                                .get_char_info(c)
-                                .map(|info| info.advance_width)
-                                .unwrap_or(0.0)
+                            '?'
+                        };
+                        width += font_atlas
+                            .get_char_info(use_char)
+                            .map(|info| info.advance_width)
+                            .unwrap_or(0.0);
+                        if i + 1 < chars.len() {
+                            width += letter_spacing.max(0.0);
                         }
-                })
+                    }
+                }
+                width
             })
             .collect();
 
         let total_text_height = line_height * (line_count as f32);
 
-        // Calculate baseline Y position
+        // Calculate baseline Y position (Top/Middle/Bottom)
         let base_y = match container.v_align {
-            // Align top of text block with top of container
             VerticalAlignment::Top => container_pos.y + font_atlas.ascent,
-
-            // Center the text block vertically in the container
             VerticalAlignment::Middle => {
                 container_pos.y
-                    + (container.dimensions.height - total_text_height) / 2.0
+                    + (container.dimensions.height - total_text_height) * 0.5
                     + font_atlas.ascent
             }
-
-            // Align bottom of text block with bottom of container
             VerticalAlignment::Bottom => {
                 container_pos.y + container.dimensions.height
                     - total_text_height
-                    - font_atlas.descent // Adjust for descent if you track it
+                    - font_atlas.descent
             }
         };
 
@@ -312,36 +360,59 @@ impl TextRenderer {
             let start_x = match container.h_align {
                 HorizontalAlignment::Left => container_pos.x,
                 HorizontalAlignment::Center => {
-                    container_pos.x + (container.dimensions.width - line_width) / 2.0
+                    container_pos.x + (container.dimensions.width - line_width) * 0.5
                 }
                 HorizontalAlignment::Right => {
                     container_pos.x + container.dimensions.width - line_width
                 }
             };
 
-            let baseline_y = base_y + (line_idx as f32 * line_height);
+            let baseline_y = (base_y + (line_idx as f32 * line_height)).round();
             let mut pen_x = start_x;
+            let mut prev: Option<GlyphId> = None;
+            let mut first_adjust_applied = false;
 
-            for c in line.chars() {
+            for (i, c) in line.chars().enumerate() {
                 if c == ' ' {
-                    pen_x += space_width;
+                    pen_x += space_width + word_spacing;
+                    prev = font_opt.map(|f| f.glyph(' ').id());
                     continue;
                 }
 
-                if let Some(char_info) = font_atlas.get_char_info(c) {
-                    let logical_x = pen_x + char_info.bearing.0;
-                    let logical_y = baseline_y - char_info.bearing.1;
+                let use_char = if font_atlas.get_char_info(c).is_some() {
+                    c
+                } else {
+                    '?'
+                };
+                if let Some(char_info) = font_atlas.get_char_info(use_char) {
+                    if let (Some(f), Some(p)) = (font_opt, prev) {
+                        pen_x += f.pair_kerning(scale, p, f.glyph(use_char).id());
+                    }
+
+                    // Normalize left margin of the first glyph's ink to align with start_x
+                    if !first_adjust_applied {
+                        pen_x += -char_info.bearing.0 + font_atlas.padding;
+                        first_adjust_applied = true;
+                    }
+
+                    let top_left_x = (pen_x + char_info.bearing.0 - font_atlas.padding).round();
+                    let top_left_y = baseline_y - char_info.bearing.1 - font_atlas.padding;
 
                     chars_to_render.push(CharacterRenderInfo {
                         atlas_id: font_atlas.atlas.get_id(),
                         tile_index: char_info.tile_index,
                         position: Position {
-                            x: logical_x,
-                            y: logical_y,
+                            x: top_left_x,
+                            y: top_left_y,
                         },
+                        size: char_info.size,
                     });
 
                     pen_x += char_info.advance_width;
+                    if i + 1 < line.len() {
+                        pen_x += letter_spacing.max(0.0);
+                    }
+                    prev = font_opt.map(|f| f.glyph(use_char).id());
                 }
             }
         }

@@ -34,6 +34,7 @@ pub struct TextContainer {
     pub h_align: HorizontalAlignment,
     pub v_align: VerticalAlignment,
     pub padding: f32,
+    pub line_height_mul: f32, // extra leading multiplier
 }
 
 impl Default for TextContainer {
@@ -43,6 +44,7 @@ impl Default for TextContainer {
             h_align: HorizontalAlignment::Left,
             v_align: VerticalAlignment::Bottom,
             padding: 5.0,
+            line_height_mul: 1.0,
         }
     }
 }
@@ -54,6 +56,7 @@ impl TextContainer {
             h_align: HorizontalAlignment::Left,
             v_align: VerticalAlignment::Top,
             padding: 5.0,
+            line_height_mul: 1.0,
         }
     }
 
@@ -69,6 +72,11 @@ impl TextContainer {
 
     pub fn with_padding(mut self, padding: f32) -> Self {
         self.padding = padding;
+        self
+    }
+
+    pub fn with_line_height_mul(mut self, mul: f32) -> Self {
+        self.line_height_mul = mul;
         self
     }
 
@@ -368,17 +376,22 @@ impl PlutoObject for Text2DInternal {
             .measure_text(&self.content, &self.font_key);
         let text_height = self.font_size * line_count as f32;
 
-        // Get the final position from the container
+        // Compute a single alignment via container, then render with a neutral container
         let container_pos = self
             .container
             .calculate_text_position(text_width, text_height);
 
-        // Now use text renderer to layout the text at the container-specified position
-        engine.queue_text(
+        // Avoid applying alignment twice: provide a neutral container for layout
+        let mut neutral = self.container.clone();
+        neutral.h_align = HorizontalAlignment::Left;
+        neutral.v_align = VerticalAlignment::Top;
+        engine.queue_text_with_spacing(
             &self.content,
             &self.font_key,
             container_pos,
-            &self.container,
+            &neutral,
+            0.0,
+            0.0,
         );
     }
 }

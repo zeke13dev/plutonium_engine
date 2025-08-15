@@ -1,0 +1,15 @@
+[package]
+name = "plutonium_game_audio"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+plutonium_game_core = { path = "../core" }
+rodio = { version = "0.17", optional = true, default-features = false, features = ["wav"] }
+
+[features]
+rodio-backend = ["rodio"]
+
+

@@ -1,0 +1,17 @@
+[package]
+name = "plutonium_demo_card_game"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+plutonium_engine = { path = "../../../" }
+plutonium_game_core = { path = "../../crates/core" }
+plutonium_game_input = { path = "../../crates/input" }
+plutonium_game_assets = { path = "../../crates/assets" }
+plutonium_game_ui = { path = "../../crates/ui" }
+plutonium_game_audio = { path = "../../crates/audio" }
+plutonium_game_gameplay = { path = "../../crates/gameplay" }
+uuid = "1"
+
+

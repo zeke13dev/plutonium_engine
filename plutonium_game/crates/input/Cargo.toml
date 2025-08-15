@@ -1,0 +1,13 @@
+[package]
+name = "plutonium_game_input"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+plutonium_game_core = { path = "../core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+

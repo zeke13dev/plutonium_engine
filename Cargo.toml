@@ -22,8 +22,11 @@ tiny-skia = "0.11.4"
 resvg = "0.44.0"
 rusttype = "0.9.3"
 anyhow = "1.0.86"
+arboard = "3.4.0"
 
 uuid = { version = "1.11.0", features = ["v4"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [dependencies.bytemuck]
 version = "1.21.0"
@@ -35,8 +38,22 @@ backend-wgpu = []
 raster = []        # enable PNG/JPEG helper APIs
 widgets = []       # enable retained-mode widgets (Button, TextInput, etc.)
 layout = []        # enable simple layout helpers (anchors/percent)
+anim = []          # enable tweening/animation APIs
+replay = []        # enable record/replay helpers and RNG-driven examples
 
 [workspace]
 members = [
     ".",
+    "plutonium_game/crates/core",
+    "plutonium_game/crates/input",
+    "plutonium_game/crates/assets",
+    "plutonium_game/crates/ui",
+    "plutonium_game/crates/audio",
+    "plutonium_game/crates/gameplay",
+    "plutonium_game/examples/demo_card_game",
 ]
+
+[dev-dependencies]
+plutonium_game_input = { path = "plutonium_game/crates/input" }
+
+

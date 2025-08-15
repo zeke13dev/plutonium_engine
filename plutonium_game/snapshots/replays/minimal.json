@@ -1,0 +1,31 @@
+{
+  "frames": [
+    {
+      "pressed_keys": [
+        "Enter"
+      ],
+      "mouse_x": 10.0,
+      "mouse_y": 10.0,
+      "lmb_down": false,
+      "committed_text": []
+    },
+    {
+      "pressed_keys": [
+        "Enter"
+      ],
+      "mouse_x": 10.0,
+      "mouse_y": 10.0,
+      "lmb_down": false,
+      "committed_text": []
+    },
+    {
+      "pressed_keys": [
+        "Enter"
+      ],
+      "mouse_x": 10.0,
+      "mouse_y": 10.0,
+      "lmb_down": false,
+      "committed_text": []
+    }
+  ]
+}

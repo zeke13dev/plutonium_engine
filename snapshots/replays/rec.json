@@ -1,0 +1,46 @@
+{
+  "meta": {
+    "seed": 42,
+    "window_w": 256,
+    "window_h": 256,
+    "dt": 0.1
+  },
+  "frames": [
+    {
+      "pressed_keys": [
+        "Enter"
+      ],
+      "mouse_x": 10.0,
+      "mouse_y": 10.0,
+      "lmb_down": false,
+      "committed_text": []
+    },
+    {
+      "pressed_keys": [
+        "Enter"
+      ],
+      "mouse_x": 10.0,
+      "mouse_y": 10.0,
+      "lmb_down": false,
+      "committed_text": []
+    },
+    {
+      "pressed_keys": [
+        "Enter"
+      ],
+      "mouse_x": 10.0,
+      "mouse_y": 10.0,
+      "lmb_down": false,
+      "committed_text": []
+    },
+    {
+      "pressed_keys": [
+        "Enter"
+      ],
+      "mouse_x": 10.0,
+      "mouse_y": 10.0,
+      "lmb_down": false,
+      "committed_text": []
+    }
+  ]
+}

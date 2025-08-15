@@ -1,0 +1,18 @@
+[package]
+name = "plutonium_game_assets"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+plutonium_game_core = { path = "../core" }
+plutonium_engine = { path = "../../../" }
+uuid = { version = "1" }
+toml = "0.8"
+
+[features]
+dev-hot-reload = []
+
+

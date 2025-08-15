@@ -1,0 +1,15 @@
+[package]
+name = "plutonium_game_gameplay"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+plutonium_game_core = { path = "../core" }
+plutonium_game_input = { path = "../input" }
+plutonium_game_assets = { path = "../assets" }
+plutonium_game_ui = { path = "../ui" }
+plutonium_game_audio = { path = "../audio" }
+
+

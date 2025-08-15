@@ -11,13 +11,18 @@ pub mod pluto_objects {
 }
 pub mod app;
 pub use app::{FrameContext, PlutoniumApp, WindowConfig};
+#[cfg(feature = "anim")]
+pub mod anim;
+pub mod input;
 #[cfg(feature = "layout")]
 pub mod layout;
 pub mod renderer;
+pub mod rng;
 pub mod text;
 pub mod texture_atlas;
 pub mod texture_svg;
 pub mod traits;
+pub mod ui;
 pub mod utils;
 
 use crate::traits::UpdateContext;
@@ -35,9 +40,13 @@ use pluto_objects::{
 use rusttype::{Font, Scale};
 
 use pollster::block_on;
+use renderer::RectCommand;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::{borrow::Cow, collections::HashMap};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+};
 use text::*;
 use texture_atlas::TextureAtlas;
 use texture_svg::*;
@@ -71,6 +80,7 @@ pub(crate) enum RenderItem {
         transform_index: usize,
         tile_index: usize,
     },
+    Rect(RectCommand),
 }
 
 pub struct QueuedItem {
@@ -83,6 +93,35 @@ struct TransformPool {
     bind_groups: Vec<wgpu::BindGroup>,
     cursor: usize,
     cpu_mats: Vec<[[f32; 4]; 4]>,
+}
+
+struct RectInstanceBuffer {
+    buffer: wgpu::Buffer,
+    capacity: u64,
+    bind_group: wgpu::BindGroup,
+    used_this_frame: bool,
+    last_used_frame: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct RectStyleKey {
+    fill_rgba_u8: [u8; 4],
+    border_rgba_u8: [u8; 4],
+    corner_radius_10x: u16,    // quantized 0.1 px
+    border_thickness_10x: u16, // quantized 0.1 px
+}
+
+fn to_rgba_u8(c: [f32; 4]) -> [u8; 4] {
+    [
+        (c[0].clamp(0.0, 1.0) * 255.0 + 0.5).floor() as u8,
+        (c[1].clamp(0.0, 1.0) * 255.0 + 0.5).floor() as u8,
+        (c[2].clamp(0.0, 1.0) * 255.0 + 0.5).floor() as u8,
+        (c[3].clamp(0.0, 1.0) * 255.0 + 0.5).floor() as u8,
+    ]
+}
+
+fn quant_10x(v: f32) -> u16 {
+    ((v.max(0.0) * 10.0) + 0.5).floor() as u16
 }
 
 impl TransformPool {
@@ -109,6 +148,11 @@ pub struct PlutoniumEngine<'a> {
     config: wgpu::SurfaceConfiguration,
     #[allow(dead_code)]
     render_pipeline: wgpu::RenderPipeline,
+    #[allow(dead_code)]
+    rect_pipeline: wgpu::RenderPipeline,
+    #[allow(dead_code)]
+    rect_dummy_bgl: wgpu::BindGroupLayout,
+    rect_dummy_bg: wgpu::BindGroup,
     texture_bind_group_layout: wgpu::BindGroupLayout,
     transform_bind_group_layout: wgpu::BindGroupLayout,
     instance_bind_group_layout: wgpu::BindGroupLayout,
@@ -122,7 +166,38 @@ pub struct PlutoniumEngine<'a> {
     text_renderer: TextRenderer,
     loaded_fonts: HashMap<String, bool>,
     transform_pool: TransformPool,
-    // reserved for future instancing bind group
+    // Static geometry for rects
+    rect_vertex_buffer: wgpu::Buffer,
+    rect_index_buffer: wgpu::Buffer,
+    // Per-frame cached identity UBO bind group
+    rect_identity_bg: Option<wgpu::BindGroup>,
+    // Rect instance buffer pool
+    rect_instance_pool: Vec<RectInstanceBuffer>,
+    rect_pool_cursor: usize,
+    frame_counter: u64,
+    // GPU timing instrumentation (optional)
+    #[allow(dead_code)]
+    timestamp_query: Option<wgpu::QuerySet>,
+    #[allow(dead_code)]
+    timestamp_buf: Option<wgpu::Buffer>,
+    #[allow(dead_code)]
+    timestamp_staging: Option<wgpu::Buffer>,
+    #[allow(dead_code)]
+    timestamp_period_ns: f32,
+    #[allow(dead_code)]
+    timestamp_count: u32,
+    #[allow(dead_code)]
+    timestamp_frame_index: u32,
+    #[allow(dead_code)]
+    gpu_metrics: FrameTimeMetrics,
+    // Global UI clip rectangle (logical coords)
+    current_scissor: Option<Rectangle>,
+    // Nested clip stack (logical coords); top-most is applied. Each push intersects with previous.
+    clip_stack: Vec<Rectangle>,
+    // Rect batching metrics (style diversity and counts) — preserved-order strategy
+    rect_style_keys: HashSet<RectStyleKey>,
+    rect_instances_count: usize,
+    rect_draw_calls_count: usize,
 }
 
 impl<'a> PlutoniumEngine<'a> {
@@ -155,7 +230,7 @@ impl<'a> PlutoniumEngine<'a> {
         // Generate the physical-sized atlas for actual texture rendering
         let physical_font_size = logical_font_size * self.dpi_scale_factor;
         let font_data = std::fs::read(font_path).map_err(FontError::IoError)?;
-        let font = Font::try_from_vec(font_data).ok_or(FontError::InvalidFontData)?;
+        let font = Font::try_from_vec(font_data.clone()).ok_or(FontError::InvalidFontData)?;
         let scale = Scale::uniform(physical_font_size);
         let padding = 2;
 
@@ -207,6 +282,14 @@ impl<'a> PlutoniumEngine<'a> {
         // Store everything with logical coordinates except the texture dimensions
         let ascent = font.v_metrics(scale).ascent / self.dpi_scale_factor;
         let descent = font.v_metrics(scale).descent / self.dpi_scale_factor;
+        // Store font for kerning and future measurement
+        // SAFETY: we keep the Vec alive by leaking it into 'static; acceptable for demo/app lifetime
+        let leaked: &'static [u8] = Box::leak(font_data.into_boxed_slice());
+        let font_static = Font::try_from_bytes(leaked).ok_or(FontError::InvalidFontData)?;
+        self.text_renderer
+            .fonts
+            .insert(font_key.to_string(), font_static);
+
         self.text_renderer.store_font_atlas(
             font_key,
             atlas,
@@ -219,6 +302,7 @@ impl<'a> PlutoniumEngine<'a> {
                 height: max_tile_height as f32,
             },
             self.dpi_scale_factor,
+            padding,
         );
 
         self.loaded_fonts.insert(font_key.to_string(), true);
@@ -368,7 +452,8 @@ impl<'a> PlutoniumEngine<'a> {
                 self.viewport_size,
                 position,
                 self.camera.get_pos(self.dpi_scale_factor),
-                self.dpi_scale_factor * user_scale,
+                self.dpi_scale_factor, // position scale (DPI)
+                user_scale,            // tile size scale (already physical px)
             );
             let transform_index = self.allocate_transform_bind_group(transform_uniform);
             self.render_queue.push(QueuedItem {
@@ -389,15 +474,41 @@ impl<'a> PlutoniumEngine<'a> {
         position: Position,
         container: &TextContainer,
     ) {
-        let chars = self
-            .text_renderer
-            .calculate_text_layout(text, font_key, position, container);
+        self.queue_text_with_spacing(text, font_key, position, container, 0.0, 0.0);
+    }
+
+    pub fn queue_text_with_spacing(
+        &mut self,
+        text: &str,
+        font_key: &str,
+        position: Position,
+        container: &TextContainer,
+        letter_spacing: f32,
+        word_spacing: f32,
+    ) {
+        let chars = self.text_renderer.calculate_text_layout(
+            text,
+            font_key,
+            position,
+            container,
+            letter_spacing,
+            word_spacing,
+        );
         for char in chars {
+            // Draw full tile size; glyph alpha handles actual shape
             self.queue_tile_with_layer(&char.atlas_id, char.tile_index, char.position, 1.0, 0);
         }
     }
     pub fn clear_render_queue(&mut self) {
         self.render_queue.clear();
+    }
+
+    pub fn unload_texture(&mut self, texture_key: &Uuid) -> bool {
+        self.texture_map.remove(texture_key).is_some()
+    }
+
+    pub fn unload_atlas(&mut self, atlas_key: &Uuid) -> bool {
+        self.atlas_map.remove(atlas_key).is_some()
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -429,6 +540,20 @@ impl<'a> PlutoniumEngine<'a> {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
+        // GPU timestamp begin
+        let (qset, qbuf, qcount) = (
+            self.timestamp_query.as_ref(),
+            self.timestamp_buf.as_ref(),
+            self.timestamp_count,
+        );
+        let qindex = if qcount >= 2 {
+            self.timestamp_frame_index % (qcount / 2)
+        } else {
+            0
+        };
+        let q0 = (qindex * 2) as u32;
+        let q1 = q0 + 1;
+        // We'll write timestamps via render pass timestamp_writes when supported.
 
         {
             // sort by z, stable to preserve submission order within same layer
@@ -450,20 +575,44 @@ impl<'a> PlutoniumEngine<'a> {
                     },
                 })],
                 depth_stencil_attachment: None,
-                timestamp_writes: None,
+                timestamp_writes: qset.map(|qs| wgpu::RenderPassTimestampWrites {
+                    query_set: qs,
+                    beginning_of_pass_write_index: Some(q0),
+                    end_of_pass_write_index: Some(q1),
+                }),
                 occlusion_query_set: None,
             });
+
+            // Apply scissor rect if set
+            // Determine effective scissor: prefer top of stack; if none, fall back to current_scissor
+            let effective = self.clip_stack.last().copied().or(self.current_scissor);
+            if let Some(sc) = effective {
+                // Convert logical to physical, clamp to surface bounds
+                let x = (sc.x * self.dpi_scale_factor).max(0.0).floor() as u32;
+                let y = (sc.y * self.dpi_scale_factor).max(0.0).floor() as u32;
+                let w = ((sc.width * self.dpi_scale_factor).max(0.0).floor() as u32)
+                    .min(self.config.width.saturating_sub(x));
+                let h = ((sc.height * self.dpi_scale_factor).max(0.0).floor() as u32)
+                    .min(self.config.height.saturating_sub(y));
+                rpass.set_scissor_rect(x, y, w, h);
+            }
+
+            // Set default pipeline for texture/atlas draws; rect draws will override temporarily
+            rpass.set_pipeline(&self.render_pipeline);
 
             // Streaming batcher that preserves z-order and interleaves atlas draws
             let mut current_tex: Option<Uuid> = None;
             let mut batch_indices: Vec<usize> = Vec::new();
             let mut current_atlas: Option<Uuid> = None;
             let mut atlas_instances: Vec<crate::utils::InstanceRaw> = Vec::new();
+            // Rect batching
+            let mut rect_instances: Vec<crate::utils::RectInstanceRaw> = Vec::new();
+            let mut rect_draw_calls: usize = 0;
 
             // Helper to flush a pending sprite batch
             let flush_batch = |rpass: &mut wgpu::RenderPass<'_>,
-                                   tex_id: Option<Uuid>,
-                                   indices: &mut Vec<usize>| {
+                               tex_id: Option<Uuid>,
+                               indices: &mut Vec<usize>| {
                 if indices.is_empty() {
                     return;
                 }
@@ -535,12 +684,133 @@ impl<'a> PlutoniumEngine<'a> {
                 indices.clear();
             };
 
+            // Helper to flush a pending rect batch
+            let mut flush_rects =
+                |rpass: &mut wgpu::RenderPass<'_>,
+                 instances: &mut Vec<crate::utils::RectInstanceRaw>| {
+                    if instances.is_empty() {
+                        return;
+                    }
+                    let bytes_needed = (instances.len()
+                        * std::mem::size_of::<crate::utils::RectInstanceRaw>())
+                        as u64;
+                    // Find a pool entry with sufficient capacity not used yet; else allocate
+                    let mut chosen: Option<usize> = None;
+                    for (i, entry) in self.rect_instance_pool.iter().enumerate() {
+                        if !entry.used_this_frame && entry.capacity >= bytes_needed {
+                            chosen = Some(i);
+                            break;
+                        }
+                    }
+                    let idx = if let Some(i) = chosen {
+                        i
+                    } else {
+                        let cap = bytes_needed.next_power_of_two().max(256);
+                        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                            label: Some("rect-instance-buffer"),
+                            size: cap,
+                            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                            mapped_at_creation: false,
+                        });
+                        let bind_group =
+                            self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                                label: Some("rect-instance-bg"),
+                                layout: &self.instance_bind_group_layout,
+                                entries: &[wgpu::BindGroupEntry {
+                                    binding: 0,
+                                    resource: buffer.as_entire_binding(),
+                                }],
+                            });
+                        self.rect_instance_pool.push(RectInstanceBuffer {
+                            buffer,
+                            capacity: cap,
+                            bind_group,
+                            used_this_frame: false,
+                            last_used_frame: self.frame_counter,
+                        });
+                        self.rect_instance_pool.len() - 1
+                    };
+                    // Grow if needed, write, and mark used
+                    {
+                        let entry = &mut self.rect_instance_pool[idx];
+                        if entry.capacity < bytes_needed {
+                            let cap = bytes_needed.next_power_of_two();
+                            let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                                label: Some("rect-instance-buffer"),
+                                size: cap,
+                                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                                mapped_at_creation: false,
+                            });
+                            entry.buffer = buffer;
+                            entry.capacity = cap;
+                            entry.bind_group =
+                                self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                                    label: Some("rect-instance-bg"),
+                                    layout: &self.instance_bind_group_layout,
+                                    entries: &[wgpu::BindGroupEntry {
+                                        binding: 0,
+                                        resource: entry.buffer.as_entire_binding(),
+                                    }],
+                                });
+                        }
+                        self.queue
+                            .write_buffer(&entry.buffer, 0, bytemuck::cast_slice(instances));
+                        entry.used_this_frame = true;
+                        entry.last_used_frame = self.frame_counter;
+                    }
+
+                    // Cache identity transform BG for rects per frame
+                    if self.rect_identity_bg.is_none() {
+                        let identity = TransformUniform {
+                            transform: [
+                                [1.0, 0.0, 0.0, 0.0],
+                                [0.0, 1.0, 0.0, 0.0],
+                                [0.0, 0.0, 1.0, 0.0],
+                                [0.0, 0.0, 0.0, 1.0],
+                            ],
+                        };
+                        let id_buf =
+                            self.device
+                                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                    label: Some("rect-id-ubo"),
+                                    contents: bytemuck::bytes_of(&identity),
+                                    usage: wgpu::BufferUsages::UNIFORM,
+                                });
+                        let id_bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                            layout: &self.transform_bind_group_layout,
+                            entries: &[wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: id_buf.as_entire_binding(),
+                            }],
+                            label: Some("rect-id-bg"),
+                        });
+                        self.rect_identity_bg = Some(id_bg);
+                    }
+
+                    rpass.set_pipeline(&self.rect_pipeline);
+                    // Bind dummy groups for slots 0 and 2 to satisfy layout
+                    rpass.set_bind_group(0, &self.rect_dummy_bg, &[]);
+                    rpass.set_bind_group(1, self.rect_identity_bg.as_ref().unwrap(), &[]);
+                    rpass.set_bind_group(2, &self.rect_dummy_bg, &[]);
+                    rpass.set_bind_group(3, &self.rect_instance_pool[idx].bind_group, &[]);
+                    rpass.set_vertex_buffer(0, self.rect_vertex_buffer.slice(..));
+                    rpass.set_index_buffer(
+                        self.rect_index_buffer.slice(..),
+                        wgpu::IndexFormat::Uint16,
+                    );
+                    rpass.draw_indexed(0..6, 0, 0..(instances.len() as u32));
+                    rect_draw_calls += 1;
+                    instances.clear();
+                };
+
             for q in &self.render_queue {
                 match &q.item {
                     RenderItem::Texture {
                         texture_key,
                         transform_index,
                     } => {
+                        // Switching away from rects; flush any pending rect batch
+                        flush_rects(&mut rpass, &mut rect_instances);
                         match current_tex {
                             Some(tid) if tid == *texture_key => {
                                 batch_indices.push(*transform_index);
@@ -638,6 +908,8 @@ impl<'a> PlutoniumEngine<'a> {
                         transform_index,
                         tile_index,
                     } => {
+                        // Switching away from rects; flush any pending rect batch
+                        flush_rects(&mut rpass, &mut rect_instances);
                         // flush any sprite batch first
                         flush_batch(&mut rpass, current_tex, &mut batch_indices);
                         current_tex = None;
@@ -726,6 +998,95 @@ impl<'a> PlutoniumEngine<'a> {
                             }
                         }
                     }
+                    RenderItem::Rect(cmd) => {
+                        // Flush any pending sprite/atlas batches before enqueueing rects
+                        flush_batch(&mut rpass, current_tex, &mut batch_indices);
+                        current_tex = None;
+                        if !atlas_instances.is_empty() {
+                            if let Some(aid) = current_atlas {
+                                if let Some(atlas) = self.atlas_map.get(&aid) {
+                                    let instance_buffer = self.device.create_buffer_init(
+                                        &wgpu::util::BufferInitDescriptor {
+                                            label: Some("instance data (atlas)"),
+                                            contents: bytemuck::cast_slice(&atlas_instances),
+                                            usage: wgpu::BufferUsages::STORAGE,
+                                        },
+                                    );
+                                    let instance_bg =
+                                        self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                                            layout: &self.instance_bind_group_layout,
+                                            entries: &[wgpu::BindGroupEntry {
+                                                binding: 0,
+                                                resource: instance_buffer.as_entire_binding(),
+                                            }],
+                                            label: Some("atlas-instance-bg"),
+                                        });
+                                    let identity = TransformUniform {
+                                        transform: [
+                                            [1.0, 0.0, 0.0, 0.0],
+                                            [0.0, 1.0, 0.0, 0.0],
+                                            [0.0, 0.0, 1.0, 0.0],
+                                            [0.0, 0.0, 0.0, 1.0],
+                                        ],
+                                    };
+                                    let id_buf = self.device.create_buffer_init(
+                                        &wgpu::util::BufferInitDescriptor {
+                                            label: Some("id-ubo"),
+                                            contents: bytemuck::bytes_of(&identity),
+                                            usage: wgpu::BufferUsages::UNIFORM,
+                                        },
+                                    );
+                                    let id_bg =
+                                        self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                                            layout: &self.transform_bind_group_layout,
+                                            entries: &[wgpu::BindGroupEntry {
+                                                binding: 0,
+                                                resource: id_buf.as_entire_binding(),
+                                            }],
+                                            label: Some("id-bg"),
+                                        });
+                                    rpass.set_bind_group(0, &atlas.bind_group, &[]);
+                                    rpass.set_bind_group(1, &id_bg, &[]);
+                                    rpass.set_bind_group(2, atlas.default_uv_bind_group(), &[]);
+                                    rpass.set_bind_group(3, &instance_bg, &[]);
+                                    rpass.set_vertex_buffer(0, atlas.vertex_buffer.slice(..));
+                                    rpass.set_index_buffer(
+                                        atlas.index_buffer.slice(..),
+                                        wgpu::IndexFormat::Uint16,
+                                    );
+                                    rpass.draw_indexed(
+                                        0..atlas.num_indices,
+                                        0,
+                                        0..(atlas_instances.len() as u32),
+                                    );
+                                }
+                            }
+                            atlas_instances.clear();
+                            current_atlas = None;
+                        }
+
+                        // Enqueue rect instance for batching
+                        rect_instances.push(crate::utils::RectInstanceRaw {
+                            model: cmd.transform,
+                            color: cmd.color,
+                            corner_radius_px: cmd.corner_radius_px,
+                            border_thickness_px: cmd.border_thickness_px,
+                            _pad0: [0.0, 0.0],
+                            border_color: cmd.border_color,
+                            rect_size_px: [cmd.width_px, cmd.height_px],
+                            _pad1: [0.0, 0.0],
+                            _pad2: [0.0, 0.0, 0.0, 0.0],
+                        });
+                        // Metrics: track style diversity and counts (no reordering/grouping)
+                        self.rect_instances_count = self.rect_instances_count.saturating_add(1);
+                        let key = RectStyleKey {
+                            fill_rgba_u8: to_rgba_u8(cmd.color),
+                            border_rgba_u8: to_rgba_u8(cmd.border_color),
+                            corner_radius_10x: quant_10x(cmd.corner_radius_px),
+                            border_thickness_10x: quant_10x(cmd.border_thickness_px),
+                        };
+                        self.rect_style_keys.insert(key);
+                    }
                 }
             }
             // flush any remaining sprite batch
@@ -733,7 +1094,7 @@ impl<'a> PlutoniumEngine<'a> {
             // flush any remaining atlas batch
             if !atlas_instances.is_empty() {
                 if let Some(aid) = current_atlas {
-                    if let Some(atlas) = self.atlas_map.get(&aid) {
+                    if self.atlas_map.contains_key(&aid) {
                         let instance_buffer =
                             self.device
                                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -792,9 +1153,64 @@ impl<'a> PlutoniumEngine<'a> {
                     }
                 }
             }
+            // flush any remaining rects
+            flush_rects(&mut rpass, &mut rect_instances);
+            self.rect_draw_calls_count = rect_draw_calls;
+        }
+        // End timestamp + resolve
+        if let (Some(qs), Some(buf)) = (qset, qbuf) {
+            let base = (((q0 as u64) * 8) / wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT as u64)
+                * wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT as u64;
+            encoder.resolve_query_set(qs, q0..(q1 + 1), buf, base);
         }
         self.queue.submit(Some(encoder.finish()));
         frame.present();
+        // Read back timestamps (synchronously for simplicity)
+        if let (Some(src), Some(dst)) = (&self.timestamp_buf, &self.timestamp_staging) {
+            // Copy resolved results into MAP_READ staging
+            let mut enc = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("copy ts"),
+                });
+            let base = (((q0 as u64) * 8) / wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT as u64)
+                * wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT as u64;
+            enc.copy_buffer_to_buffer(
+                src,
+                base,
+                dst,
+                base,
+                wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT as u64,
+            );
+            self.queue.submit(Some(enc.finish()));
+            let start = base;
+            let end = start + 16;
+            let slice = dst.slice(start..end);
+            let (tx, rx) = std::sync::mpsc::channel();
+            slice.map_async(wgpu::MapMode::Read, move |res| {
+                let _ = tx.send(res.is_ok());
+            });
+            // Block until mapping completes
+            self.device.poll(wgpu::Maintain::Wait);
+            if rx.recv().unwrap_or(false) {
+                let data = slice.get_mapped_range();
+                if data.len() >= 16 {
+                    let t0 = u64::from_le_bytes(data[0..8].try_into().unwrap());
+                    let t1 = u64::from_le_bytes(data[8..16].try_into().unwrap());
+                    if t1 > t0 {
+                        let dt_ns = (t1 - t0) as f64 * (self.timestamp_period_ns as f64);
+                        let dt_s = (dt_ns / 1_000_000_000.0) as f32;
+                        self.gpu_metrics.record(dt_s);
+                        if let Some(line) = self.gpu_metrics.maybe_report() {
+                            println!("gpu_{}", line);
+                        }
+                    }
+                }
+                drop(data);
+                dst.unmap();
+            }
+        }
+        self.timestamp_frame_index = self.timestamp_frame_index.wrapping_add(1);
         Ok(())
     }
 
@@ -802,9 +1218,33 @@ impl<'a> PlutoniumEngine<'a> {
     pub fn begin_frame(&mut self) {
         self.clear_render_queue();
         self.transform_pool.reset();
+        self.rect_identity_bg = None;
+        self.rect_pool_cursor = 0;
+        self.frame_counter = self.frame_counter.wrapping_add(1);
+        for entry in &mut self.rect_instance_pool {
+            entry.used_this_frame = false;
+        }
+        self.current_scissor = None;
+        self.clip_stack.clear();
+        self.rect_style_keys.clear();
+        self.rect_instances_count = 0;
+        self.rect_draw_calls_count = 0;
     }
 
     pub fn end_frame(&mut self) -> Result<(), wgpu::SurfaceError> {
+        // Periodically evict least recently used rect instance buffers to cap memory
+        const MAX_POOL: usize = 32;
+        const EVICT_AGE: u64 = 600; // frames
+        if self.rect_instance_pool.len() > MAX_POOL {
+            // Retain entries that are either recently used or needed
+            self.rect_instance_pool
+                .retain(|e| self.frame_counter.saturating_sub(e.last_used_frame) < EVICT_AGE);
+            if self.rect_instance_pool.len() > MAX_POOL {
+                // Sort by last_used_frame ascending and truncate
+                self.rect_instance_pool.sort_by_key(|e| e.last_used_frame);
+                self.rect_instance_pool.truncate(MAX_POOL);
+            }
+        }
         self.render()
     }
 
@@ -842,6 +1282,100 @@ impl<'a> PlutoniumEngine<'a> {
             params.scale
         };
         self.queue_tile_with_layer(atlas_key, tile_index, position, user_scale, params.z);
+    }
+
+    // Draw an atlas tile stretched to an arbitrary destination rectangle (non-uniform scale)
+    pub fn draw_atlas_tile_stretched(
+        &mut self,
+        atlas_key: &Uuid,
+        tile_index: usize,
+        dst: Rectangle,
+        z: i32,
+    ) {
+        if self.atlas_map.get(atlas_key).is_none() {
+            return;
+        }
+        // Convert logical to physical pixels via DPI scale
+        let cam = self.camera.get_pos(self.dpi_scale_factor);
+        let left_px = ((dst.x * self.dpi_scale_factor) - cam.x).round();
+        let top_px = ((dst.y * self.dpi_scale_factor) - cam.y).round();
+        let right_px = (((dst.x + dst.width) * self.dpi_scale_factor) - cam.x).round();
+        let bottom_px = (((dst.y + dst.height) * self.dpi_scale_factor) - cam.y).round();
+        let px_w = (right_px - left_px).max(0.0);
+        let px_h = (bottom_px - top_px).max(0.0);
+        // NDC scale
+        let width_ndc = 2.0 * (px_w / self.viewport_size.width);
+        let height_ndc = 2.0 * (px_h / self.viewport_size.height);
+        // Center translation from snapped edges
+        let ndc_left = 2.0 * (left_px / self.viewport_size.width) - 1.0;
+        let ndc_top = -2.0 * (top_px / self.viewport_size.height) + 1.0;
+        let ndc_x = ndc_left + width_ndc * 0.5;
+        let ndc_y = ndc_top - height_ndc * 0.5;
+        let transform_uniform = TransformUniform {
+            transform: [
+                [width_ndc, 0.0, 0.0, 0.0],
+                [0.0, height_ndc, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [ndc_x, ndc_y, 0.0, 1.0],
+            ],
+        };
+        let transform_index = self.allocate_transform_bind_group(transform_uniform);
+        self.render_queue.push(QueuedItem {
+            z,
+            item: RenderItem::AtlasTile {
+                texture_key: *atlas_key,
+                transform_index,
+                tile_index,
+            },
+        });
+    }
+
+    // Immediate-mode rect draw (UI primitive)
+    pub fn draw_rect(
+        &mut self,
+        bounds: Rectangle,
+        color: [f32; 4],
+        corner_radius_px: f32,
+        border: Option<([f32; 4], f32)>,
+        z: i32,
+    ) {
+        // Convert to a model matrix similar to textures, accounting for dpi and camera
+        let pos = Position {
+            x: bounds.x,
+            y: bounds.y,
+        } * self.dpi_scale_factor;
+        let size = bounds.size() * self.dpi_scale_factor;
+        let width_ndc = size.width / self.viewport_size.width;
+        let height_ndc = size.height / self.viewport_size.height;
+        let ndc_dx = (2.0 * (pos.x - self.camera.get_pos(self.dpi_scale_factor).x))
+            / self.viewport_size.width
+            - 1.0;
+        let ndc_dy = 1.0
+            - (2.0 * (pos.y - self.camera.get_pos(self.dpi_scale_factor).y))
+                / self.viewport_size.height;
+        let ndc_x = ndc_dx + width_ndc;
+        let ndc_y = ndc_dy - height_ndc;
+        let model = [
+            [width_ndc, 0.0, 0.0, 0.0],
+            [0.0, height_ndc, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [ndc_x, ndc_y, 0.0, 1.0],
+        ];
+        let (border_color, border_thickness) = border.unwrap_or(([0.0, 0.0, 0.0, 0.0], 0.0));
+        let cmd = RectCommand {
+            width_px: size.width,
+            height_px: size.height,
+            color,
+            corner_radius_px,
+            border_thickness_px: border_thickness,
+            border_color,
+            transform: model,
+            z,
+        };
+        self.render_queue.push(QueuedItem {
+            z,
+            item: RenderItem::Rect(cmd),
+        });
     }
 
     fn allocate_transform_bind_group(&mut self, transform_uniform: TransformUniform) -> usize {
@@ -1426,10 +1960,14 @@ impl<'a> PlutoniumEngine<'a> {
         .expect("Failed to find an appropriate adapter");
 
         // create the logical device and command queue
+        let mut required_features = wgpu::Features::empty();
+        if adapter.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
+            required_features |= wgpu::Features::TIMESTAMP_QUERY;
+        }
         let (device, queue) = block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
                 label: None,
-                required_features: wgpu::Features::empty(),
+                required_features,
                 required_limits: wgpu::Limits::default().using_resolution(adapter.limits()),
                 memory_hints: Default::default(),
             },
@@ -1541,7 +2079,7 @@ impl<'a> PlutoniumEngine<'a> {
             push_constant_ranges: &[],
         });
 
-        // set up render pipeline
+        // set up render pipeline (textured quads)
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
@@ -1561,9 +2099,10 @@ impl<'a> PlutoniumEngine<'a> {
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                    // Use standard non-premultiplied alpha blending so glyph quads don't appear as solid white
                     blend: Some(wgpu::BlendState {
                         color: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::One,
+                            src_factor: wgpu::BlendFactor::SrcAlpha,
                             dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
                             operation: wgpu::BlendOperation::Add,
                         },
@@ -1584,6 +2123,66 @@ impl<'a> PlutoniumEngine<'a> {
             cache: None,
         });
 
+        // Rect pipeline (SDF rects with optional border)
+        // Create an empty bind group layout for slots we don't use (group 0 and 2)
+        let rect_dummy_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("rect-dummy-bgl"),
+            entries: &[],
+        });
+        let rect_dummy_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("rect-dummy-bg"),
+            layout: &rect_dummy_bgl,
+            entries: &[],
+        });
+        let rect_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("rect-shader"),
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("../shaders/rect.wgsl"))),
+        });
+        let rect_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Rect Pipeline Layout"),
+            bind_group_layouts: &[
+                // group(0) unused (no texture) — use empty layout
+                &rect_dummy_bgl,
+                &transform_bind_group_layout,
+                // group(2) unused — use empty layout
+                &rect_dummy_bgl,
+                &instance_bind_group_layout,
+            ],
+            push_constant_ranges: &[],
+        });
+        let rect_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("rect-pipeline"),
+            layout: Some(&rect_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &rect_shader,
+                entry_point: Some("vs_main"),
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2],
+                }],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &rect_shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        });
+
+        // Static centered quad for rects
+        let (rect_vertex_buffer, rect_index_buffer) = create_centered_quad_buffers(&device);
+
         let texture_map: HashMap<Uuid, TextureSVG> = HashMap::new();
         let atlas_map: HashMap<Uuid, TextureAtlas> = HashMap::new();
         let pluto_objects = HashMap::new();
@@ -1598,6 +2197,36 @@ impl<'a> PlutoniumEngine<'a> {
         let text_renderer = TextRenderer::new();
         let loaded_fonts = HashMap::new();
         let transform_pool = TransformPool::new();
+
+        // Optional GPU timestamp query setup
+        let mut timestamp_query: Option<wgpu::QuerySet> = None;
+        let mut timestamp_buf: Option<wgpu::Buffer> = None;
+        let mut timestamp_count: u32 = 0;
+        let timestamp_period_ns: f32 = queue.get_timestamp_period();
+        let mut timestamp_staging_buf: Option<wgpu::Buffer> = None;
+        if device.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
+            // 2 queries per frame across a small ring buffer
+            timestamp_count = 128;
+            timestamp_query = Some(device.create_query_set(&wgpu::QuerySetDescriptor {
+                label: Some("gpu-timestamps"),
+                ty: wgpu::QueryType::Timestamp,
+                count: timestamp_count,
+            }));
+            timestamp_buf = Some(device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("gpu-timestamps-buffer"),
+                size: (timestamp_count as u64) * 8,
+                usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC,
+                mapped_at_creation: false,
+            }));
+            // Staging buffer for CPU readback
+            let staging = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("gpu-timestamps-staging"),
+                size: (timestamp_count as u64) * 8,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                mapped_at_creation: false,
+            });
+            timestamp_staging_buf = Some(staging);
+        }
 
         Self {
             size,
@@ -1619,7 +2248,54 @@ impl<'a> PlutoniumEngine<'a> {
             text_renderer,
             loaded_fonts,
             transform_pool,
+            rect_pipeline,
+            rect_dummy_bgl,
+            rect_dummy_bg,
+            rect_vertex_buffer,
+            rect_index_buffer,
+            rect_identity_bg: None,
+            rect_instance_pool: Vec::new(),
+            rect_pool_cursor: 0,
+            frame_counter: 0,
             instance_bind_group_layout,
+            timestamp_query,
+            timestamp_buf,
+            timestamp_staging: timestamp_staging_buf,
+            timestamp_period_ns,
+            timestamp_count,
+            timestamp_frame_index: 0,
+            gpu_metrics: FrameTimeMetrics::new(600, 5.0),
+            current_scissor: None,
+            clip_stack: Vec::new(),
+            rect_style_keys: HashSet::new(),
+            rect_instances_count: 0,
+            rect_draw_calls_count: 0,
         }
+    }
+
+    // UI clipping (logical coordinates); applies a scissor rect for the render pass of this frame
+    pub fn set_clip(&mut self, rect: Rectangle) {
+        self.current_scissor = Some(rect);
+    }
+    pub fn clear_clip(&mut self) {
+        self.current_scissor = None;
+    }
+
+    // Push a clip rectangle (intersect with prior top if present)
+    pub fn push_clip(&mut self, rect: Rectangle) {
+        if let Some(&prev) = self.clip_stack.last() {
+            let x1 = prev.x.max(rect.x);
+            let y1 = prev.y.max(rect.y);
+            let x2 = (prev.x + prev.width).min(rect.x + rect.width);
+            let y2 = (prev.y + prev.height).min(rect.y + rect.height);
+            let w = (x2 - x1).max(0.0);
+            let h = (y2 - y1).max(0.0);
+            self.clip_stack.push(Rectangle::new(x1, y1, w, h));
+        } else {
+            self.clip_stack.push(rect);
+        }
+    }
+    pub fn pop_clip(&mut self) {
+        let _ = self.clip_stack.pop();
     }
 }

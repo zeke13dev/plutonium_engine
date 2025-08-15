@@ -1,0 +1,23 @@
+[theme]
+primary_text_rgba = [1.0, 1.0, 1.0, 1.0]
+button_bg_rgba = [0.2, 0.2, 0.25, 1.0]
+button_bg_hover_rgba = [0.3, 0.3, 0.35, 1.0]
+
+[[fonts]]
+path = "examples/media/roboto.ttf"
+key = "roboto"
+size = 16.0
+
+[[textures]]
+name = "button_bg"
+path = "examples/media/square.svg"
+
+[[panels]]
+name = "panel"
+path = "examples/media/square.svg"
+tile_width = 64.0
+tile_height = 64.0
+inset_left = 8.0
+inset_right = 8.0
+inset_top = 8.0
+inset_bottom = 8.0
