@@ -1,7 +1,7 @@
 use plutonium_engine::app::run_app;
 use plutonium_engine::input::{ActionMap, AxisSource, ButtonSource};
 use plutonium_engine::ui::{draw_focus_ring, FocusRingStyle};
-use plutonium_engine::utils::{Position, Rectangle};
+use plutonium_engine::utils::Rectangle;
 use plutonium_engine::WindowConfig;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

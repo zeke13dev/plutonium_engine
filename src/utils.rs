@@ -16,6 +16,7 @@ pub struct DrawingContext<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug)]
+#[allow(dead_code)]
 pub struct UVTransform {
     pub uv_offset: [f32; 2],
     pub uv_scale: [f32; 2],
@@ -24,6 +25,7 @@ pub struct UVTransform {
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug)]
+#[allow(dead_code)]
 pub struct Vertex {
     pub position: [f32; 2],
     pub tex_coords: [f32; 2], // u, v texture coordinates
@@ -31,12 +33,14 @@ pub struct Vertex {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[allow(dead_code)]
 pub struct TransformUniform {
     pub transform: [[f32; 4]; 4], // 4x4 transformation matrix
 }
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[allow(dead_code)]
 pub struct InstanceRaw {
     pub model: [[f32; 4]; 4],
     pub uv_offset: [f32; 2],
@@ -45,6 +49,7 @@ pub struct InstanceRaw {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[allow(dead_code)]
 pub struct RectInstanceRaw {
     pub model: [[f32; 4]; 4],
     pub color: [f32; 4],

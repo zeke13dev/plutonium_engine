@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 use plutonium_game_core::World;
+use rayon::prelude::*;
 use serde::de::Error as SerdeDeError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -104,7 +105,76 @@ pub struct LoadRequests {
     pub atlases: Vec<AtlasLoadRequest>,
 }
 
+/// Process asset loading requests sequentially (for compatibility)
 pub fn process_load_requests(world: &mut World, engine: &mut plutonium_engine::PlutoniumEngine) {
+    process_load_requests_sequential(world, engine);
+}
+
+/// Process asset loading requests with parallel preprocessing
+pub fn process_load_requests_parallel(world: &mut World, engine: &mut plutonium_engine::PlutoniumEngine) {
+    // Move out requests first to avoid overlapping mutable borrows
+    let (pending_textures, pending_atlases) = {
+        let Some(loads) = world.get_resource_mut::<LoadRequests>() else {
+            return;
+        };
+        (
+            std::mem::take(&mut loads.textures),
+            std::mem::take(&mut loads.atlases),
+        )
+    };
+
+    // Parallel preprocessing: validate file paths and read file metadata
+    let validated_textures: Vec<_> = pending_textures
+        .into_par_iter()
+        .filter_map(|req| {
+            // Validate file exists and is readable
+            if std::fs::metadata(&req.file_path).is_ok() {
+                Some(req)
+            } else {
+                eprintln!("Warning: Asset file not found: {}", req.file_path);
+                None
+            }
+        })
+        .collect();
+
+    let validated_atlases: Vec<_> = pending_atlases
+        .into_par_iter()
+        .filter_map(|req| {
+            // Validate file exists and is readable
+            if std::fs::metadata(&req.file_path).is_ok() {
+                Some(req)
+            } else {
+                eprintln!("Warning: Atlas file not found: {}", req.file_path);
+                None
+            }
+        })
+        .collect();
+
+    // Apply texture loads sequentially (engine is not thread-safe)
+    if !validated_textures.is_empty() {
+        if let Some(registry) = world.get_resource_mut::<AssetsRegistry>() {
+            for req in validated_textures {
+                let (uuid, _dims) =
+                    engine.create_texture_svg(&req.file_path, req.position, req.scale_factor);
+                registry.set_texture_uuid(req.handle, uuid);
+            }
+        }
+    }
+
+    // Apply atlas loads sequentially
+    if !validated_atlases.is_empty() {
+        if let Some(registry) = world.get_resource_mut::<AssetsRegistry>() {
+            for req in validated_atlases {
+                let (uuid, _rect) =
+                    engine.create_texture_atlas(&req.file_path, req.position, req.tile_size);
+                registry.set_atlas_uuid(req.handle, uuid);
+            }
+        }
+    }
+}
+
+/// Sequential implementation for compatibility
+fn process_load_requests_sequential(world: &mut World, engine: &mut plutonium_engine::PlutoniumEngine) {
     // Move out requests first to avoid overlapping mutable borrows
     let (pending_textures, pending_atlases) = {
         let Some(loads) = world.get_resource_mut::<LoadRequests>() else {
@@ -135,6 +205,58 @@ pub fn process_load_requests(world: &mut World, engine: &mut plutonium_engine::P
             }
         }
     }
+}
+
+/// Batch load multiple assets with parallel preprocessing
+pub fn batch_load_assets(
+    registry: &mut AssetsRegistry,
+    engine: &mut plutonium_engine::PlutoniumEngine,
+    texture_paths: &[(String, plutonium_engine::utils::Position, f32)], // (path, position, scale)
+    atlas_paths: &[(String, plutonium_engine::utils::Position, plutonium_engine::utils::Size)], // (path, position, tile_size)
+) -> (Vec<Handle>, Vec<Handle>) {
+    // Reserve handles
+    let texture_handles: Vec<Handle> = texture_paths.iter().map(|_| registry.reserve_handle()).collect();
+    let atlas_handles: Vec<Handle> = atlas_paths.iter().map(|_| registry.reserve_handle()).collect();
+
+    // Parallel validation
+    let validated_textures: Vec<_> = texture_paths
+        .par_iter()
+        .zip(texture_handles.par_iter())
+        .filter_map(|((path, pos, scale), handle)| {
+            if std::fs::metadata(path).is_ok() {
+                Some((*handle, path.clone(), *pos, *scale))
+            } else {
+                eprintln!("Warning: Texture file not found: {}", path);
+                None
+            }
+        })
+        .collect();
+
+    let validated_atlases: Vec<_> = atlas_paths
+        .par_iter()
+        .zip(atlas_handles.par_iter())
+        .filter_map(|((path, pos, tile_size), handle)| {
+            if std::fs::metadata(path).is_ok() {
+                Some((*handle, path.clone(), *pos, *tile_size))
+            } else {
+                eprintln!("Warning: Atlas file not found: {}", path);
+                None
+            }
+        })
+        .collect();
+
+    // Sequential loading (engine is not thread-safe)
+    for (handle, path, pos, scale) in validated_textures {
+        let (uuid, _dims) = engine.create_texture_svg(&path, pos, scale);
+        registry.set_texture_uuid(handle, uuid);
+    }
+
+    for (handle, path, pos, tile_size) in validated_atlases {
+        let (uuid, _rect) = engine.create_texture_atlas(&path, pos, tile_size);
+        registry.set_atlas_uuid(handle, uuid);
+    }
+
+    (texture_handles, atlas_handles)
 }
 
 impl AssetsRegistry {
@@ -208,6 +330,7 @@ impl AssetsRegistry {
         }
     }
 
+    #[allow(dead_code)]
     fn find_path_for_handle(&self, name: &str) -> Option<String> {
         // For now, assume the manifest-specified name maps to a relative path identical to original config lookup
         self.file_mtimes.keys().find(|p| p.contains(name)).cloned()

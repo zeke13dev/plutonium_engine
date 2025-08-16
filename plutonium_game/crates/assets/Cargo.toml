@@ -11,6 +11,7 @@ plutonium_game_core = { path = "../core" }
 plutonium_engine = { path = "../../../" }
 uuid = { version = "1" }
 toml = "0.8"
+rayon = "1.10"
 
 [features]
 dev-hot-reload = []

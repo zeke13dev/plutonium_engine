@@ -37,7 +37,7 @@ impl World {
         let store = self
             .components
             .entry(std::any::type_name::<T>())
-            .or_insert_with(AHashMap::new);
+            .or_default();
         store.insert(entity.0, Box::new(component));
     }
 
@@ -103,9 +103,11 @@ impl World {
     }
 }
 
+type SystemFn = Box<dyn Fn(&mut World) + Send + Sync>;
+
 #[derive(Default)]
 pub struct Schedule {
-    systems: Vec<Box<dyn Fn(&mut World) + Send + Sync>>,
+    systems: Vec<SystemFn>,
 }
 
 impl Schedule {
@@ -210,7 +212,7 @@ pub fn scene_replace(world: &mut World, name: impl Into<String>) {
     let name = name.into();
     if let Some(stack) = world.get_resource_mut::<SceneStack>() {
         let prev = stack.stack.pop();
-        drop(stack);
+        let _ = stack;
         if let Some(p) = prev {
             world.send_event(SceneExit(p));
         }
@@ -575,6 +577,7 @@ impl<'a, T: Component> Iterator for QueryIterMut<'a, T> {
 }
 
 struct Query2IterRef<'a, A: Component, B: Component> {
+    #[allow(dead_code)]
     a_map: Option<&'a AHashMap<u32, Box<dyn std::any::Any + Send + Sync>>>,
     b_map: Option<&'a AHashMap<u32, Box<dyn std::any::Any + Send + Sync>>>,
     a_iter: Option<std::collections::hash_map::Iter<'a, u32, Box<dyn std::any::Any + Send + Sync>>>,
@@ -585,12 +588,16 @@ struct Query2IterRef<'a, A: Component, B: Component> {
 impl<'a, A: Component, B: Component> Iterator for Query2IterRef<'a, A, B> {
     type Item = (Entity, &'a A, &'a B);
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let (id, a_box) = self.a_iter.as_mut()?.next()?;
-            let a_ref = a_box.downcast_ref::<A>()?;
-            let b_ref = self.b_map?.get(id)?.downcast_ref::<B>()?;
-            return Some((Entity(*id), a_ref, b_ref));
+        while let Some((id, a_box)) = self.a_iter.as_mut()?.next() {
+            if let Some(a_ref) = a_box.downcast_ref::<A>() {
+                if let Some(b_box) = self.b_map?.get(id) {
+                    if let Some(b_ref) = b_box.downcast_ref::<B>() {
+                        return Some((Entity(*id), a_ref, b_ref));
+                    }
+                }
+            }
         }
+        None
     }
 }
 

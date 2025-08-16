@@ -67,7 +67,7 @@ fn bezier_x_and_derivative(t: f32, x1: f32, x2: f32) -> (f32, f32) {
 #[inline]
 fn bezier_y(t: f32, y1: f32, y2: f32) -> f32 {
     let u = 1.0 - t;
-    let b0 = u * u * u;
+    let _b0 = u * u * u;
     let b1 = 3.0 * u * u * t;
     let b2 = 3.0 * u * t * t;
     let b3 = t * t * t;
@@ -181,6 +181,18 @@ where
     playing: bool,
     labels: std::collections::HashMap<String, f32>,
     callbacks: Vec<TimelineCallback>,
+}
+
+impl<T> Default for Timeline<T>
+where
+    T: Copy
+        + core::ops::Add<Output = T>
+        + core::ops::Sub<Output = T>
+        + core::ops::Mul<f32, Output = T>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T> Timeline<T>

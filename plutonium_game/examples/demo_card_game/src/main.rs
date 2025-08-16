@@ -4,7 +4,7 @@ use plutonium_engine::{
     PlutoniumEngine,
 };
 use plutonium_game_assets::{
-    load_manifest, process_load_requests, AssetsRegistry, LoadRequests, TextureLoadRequest,
+    load_manifest, AssetsRegistry, LoadRequests, TextureLoadRequest,
 };
 use plutonium_game_audio::Audio;
 use plutonium_game_core::{
@@ -279,8 +279,8 @@ fn main() {
                 }
             }
 
-            // Process asset loads
-            process_load_requests(&mut game.world, engine);
+            // Process asset loads (with parallel preprocessing)
+            plutonium_game_assets::process_load_requests_parallel(&mut game.world, engine);
 
             // Resolve card texture id once available and store
             if let Some((bh, mut bg_id)) = unsafe { BTN_BG_HANDLE } {

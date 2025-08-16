@@ -92,8 +92,7 @@ impl TextureSVG {
         let bytes_per_pixel = 4;
         let unpadded_bytes_per_row = pixmap.width() as usize * bytes_per_pixel;
         const COPY_BYTES_PER_ROW_ALIGNMENT: usize = 256;
-        let padded_bytes_per_row = ((unpadded_bytes_per_row + COPY_BYTES_PER_ROW_ALIGNMENT - 1)
-            / COPY_BYTES_PER_ROW_ALIGNMENT)
+        let padded_bytes_per_row = unpadded_bytes_per_row.div_ceil(COPY_BYTES_PER_ROW_ALIGNMENT)
             * COPY_BYTES_PER_ROW_ALIGNMENT;
 
         let total_size = padded_bytes_per_row * pixmap.height() as usize;
@@ -204,7 +203,7 @@ impl TextureSVG {
         let num_tiles = 1;
         let alignment = 256;
         let element_size = std::mem::size_of::<UVTransform>();
-        let aligned_element_size = (element_size + alignment - 1) / alignment * alignment;
+        let aligned_element_size = element_size.div_ceil(alignment) * alignment;
         let buffer_size = num_tiles * aligned_element_size;
 
         let uv_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -447,7 +446,7 @@ impl TextureSVG {
         let num_tiles = 1;
         let alignment = 256;
         let element_size = std::mem::size_of::<UVTransform>();
-        let aligned_element_size = (element_size + alignment - 1) / alignment * alignment;
+        let aligned_element_size = element_size.div_ceil(alignment) * alignment;
         let buffer_size = num_tiles * aligned_element_size;
 
         let uv_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -703,10 +702,10 @@ impl TextureSVG {
     pub fn uv_bind_group(&self) -> &wgpu::BindGroup {
         &self.uv_bind_group
     }
-    pub fn vertex_buffer_slice(&self) -> wgpu::BufferSlice {
+    pub fn vertex_buffer_slice(&self) -> wgpu::BufferSlice<'_> {
         self.vertex_buffer.slice(..)
     }
-    pub fn index_buffer_slice(&self) -> wgpu::BufferSlice {
+    pub fn index_buffer_slice(&self) -> wgpu::BufferSlice<'_> {
         self.index_buffer.slice(..)
     }
     pub fn num_indices(&self) -> u32 {
@@ -823,8 +822,7 @@ impl TextureSVG {
         let bytes_per_pixel = 4;
         let unpadded_bytes_per_row = pixmap.width() as usize * bytes_per_pixel;
         const COPY_BYTES_PER_ROW_ALIGNMENT: usize = 256;
-        let padded_bytes_per_row = (unpadded_bytes_per_row + COPY_BYTES_PER_ROW_ALIGNMENT - 1)
-            / COPY_BYTES_PER_ROW_ALIGNMENT
+        let padded_bytes_per_row = unpadded_bytes_per_row.div_ceil(COPY_BYTES_PER_ROW_ALIGNMENT)
             * COPY_BYTES_PER_ROW_ALIGNMENT;
 
         let total_size = padded_bytes_per_row * pixmap.height() as usize;

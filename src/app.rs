@@ -11,6 +11,8 @@ use winit::{
     window::{Window, WindowId},
 };
 
+type FrameCallback = Box<dyn FnMut(&mut PlutoniumEngine, &FrameContext)>;
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
 pub struct FrameInputRecordLocal {
     pub pressed_keys: Vec<String>,
@@ -47,7 +49,7 @@ pub struct PlutoniumApp {
     engine: Option<super::PlutoniumEngine<'static>>,
     window: Option<Arc<Window>>,
     last_frame: std::time::Instant,
-    frame_callback: Box<dyn FnMut(&mut PlutoniumEngine, &FrameContext)>,
+    frame_callback: FrameCallback,
     frame_context: FrameContext,
     config: WindowConfig,
     metrics: FrameTimeMetrics,
@@ -221,13 +223,12 @@ impl ApplicationHandler<()> for PlutoniumApp {
         event: WindowEvent,
     ) {
         match event {
-            WindowEvent::Ime(ime) => {
-                if let winit::event::Ime::Commit(text) = ime {
-                    if !text.is_empty() {
-                        self.frame_context.text_commits.push(text);
-                    }
+            WindowEvent::Ime(winit::event::Ime::Commit(text)) => {
+                if !text.is_empty() {
+                    self.frame_context.text_commits.push(text);
                 }
             }
+            WindowEvent::Ime(_) => {}  // Handle other IME events
             WindowEvent::KeyboardInput { event, .. } => {
                 if event.state.is_pressed() {
                     // Hotkeys: 'r' toggles recording; 'p' starts replay

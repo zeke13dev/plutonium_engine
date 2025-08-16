@@ -40,13 +40,9 @@ struct RecordingFileLocal {
     frames: Vec<FrameInputRecordLocal>,
 }
 
-fn parse_args() -> (
-    Option<u64>,
-    Option<String>,
-    Option<String>,
-    Option<usize>,
-    Option<f32>,
-) {
+type ParseResult = (Option<u64>, Option<String>, Option<String>, Option<usize>, Option<f32>);
+
+fn parse_args() -> ParseResult {
     let mut seed: Option<u64> = None;
     let mut record: Option<String> = None;
     let mut replay: Option<String> = None;
@@ -602,9 +598,9 @@ fn create_rect_pipeline(
 
 fn snapshot_toggle_states() -> anyhow::Result<()> {
     let (_instance, device, queue) = build_device();
-    let (pipeline, inst_bgl) = create_shader(&device);
-    let (tex_bgl, xform_bgl) = make_layouts(&device);
-    let (rect_pipeline, rect_dummy_bgl, rect_dummy_bg, rect_vbuf, rect_ibuf) =
+    let (_pipeline, inst_bgl) = create_shader(&device);
+    let (_tex_bgl, xform_bgl) = make_layouts(&device);
+    let (rect_pipeline, _rect_dummy_bgl, rect_dummy_bg, rect_vbuf, rect_ibuf) =
         create_rect_pipeline(&device, &xform_bgl, &inst_bgl);
 
     let target = device.create_texture(&wgpu::TextureDescriptor {
@@ -2120,7 +2116,7 @@ fn snapshot_menu_button_focused() -> anyhow::Result<()> {
     .expect("btn");
 
     // Build rect pipeline for crisp focus ring
-    let (rect_pipeline, rect_dummy_bgl, rect_dummy_bg, rect_vbuf, rect_ibuf) =
+    let (rect_pipeline, _rect_dummy_bgl, rect_dummy_bg, rect_vbuf, rect_ibuf) =
         create_rect_pipeline(&device, &xform_bgl, &inst_bgl);
 
     // Identity world transform (group 1)
@@ -2641,7 +2637,7 @@ fn snapshot_slider_states() -> anyhow::Result<()> {
     let (_instance, device, queue) = build_device();
     let (_sprite_pipeline, inst_bgl) = create_shader(&device);
     let (_tex_bgl, xform_bgl) = make_layouts(&device);
-    let (rect_pipeline, dummy_bgl, dummy_bg, rect_vbuf, rect_ibuf) =
+    let (rect_pipeline, _dummy_bgl, dummy_bg, rect_vbuf, rect_ibuf) =
         create_rect_pipeline(&device, &xform_bgl, &inst_bgl);
     let target = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("slider-states-target"),

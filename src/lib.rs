@@ -59,8 +59,6 @@ use winit::keyboard::Key;
 
 // renderer seam reserved for future use
 
-#[cfg(feature = "raster")]
-use image;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DrawParams {
@@ -551,7 +549,7 @@ impl<'a> PlutoniumEngine<'a> {
         } else {
             0
         };
-        let q0 = (qindex * 2) as u32;
+        let q0 = qindex * 2;
         let q1 = q0 + 1;
         // We'll write timestamps via render pass timestamp_writes when supported.
 
@@ -1159,8 +1157,8 @@ impl<'a> PlutoniumEngine<'a> {
         }
         // End timestamp + resolve
         if let (Some(qs), Some(buf)) = (qset, qbuf) {
-            let base = (((q0 as u64) * 8) / wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT as u64)
-                * wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT as u64;
+            let base = (((q0 as u64) * 8) / wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT)
+                * wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT;
             encoder.resolve_query_set(qs, q0..(q1 + 1), buf, base);
         }
         self.queue.submit(Some(encoder.finish()));
@@ -1173,14 +1171,14 @@ impl<'a> PlutoniumEngine<'a> {
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("copy ts"),
                 });
-            let base = (((q0 as u64) * 8) / wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT as u64)
-                * wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT as u64;
+            let base = (((q0 as u64) * 8) / wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT)
+                * wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT;
             enc.copy_buffer_to_buffer(
                 src,
                 base,
                 dst,
                 base,
-                wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT as u64,
+                wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT,
             );
             self.queue.submit(Some(enc.finish()));
             let start = base;
@@ -1292,7 +1290,7 @@ impl<'a> PlutoniumEngine<'a> {
         dst: Rectangle,
         z: i32,
     ) {
-        if self.atlas_map.get(atlas_key).is_none() {
+        if !self.atlas_map.contains_key(atlas_key) {
             return;
         }
         // Convert logical to physical pixels via DPI scale

@@ -1,6 +1,6 @@
 #[cfg(feature = "anim")]
 mod anim_tests {
-    use plutonium_engine::anim::{ease_value, Ease, Timeline, Track, Tween};
+    use plutonium_engine::anim::{ease_value, Ease, Track, Tween};
 
     #[test]
     fn easing_curves_basic() {

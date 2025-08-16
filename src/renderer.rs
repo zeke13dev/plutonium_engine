@@ -24,6 +24,12 @@ pub trait Renderer {
 
 pub struct WgpuRenderer;
 
+impl Default for WgpuRenderer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WgpuRenderer {
     pub fn new() -> Self {
         Self
@@ -45,6 +51,12 @@ pub struct RectCommand {
 
 pub struct RectBatch {
     pub commands: Vec<RectCommand>,
+}
+
+impl Default for RectBatch {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RectBatch {

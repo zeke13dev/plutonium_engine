@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let mut on = false;
-    let mut focused = true;
+    let focused = true;
 
     run_app(config, move |engine, frame| {
         engine.begin_frame();

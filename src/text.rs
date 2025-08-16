@@ -186,9 +186,7 @@ impl TextRenderer {
         // exactly to grid cells used by tile_uv_coordinates.
         let mut current_x = 0;
         let mut current_y = 0;
-        let mut next_tile_index = 0;
-
-        for c in (32..=126).map(|c| c as u8 as char) {
+        for (next_tile_index, c) in (32..=126).map(|c| c as u8 as char).enumerate() {
             let base_glyph = font.glyph(c).scaled(scale);
             let bearing_y = base_glyph
                 .exact_bounding_box()
@@ -236,7 +234,6 @@ impl TextRenderer {
                 },
             );
             current_x += max_width;
-            next_tile_index += 1;
         }
 
         Some((texture_data, char_map))
