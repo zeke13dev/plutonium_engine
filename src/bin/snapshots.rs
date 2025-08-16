@@ -887,7 +887,7 @@ fn save_texture_png(
     path: &Path,
 ) -> anyhow::Result<()> {
     let size = tex.size();
-    let bytes_per_row = ((size.width * 4 + 255) / 256) * 256; // align to 256
+    let bytes_per_row = (size.width * 4).div_ceil(256) * 256; // align to 256
     let output = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("snapshot-output"),
         size: (bytes_per_row as u64) * (size.height as u64),
