@@ -4,3 +4,5 @@ Cargo.lock
 GAME_ENGINE_TODO.md
 debug_atlas.png
 .cursor
+.claude
+response.md
