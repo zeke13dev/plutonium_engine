@@ -18,8 +18,11 @@ pub struct DrawingContext<'a> {
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug)]
 #[allow(dead_code)]
 pub struct UVTransform {
+    #[allow(dead_code)]
     pub uv_offset: [f32; 2],
+    #[allow(dead_code)]
     pub uv_scale: [f32; 2],
+    #[allow(dead_code)]
     pub tint: [f32; 4],
 }
 
@@ -27,7 +30,9 @@ pub struct UVTransform {
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug)]
 #[allow(dead_code)]
 pub struct Vertex {
+    #[allow(dead_code)]
     pub position: [f32; 2],
+    #[allow(dead_code)]
     pub tex_coords: [f32; 2], // u, v texture coordinates
 }
 
@@ -35,6 +40,7 @@ pub struct Vertex {
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 #[allow(dead_code)]
 pub struct TransformUniform {
+    #[allow(dead_code)]
     pub transform: [[f32; 4]; 4], // 4x4 transformation matrix
 }
 
@@ -42,8 +48,11 @@ pub struct TransformUniform {
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 #[allow(dead_code)]
 pub struct InstanceRaw {
+    #[allow(dead_code)]
     pub model: [[f32; 4]; 4],
+    #[allow(dead_code)]
     pub uv_offset: [f32; 2],
+    #[allow(dead_code)]
     pub uv_scale: [f32; 2],
 }
 
@@ -51,14 +60,23 @@ pub struct InstanceRaw {
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 #[allow(dead_code)]
 pub struct RectInstanceRaw {
+    #[allow(dead_code)]
     pub model: [[f32; 4]; 4],
+    #[allow(dead_code)]
     pub color: [f32; 4],
+    #[allow(dead_code)]
     pub corner_radius_px: f32,
+    #[allow(dead_code)]
     pub border_thickness_px: f32,
+    #[allow(dead_code)]
     pub _pad0: [f32; 2],
+    #[allow(dead_code)]
     pub border_color: [f32; 4],
+    #[allow(dead_code)]
     pub rect_size_px: [f32; 2],
+    #[allow(dead_code)]
     pub _pad1: [f32; 2],
+    #[allow(dead_code)]
     pub _pad2: [f32; 4],
 }
 
