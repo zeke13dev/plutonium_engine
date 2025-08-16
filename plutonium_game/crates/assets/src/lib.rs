@@ -111,7 +111,10 @@ pub fn process_load_requests(world: &mut World, engine: &mut plutonium_engine::P
 }
 
 /// Process asset loading requests with parallel preprocessing
-pub fn process_load_requests_parallel(world: &mut World, engine: &mut plutonium_engine::PlutoniumEngine) {
+pub fn process_load_requests_parallel(
+    world: &mut World,
+    engine: &mut plutonium_engine::PlutoniumEngine,
+) {
     // Move out requests first to avoid overlapping mutable borrows
     let (pending_textures, pending_atlases) = {
         let Some(loads) = world.get_resource_mut::<LoadRequests>() else {
@@ -174,7 +177,10 @@ pub fn process_load_requests_parallel(world: &mut World, engine: &mut plutonium_
 }
 
 /// Sequential implementation for compatibility
-fn process_load_requests_sequential(world: &mut World, engine: &mut plutonium_engine::PlutoniumEngine) {
+fn process_load_requests_sequential(
+    world: &mut World,
+    engine: &mut plutonium_engine::PlutoniumEngine,
+) {
     // Move out requests first to avoid overlapping mutable borrows
     let (pending_textures, pending_atlases) = {
         let Some(loads) = world.get_resource_mut::<LoadRequests>() else {
@@ -212,11 +218,21 @@ pub fn batch_load_assets(
     registry: &mut AssetsRegistry,
     engine: &mut plutonium_engine::PlutoniumEngine,
     texture_paths: &[(String, plutonium_engine::utils::Position, f32)], // (path, position, scale)
-    atlas_paths: &[(String, plutonium_engine::utils::Position, plutonium_engine::utils::Size)], // (path, position, tile_size)
+    atlas_paths: &[(
+        String,
+        plutonium_engine::utils::Position,
+        plutonium_engine::utils::Size,
+    )], // (path, position, tile_size)
 ) -> (Vec<Handle>, Vec<Handle>) {
     // Reserve handles
-    let texture_handles: Vec<Handle> = texture_paths.iter().map(|_| registry.reserve_handle()).collect();
-    let atlas_handles: Vec<Handle> = atlas_paths.iter().map(|_| registry.reserve_handle()).collect();
+    let texture_handles: Vec<Handle> = texture_paths
+        .iter()
+        .map(|_| registry.reserve_handle())
+        .collect();
+    let atlas_handles: Vec<Handle> = atlas_paths
+        .iter()
+        .map(|_| registry.reserve_handle())
+        .collect();
 
     // Parallel validation
     let validated_textures: Vec<_> = texture_paths

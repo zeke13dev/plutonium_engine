@@ -59,7 +59,6 @@ use winit::keyboard::Key;
 
 // renderer seam reserved for future use
 
-
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DrawParams {
     pub z: i32,
@@ -1173,13 +1172,7 @@ impl<'a> PlutoniumEngine<'a> {
                 });
             let base = (((q0 as u64) * 8) / wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT)
                 * wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT;
-            enc.copy_buffer_to_buffer(
-                src,
-                base,
-                dst,
-                base,
-                wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT,
-            );
+            enc.copy_buffer_to_buffer(src, base, dst, base, wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT);
             self.queue.submit(Some(enc.finish()));
             let start = base;
             let end = start + 16;

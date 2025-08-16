@@ -51,7 +51,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if mouse.is_lmb_clicked {
             if over_thumb || over_track {
                 focused = true;
-                let _ = dragging; dragging = true;
+                let _ = dragging;
+                dragging = true;
                 // Snap immediately when clicking track
                 let rel =
                     ((mpos.x - origin.x - thumb_w * 0.5) / (track_w - thumb_w)).clamp(0.0, 1.0);

@@ -40,7 +40,13 @@ struct RecordingFileLocal {
     frames: Vec<FrameInputRecordLocal>,
 }
 
-type ParseResult = (Option<u64>, Option<String>, Option<String>, Option<usize>, Option<f32>);
+type ParseResult = (
+    Option<u64>,
+    Option<String>,
+    Option<String>,
+    Option<usize>,
+    Option<f32>,
+);
 
 fn parse_args() -> ParseResult {
     let mut seed: Option<u64> = None;

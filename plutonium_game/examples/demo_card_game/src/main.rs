@@ -3,9 +3,7 @@ use plutonium_engine::{
     app::{run_app, FrameContext, WindowConfig},
     PlutoniumEngine,
 };
-use plutonium_game_assets::{
-    load_manifest, AssetsRegistry, LoadRequests, TextureLoadRequest,
-};
+use plutonium_game_assets::{load_manifest, AssetsRegistry, LoadRequests, TextureLoadRequest};
 use plutonium_game_audio::Audio;
 use plutonium_game_core::{
     ease_value, App as GameApp, Ease, Entity, SceneSystems, Time, TweenAlpha, TweenPosition,

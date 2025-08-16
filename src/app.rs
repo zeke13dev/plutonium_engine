@@ -228,7 +228,7 @@ impl ApplicationHandler<()> for PlutoniumApp {
                     self.frame_context.text_commits.push(text);
                 }
             }
-            WindowEvent::Ime(_) => {}  // Handle other IME events
+            WindowEvent::Ime(_) => {} // Handle other IME events
             WindowEvent::KeyboardInput { event, .. } => {
                 if event.state.is_pressed() {
                     // Hotkeys: 'r' toggles recording; 'p' starts replay
