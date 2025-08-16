@@ -321,12 +321,20 @@ fn make_layouts(device: &wgpu::Device) -> (wgpu::BindGroupLayout, wgpu::BindGrou
 
 fn build_device() -> (wgpu::Instance, wgpu::Device, wgpu::Queue) {
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
-    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-        power_preference: wgpu::PowerPreference::LowPower,
+    // Try to get a native adapter first, then fall back to a software adapter
+    let mut adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::HighPerformance,
         force_fallback_adapter: false,
         compatible_surface: None,
-    }))
-    .expect("no adapter");
+    }));
+    if adapter.is_none() {
+        adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            force_fallback_adapter: true,
+            compatible_surface: None,
+        }));
+    }
+    let adapter = adapter.expect("no adapter");
     let (device, queue) = pollster::block_on(adapter.request_device(
         &wgpu::DeviceDescriptor {
             label: None,
@@ -338,6 +346,16 @@ fn build_device() -> (wgpu::Instance, wgpu::Device, wgpu::Queue) {
     ))
     .expect("device");
     (instance, device, queue)
+}
+
+fn can_acquire_adapter() -> bool {
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
+    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::HighPerformance,
+        force_fallback_adapter: true,
+        compatible_surface: None,
+    }));
+    adapter.is_some()
 }
 
 fn compare_with_tolerance(a_path: &Path, b_path: &Path, tolerance: u8) -> bool {
@@ -4343,6 +4361,10 @@ fn snapshot_deal_grid_anim_multiframe(
 }
 
 fn main() -> anyhow::Result<()> {
+    if !can_acquire_adapter() {
+        eprintln!("no wgpu adapter available; skipping snapshots");
+        return Ok(());
+    }
     let (seed_opt, record_opt, replay_opt, frames_opt, dt_opt) = parse_args();
     if let Some(seed) = seed_opt {
         println!("seed={}", seed);
