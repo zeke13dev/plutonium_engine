@@ -4,7 +4,7 @@ use plutonium_engine::{
     utils::{Position, Rectangle, Size},
     WindowConfig,
 };
-use winit::keyboard::Key;
+use winit::keyboard::NamedKey;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = WindowConfig {
@@ -17,9 +17,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut player: Option<Texture2D> = None;
     let mut atlas: Option<TextureAtlas2D> = None;
     let mut boundary: Option<Texture2D> = None;
+    let mut camera_enabled = true;
+    let mut toggle_was_pressed = false;
     let scale_factor = 0.5;
+    let move_speed = 260.0;
 
-    run_app(config, move |engine, frame| {
+    run_app(config, move |engine, frame, app| {
         // Create game objects on first frame
         if player.is_none() {
             // Create texture atlas for the map
@@ -49,17 +52,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             let boundary_rect = Rectangle::new_square(0.0, 0.0, 200.0);
             engine.set_boundary(boundary_rect);
+            engine.set_camera_smoothing(16.0);
         }
 
-        // Handle input
-        for key in &frame.pressed_keys {
-            match key.as_ref() {
-                Key::Character("w") => player_pos.y -= 10.0,
-                Key::Character("s") => player_pos.y += 10.0,
-                Key::Character("a") => player_pos.x -= 10.0,
-                Key::Character("d") => player_pos.x += 10.0,
-                _ => (),
-            }
+        // Camera mode toggle (debounced)
+        let toggle_pressed = app.is_named_key_down(NamedKey::Space);
+        if toggle_pressed && !toggle_was_pressed {
+            camera_enabled = !camera_enabled;
+            println!("camera_enabled={}", camera_enabled);
+        }
+        toggle_was_pressed = toggle_pressed;
+
+        // Continuous, dt-based movement from held keys
+        let mut input_x = 0.0f32;
+        let mut input_y = 0.0f32;
+        if app.is_char_key_down('w') {
+            input_y -= 1.0;
+        }
+        if app.is_char_key_down('s') {
+            input_y += 1.0;
+        }
+        if app.is_char_key_down('a') {
+            input_x -= 1.0;
+        }
+        if app.is_char_key_down('d') {
+            input_x += 1.0;
+        }
+
+        if input_x != 0.0 || input_y != 0.0 {
+            let len = (input_x * input_x + input_y * input_y).sqrt();
+            let dt = frame.delta_time.min(0.05);
+            player_pos.x += (input_x / len) * move_speed * dt;
+            player_pos.y += (input_y / len) * move_speed * dt;
         }
 
         // Update and render
@@ -67,7 +91,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             player.set_pos(player_pos);
 
             engine.clear_render_queue();
-            engine.activate_camera();
+            if camera_enabled {
+                engine.activate_camera();
+            } else {
+                engine.deactivate_camera();
+            }
 
             // Render atlas tiles
             if let Some(atlas) = &atlas {

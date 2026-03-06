@@ -54,6 +54,7 @@ impl TextInputInternal {
                 );
                 self.cursor_index = new_cursor_index;
                 self.current_line = new_line;
+                self.sync_cursor_state();
             } else {
                 self.set_focus(false);
             }
@@ -65,24 +66,124 @@ impl TextInputInternal {
         }
     }
 
+    fn sync_cursor_state(&mut self) {
+        let content = self.text.get_content();
+        self.cursor_index = self.clamp_to_char_boundary(&content, self.cursor_index);
+        self.current_line = self.line_for_index(&content, self.cursor_index);
+    }
+
+    fn clamp_to_char_boundary(&self, content: &str, index: usize) -> usize {
+        let mut idx = index.min(content.len());
+        while idx > 0 && !content.is_char_boundary(idx) {
+            idx -= 1;
+        }
+        idx
+    }
+
+    fn prev_char_boundary(&self, content: &str, index: usize) -> usize {
+        let idx = self.clamp_to_char_boundary(content, index);
+        if idx == 0 {
+            0
+        } else {
+            content[..idx]
+                .char_indices()
+                .last()
+                .map(|(i, _)| i)
+                .unwrap_or(0)
+        }
+    }
+
+    fn next_char_boundary(&self, content: &str, index: usize) -> usize {
+        let idx = self.clamp_to_char_boundary(content, index);
+        if idx >= content.len() {
+            content.len()
+        } else {
+            let mut iter = content[idx..].char_indices();
+            if let Some((_, ch)) = iter.next() {
+                idx + ch.len_utf8()
+            } else {
+                content.len()
+            }
+        }
+    }
+
+    fn line_for_index(&self, content: &str, index: usize) -> usize {
+        content[..self.clamp_to_char_boundary(content, index)]
+            .chars()
+            .filter(|&ch| ch == '\n')
+            .count()
+    }
+
+    fn get_cursor_line_and_column(&self, content: &str) -> (usize, usize) {
+        let mut line = 0;
+        let mut column = 0;
+        let idx = self.clamp_to_char_boundary(content, self.cursor_index);
+        for ch in content[..idx].chars() {
+            if ch == '\n' {
+                line += 1;
+                column = 0;
+            } else {
+                column += 1;
+            }
+        }
+        (line, column)
+    }
+
+    fn get_line_count(&self, content: &str) -> usize {
+        content.chars().filter(|&ch| ch == '\n').count() + 1
+    }
+
+    fn line_start_index(&self, content: &str, target_line: usize) -> usize {
+        if target_line == 0 {
+            return 0;
+        }
+        let mut line = 0;
+        for (i, ch) in content.char_indices() {
+            if ch == '\n' {
+                line += 1;
+                if line == target_line {
+                    return i + ch.len_utf8();
+                }
+            }
+        }
+        content.len()
+    }
+
+    fn get_index_from_line_and_column(&self, content: &str, line: usize, column: usize) -> usize {
+        let start = self.line_start_index(content, line);
+        let mut idx = start;
+        let mut remaining = column;
+        for (offset, ch) in content[start..].char_indices() {
+            if ch == '\n' || remaining == 0 {
+                break;
+            }
+            idx = start + offset + ch.len_utf8();
+            remaining -= 1;
+        }
+        idx
+    }
+
     fn handle_key_press(&mut self, key: &Key) -> bool {
         let mut cursor_moved = false;
-
-        // Split content into lines for navigation
+        self.sync_cursor_state();
         let content = self.text.get_content();
-        let lines: Vec<&str> = content.split('\n').collect();
-        let (current_line_idx, current_column) = self.get_cursor_line_and_column(&lines);
+        let (current_line_idx, current_column) = self.get_cursor_line_and_column(&content);
+        let line_count = self.get_line_count(&content);
 
         match key {
             Key::Character(c) => {
-                self.text.insert_at(self.cursor_index, c);
-                self.cursor_index += 1;
-                cursor_moved = true;
+                if !c.is_empty() {
+                    self.text.insert_at(self.cursor_index, c);
+                    self.cursor_index += c.len();
+                    cursor_moved = true;
+                }
             }
             Key::Named(NamedKey::Backspace) => {
                 if self.cursor_index > 0 {
-                    self.text.remove_at(self.cursor_index - 1);
-                    self.cursor_index -= 1;
+                    let delete_index = self.prev_char_boundary(&content, self.cursor_index);
+                    if self.text.remove_at(delete_index) {
+                        self.cursor_index = delete_index;
+                    }
                     cursor_moved = true;
                 }
             }
@@ -97,79 +198,45 @@ impl TextInputInternal {
             Key::Named(NamedKey::Enter) => {
                 self.text.insert_at(self.cursor_index, "\n");
                 self.cursor_index += 1;
-                self.current_line += 1;
                 cursor_moved = true;
             }
             Key::Named(NamedKey::ArrowLeft) => {
                 if self.cursor_index > 0 {
-                    self.cursor_index -= 1;
+                    self.cursor_index = self.prev_char_boundary(&content, self.cursor_index);
                     cursor_moved = true;
                 }
             }
             Key::Named(NamedKey::ArrowRight) => {
-                if self.cursor_index < self.text.len() {
-                    self.cursor_index += 1;
+                if self.cursor_index < content.len() {
+                    self.cursor_index = self.next_char_boundary(&content, self.cursor_index);
                     cursor_moved = true;
                 }
             }
             Key::Named(NamedKey::ArrowUp) => {
                 if current_line_idx > 0 {
-                    // Move to previous line at same column if possible
-                    let prev_line_len = lines[current_line_idx - 1].len();
-                    let new_column = current_column.min(prev_line_len);
-
                     self.cursor_index = self.get_index_from_line_and_column(
+                        &content,
                         current_line_idx - 1,
-                        new_column,
-                        &lines,
+                        current_column,
                     );
-                    self.current_line -= 1;
                     cursor_moved = true;
                 }
             }
             Key::Named(NamedKey::ArrowDown) => {
-                if current_line_idx < lines.len() - 1 {
-                    // Move to next line at same column if possible
-                    let next_line_len = lines[current_line_idx + 1].len();
-                    let new_column = current_column.min(next_line_len);
-
+                if current_line_idx + 1 < line_count {
                     self.cursor_index = self.get_index_from_line_and_column(
+                        &content,
                         current_line_idx + 1,
-                        new_column,
-                        &lines,
+                        current_column,
                     );
-                    self.current_line += 1;
                     cursor_moved = true;
                 }
             }
             _ => (),
         }
 
+        self.sync_cursor_state();
         cursor_moved
-    }
-
-    // Helper function to get current line and column from cursor_index
-    fn get_cursor_line_and_column(&self, lines: &[&str]) -> (usize, usize) {
-        let mut remaining_chars = self.cursor_index;
-        for (line_idx, line) in lines.iter().enumerate() {
-            if remaining_chars <= line.len() {
-                return (line_idx, remaining_chars);
-            }
-            remaining_chars -= line.len() + 1; // +1 for the newline character
-        }
-        (lines.len() - 1, lines.last().map(|l| l.len()).unwrap_or(0))
-    }
-
-    // Helper function to convert line and column to absolute index
-    fn get_index_from_line_and_column(&self, line: usize, column: usize, lines: &[&str]) -> usize {
-        let mut index = 0;
-        for (i, line_content) in lines.iter().enumerate() {
-            if i == line {
-                return index + column;
-            }
-            index += line_content.len() + 1; // +1 for newline
-        }
-        index
     }
 
     pub fn set_focus(&mut self, focus: bool) {
@@ -178,10 +245,14 @@ impl TextInputInternal {
 
     pub fn set_content(&mut self, content: &str) {
         self.text.set_content(content);
+        self.cursor_index = self.text.get_content().len();
+        self.sync_cursor_state();
     }
 
     pub fn clear(&mut self) {
         self.text.set_content("");
+        self.cursor_index = 0;
+        self.current_line = 0;
     }
 
     pub fn set_font_size(&mut self, font_size: f32) {
@@ -191,6 +262,7 @@ impl TextInputInternal {
 
     // Helper method to update cursor position
     fn update_cursor_position(&mut self, text_renderer: &TextRenderer) {
+        self.sync_cursor_state();
         self.cursor.set_pos(self.text.get_cursor_position(
             self.cursor_index,
             text_renderer,

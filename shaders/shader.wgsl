@@ -10,6 +10,9 @@ struct InstanceData {
     model: mat4x4<f32>,
     uv_offset: vec2<f32>,
     uv_scale: vec2<f32>,
+    msdf_px_range: f32,
+    _msdf_pad: array<f32, 3>,
+    tint: vec4<f32>,
 };
 
 @group(3) @binding(0)
@@ -20,6 +23,8 @@ struct VertexOutput {
     @location(0) tex_coords: vec2<f32>,
     @location(1) uv_offset: vec2<f32>,
     @location(2) uv_scale: vec2<f32>,
+    @location(3) tint: vec4<f32>,
+    @location(4) msdf_px_range: f32,
 };
 
 @vertex
@@ -35,6 +40,8 @@ fn vs_main(
     output.tex_coords = tex_coords;
     output.uv_offset = inst.uv_offset;
     output.uv_scale = inst.uv_scale;
+    output.tint = inst.tint;
+    output.msdf_px_range = inst.msdf_px_range;
     return output;
 }
 
@@ -58,9 +65,11 @@ fn fs_main(
     @location(0) tex_coords: vec2<f32>,
     @location(1) uv_offset: vec2<f32>,
     @location(2) uv_scale: vec2<f32>,
+    @location(3) tint: vec4<f32>,
+    @location(4) _msdf_px_range: f32,
 ) -> @location(0) vec4<f32> {
     let adjustedTexCoords = tex_coords * uv_scale + uv_offset;
     let base = textureSample(my_texture, my_sampler, adjustedTexCoords);
-    // The bound UVTransform (group 2) carries tint; uv_offset/scale come per-instance
-    return base * uvTransform.tint;
+    // Use per-instance tint for colored text, multiply with uniform tint for compatibility
+    return base * tint * uvTransform.tint;
 }

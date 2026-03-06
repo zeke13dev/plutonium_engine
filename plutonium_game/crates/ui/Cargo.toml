@@ -11,6 +11,14 @@ plutonium_engine = { path = "../../../" }
 uuid = { version = "1" }
 plutonium_game_input = { path = "../input" }
 
+[features]
+default = []
+wasm = [
+    "plutonium_engine/wasm",
+    "plutonium_game_core/wasm",
+    "plutonium_game_input/wasm",
+]
+
 
 [dev-dependencies]
 wgpu = "23"
@@ -18,5 +26,4 @@ image = "0.25"
 bytemuck = { version = "1", features = ["derive"] }
 pollster = "0.4"
 anyhow = "1"
-
 

@@ -1,0 +1,18 @@
+[package]
+name = "plutonium_demo_arc_layout"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[[bin]]
+name = "arc_layout_demo"
+path = "src/main.rs"
+
+[dependencies]
+plutonium_engine = { path = "../../../" }
+plutonium_game_ui = { path = "../../crates/ui" }
+uuid = "1"
+
+

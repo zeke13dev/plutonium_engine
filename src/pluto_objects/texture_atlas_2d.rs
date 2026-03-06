@@ -12,6 +12,7 @@ pub struct TextureAtlas2DInternal {
     scale_factor: f32,
     dimensions: Rectangle,
     tile_size: Size,
+    z: i32,
 }
 
 impl TextureAtlas2DInternal {
@@ -28,6 +29,7 @@ impl TextureAtlas2DInternal {
             scale_factor,
             dimensions,
             tile_size,
+            z: 0,
         }
     }
 
@@ -43,7 +45,31 @@ impl TextureAtlas2DInternal {
     }
 
     pub fn render_tile(&self, engine: &mut PlutoniumEngine, tile_index: usize, position: Position) {
-        engine.queue_tile(&self.texture_key, tile_index, position, self.scale_factor);
+        self.render_tile_with_z(engine, tile_index, position, self.z);
+    }
+
+    pub fn render_tile_with_z(
+        &self,
+        engine: &mut PlutoniumEngine,
+        tile_index: usize,
+        position: Position,
+        z: i32,
+    ) {
+        engine.queue_tile_with_layer(
+            &self.texture_key,
+            tile_index,
+            position,
+            self.scale_factor,
+            z,
+        );
+    }
+
+    pub fn set_z(&mut self, z: i32) {
+        self.z = z;
+    }
+
+    pub fn get_z(&self) -> i32 {
+        self.z
     }
 
     pub fn scale_factor(&self) -> f32 {
@@ -99,6 +125,31 @@ impl TextureAtlas2D {
         self.internal
             .borrow()
             .render_tile(engine, tile_index, position);
+    }
+
+    pub fn render_tile_with_z(
+        &self,
+        engine: &mut PlutoniumEngine,
+        tile_index: usize,
+        position: Position,
+        z: i32,
+    ) {
+        self.internal
+            .borrow()
+            .render_tile_with_z(engine, tile_index, position, z);
+    }
+
+    pub fn set_z(&self, z: i32) {
+        self.internal.borrow_mut().set_z(z);
+    }
+
+    pub fn get_z(&self) -> i32 {
+        self.internal.borrow().get_z()
+    }
+
+    pub fn with_z(self, z: i32) -> Self {
+        self.set_z(z);
+        self
     }
 
     pub fn get_id(&self) -> Uuid {

@@ -12,4 +12,13 @@ plutonium_game_assets = { path = "../assets" }
 plutonium_game_ui = { path = "../ui" }
 plutonium_game_audio = { path = "../audio" }
 
+[features]
+default = []
+wasm = [
+    "plutonium_game_core/wasm",
+    "plutonium_game_input/wasm",
+    "plutonium_game_assets/wasm",
+    "plutonium_game_ui/wasm",
+    "plutonium_game_audio/wasm",
+]
 

@@ -97,7 +97,7 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
             WindowEvent::RedrawRequested => {
                 if let Some(engine) = &mut self.engine {
                     engine.clear_render_queue();
-                    engine.update(None, &None);
+                    engine.update(None, &None, 0.0);
 
                     // Render all tiles
                     for (tile, position) in &self.tiles {

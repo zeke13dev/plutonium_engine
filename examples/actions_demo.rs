@@ -33,7 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let style = ButtonStyle::default();
 
-    run_app(config, move |engine, frame| {
+    run_app(config, move |engine, frame, _app| {
         engine.begin_frame();
         // Background
         let bg = Rectangle::new(0.0, 0.0, 640.0, 240.0);

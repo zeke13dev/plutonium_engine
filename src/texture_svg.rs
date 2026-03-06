@@ -23,9 +23,14 @@ pub struct TextureSVG {
     num_indices: u32,
     uv_uniform_buffer: wgpu::Buffer,
     uv_bind_group: wgpu::BindGroup,
+    original_size: Size,
 }
 
 impl TextureSVG {
+    pub fn original_size(&self) -> Size {
+        self.original_size
+    }
+
     /// Sets the position of the texture.
     pub fn set_position(
         &mut self,
@@ -255,6 +260,10 @@ impl TextureSVG {
             num_indices: 6,
             uv_uniform_buffer,
             uv_bind_group: default_uv_bind_group,
+            original_size: Size {
+                width: pixel_size.width,
+                height: pixel_size.height,
+            },
         })
     }
 
@@ -385,6 +394,10 @@ impl TextureSVG {
             num_indices: 6,
             uv_uniform_buffer,
             uv_bind_group: default_uv_bind_group,
+            original_size: Size {
+                width: width as f32,
+                height: height as f32,
+            },
         })
     }
 
@@ -497,6 +510,10 @@ impl TextureSVG {
             num_indices: 6,
             uv_uniform_buffer,
             uv_bind_group: default_uv_bind_group,
+            original_size: Size {
+                width: pixel_size.width,
+                height: pixel_size.height,
+            },
         })
     }
 
@@ -537,19 +554,19 @@ impl TextureSVG {
     fn initialize_buffers(device: &wgpu::Device) -> (Vec<Vertex>, wgpu::Buffer, wgpu::Buffer) {
         let vertices = vec![
             Vertex {
-                position: [-0.5, 0.5],
+                position: [0.0, 0.0],
                 tex_coords: [0.0, 0.0],
             },
             Vertex {
-                position: [0.5, 0.5],
+                position: [1.0, 0.0],
                 tex_coords: [1.0, 0.0],
             },
             Vertex {
-                position: [-0.5, -0.5],
+                position: [0.0, -1.0],
                 tex_coords: [0.0, 1.0],
             },
             Vertex {
-                position: [0.5, -0.5],
+                position: [1.0, -1.0],
                 tex_coords: [1.0, 1.0],
             },
         ];
@@ -646,27 +663,21 @@ impl TextureSVG {
         viewport_size: Size,
         camera_position: Position,
     ) {
-        let viewport_width = viewport_size.width;
-        let viewport_height = viewport_size.height;
-
         let size = self.dimensions.size();
         self.adjust_vertex_texture_coordinates(size, viewport_size);
         self.update_vertex_buffer(device);
 
-        // Calculate NDC scaling factors
-        let width_ndc = size.width / viewport_width;
-        let height_ndc = size.height / viewport_height;
+        let width_ndc_scale = 2.0 * (size.width / viewport_size.width);
+        let height_ndc_scale = 2.0 * (size.height / viewport_size.height);
 
-        // Calculate NDC position
         let ndc_x = (2.0 * (self.dimensions.x - camera_position.x)) / viewport_size.width - 1.0;
         let ndc_y = 1.0 - (2.0 * (self.dimensions.y - camera_position.y)) / viewport_size.height;
 
-        // Construct transformation matrix in column-major order
         let transform = [
-            [1.0, 0.0, 0.0, ndc_x + width_ndc],
-            [0.0, 1.0, 0.0, ndc_y - height_ndc],
+            [width_ndc_scale, 0.0, 0.0, 0.0],
+            [0.0, height_ndc_scale, 0.0, 0.0],
             [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0],
+            [ndc_x, ndc_y, 0.0, 1.0],
         ];
 
         self.transform_uniform.transform = transform;
@@ -719,24 +730,27 @@ impl TextureSVG {
         pos: Position,
         camera_position: Position,
         rotation: f32,
+        scale: f32,
     ) -> TransformUniform {
-        let width = self.dimensions.width;
-        let height = self.dimensions.height;
+        let width = self.dimensions.width * scale;
+        let height = self.dimensions.height * scale;
 
-        let width_ndc = width / viewport_size.width;
-        let height_ndc = height / viewport_size.height;
+        // Scale factors: transform unit quad [0,1] to [width, height] in pixels, then to NDC.
+        let width_ndc_scale = 2.0 * (width / viewport_size.width);
+        let height_ndc_scale = 2.0 * (height / viewport_size.height);
 
-        // Calculate NDC position
-        let ndc_dx = (2.0 * (pos.x - camera_position.x)) / viewport_size.width - 1.0;
-        let ndc_dy = 1.0 - (2.0 * (pos.y - camera_position.y)) / viewport_size.height;
+        // Calculate NDC position for the top-left (0,0) of our quad.
+        let ndc_x = (2.0 * (pos.x - camera_position.x)) / viewport_size.width - 1.0;
+        let ndc_y = 1.0 - (2.0 * (pos.y - camera_position.y)) / viewport_size.height;
 
-        let ndc_x = ndc_dx + width_ndc;
-        let ndc_y = ndc_dy - height_ndc;
         let (s, c) = (rotation.sin(), rotation.cos());
+
+        // Matrix to scale, then rotate around top-left (0,0), then translate.
+        // We use column-major.
         TransformUniform {
             transform: [
-                [c, s, 0.0, 0.0],
-                [-s, c, 0.0, 0.0],
+                [c * width_ndc_scale, s * width_ndc_scale, 0.0, 0.0],
+                [-s * height_ndc_scale, c * height_ndc_scale, 0.0, 0.0],
                 [0.0, 0.0, 1.0, 0.0],
                 [ndc_x, ndc_y, 0.0, 1.0],
             ],
@@ -744,7 +758,7 @@ impl TextureSVG {
     }
 
     /// Adjusts the vertex texture coordinates based on the tile size and viewport size.
-    pub fn adjust_vertex_texture_coordinates(&mut self, size: Size, viewport_size: Size) {
+    pub fn adjust_vertex_texture_coordinates(&mut self, _size: Size, _viewport_size: Size) {
         let tex_coords = [
             [0.0, 0.0], // Top-left
             [1.0, 0.0], // Top-right
@@ -752,24 +766,21 @@ impl TextureSVG {
             [1.0, 1.0], // Bottom-right
         ];
 
-        let width_ndc = size.width / viewport_size.width;
-        let height_ndc = size.height / viewport_size.height;
-
         self.vertices = vec![
             Vertex {
-                position: [-width_ndc, height_ndc],
+                position: [0.0, 0.0],
                 tex_coords: tex_coords[0],
             },
             Vertex {
-                position: [width_ndc, height_ndc],
+                position: [1.0, 0.0],
                 tex_coords: tex_coords[1],
             },
             Vertex {
-                position: [-width_ndc, -height_ndc],
+                position: [0.0, -1.0],
                 tex_coords: tex_coords[2],
             },
             Vertex {
-                position: [width_ndc, -height_ndc],
+                position: [1.0, -1.0],
                 tex_coords: tex_coords[3],
             },
         ];

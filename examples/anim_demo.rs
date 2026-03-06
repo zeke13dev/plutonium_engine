@@ -79,7 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         height: 64.0,
     };
 
-    run_app(config, move |engine, frame| {
+    run_app(config, move |engine, frame, _app| {
         engine.begin_frame();
 
         if atlas_id.is_none() {

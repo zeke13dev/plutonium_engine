@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         1.0,
         0.0,
     );
-    run_app(config, move |engine, frame| {
+    run_app(config, move |engine, frame, _app| {
         engine.begin_frame();
 
         // Panel

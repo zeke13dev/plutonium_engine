@@ -7,6 +7,8 @@ use plutonium_game_input::InputState;
 use uuid::Uuid;
 // ensure visibility in examples
 
+pub mod immediate;
+
 #[derive(Debug, Clone, Copy)]
 pub struct DrawParams {
     pub z: i32,
@@ -135,7 +137,7 @@ impl NineSlice {
 pub fn submit_render_commands(
     engine: &mut PlutoniumEngine,
     cmds: &RenderCommands,
-    default_tint: [f32; 4],
+    _default_tint: [f32; 4],
 ) {
     // Sprites
     for s in &cmds.sprites {
@@ -612,6 +614,130 @@ impl GridLayout {
     }
 }
 
+// Arc layout (distribute items evenly along an elliptical arc)
+#[derive(Debug, Clone, Copy)]
+pub struct ArcLayout {
+    pub center_x: f32,
+    pub center_y: f32,
+    pub radius_x: f32,    // horizontal radius
+    pub radius_y: f32,    // vertical radius
+    pub start_angle: f32, // in radians
+    pub end_angle: f32,   // in radians
+}
+
+impl ArcLayout {
+    /// Create a new arc layout with separate horizontal and vertical radii for elliptical arcs.
+    /// - Use larger radius_x for wider, flatter curves
+    /// - Use larger radius_y for taller, more vertical curves
+    /// - Use equal radii for circular arcs
+    pub fn new(
+        center_x: f32,
+        center_y: f32,
+        radius_x: f32,
+        radius_y: f32,
+        start_angle: f32,
+        end_angle: f32,
+    ) -> Self {
+        Self {
+            center_x,
+            center_y,
+            radius_x,
+            radius_y,
+            start_angle,
+            end_angle,
+        }
+    }
+
+    /// Create a circular arc layout (convenience method for equal radii)
+    pub fn circular(
+        center_x: f32,
+        center_y: f32,
+        radius: f32,
+        start_angle: f32,
+        end_angle: f32,
+    ) -> Self {
+        Self::new(center_x, center_y, radius, radius, start_angle, end_angle)
+    }
+
+    /// Calculate positions for items distributed evenly along the arc.
+    /// Returns positions centered on each item (top-left corner will need to be adjusted by caller).
+    pub fn layout_positions(&self, count: usize) -> Vec<Position> {
+        if count == 0 {
+            return Vec::new();
+        }
+
+        let total_angle = self.end_angle - self.start_angle;
+        let angle_step = if count > 1 {
+            total_angle / (count - 1) as f32
+        } else {
+            0.0
+        };
+
+        (0..count)
+            .map(|i| {
+                let angle = self.start_angle + angle_step * i as f32;
+                Position {
+                    x: self.center_x + self.radius_x * angle.cos(),
+                    y: self.center_y + self.radius_y * angle.sin(),
+                }
+            })
+            .collect()
+    }
+
+    /// Layout rectangles along the arc, taking item sizes into account.
+    /// Each rectangle will be positioned so its center is on the arc.
+    pub fn layout(&self, sizes: &[(f32, f32)]) -> Vec<Rectangle> {
+        let positions = self.layout_positions(sizes.len());
+
+        positions
+            .into_iter()
+            .zip(sizes.iter())
+            .map(|(pos, (w, h))| {
+                // Position rectangle so its center is at the arc position
+                Rectangle::new(pos.x - w * 0.5, pos.y - h * 0.5, *w, *h)
+            })
+            .collect()
+    }
+
+    /// Calculate positions with rotations for items along the arc.
+    /// Useful for card fanning where each card should face outward from the center.
+    /// Returns (position, rotation_radians) pairs.
+    ///
+    /// Note: For elliptical arcs, the rotation is calculated based on the tangent angle,
+    /// which properly accounts for the ellipse's varying curvature.
+    pub fn layout_with_rotation(&self, count: usize) -> Vec<(Position, f32)> {
+        use std::f32::consts::PI;
+
+        if count == 0 {
+            return Vec::new();
+        }
+
+        let total_angle = self.end_angle - self.start_angle;
+        let angle_step = if count > 1 {
+            total_angle / (count - 1) as f32
+        } else {
+            0.0
+        };
+
+        (0..count)
+            .map(|i| {
+                let angle = self.start_angle + angle_step * i as f32;
+                let pos = Position {
+                    x: self.center_x + self.radius_x * angle.cos(),
+                    y: self.center_y + self.radius_y * angle.sin(),
+                };
+                // For elliptical arcs, calculate tangent angle properly
+                // Tangent slope: dy/dx = -(radius_y/radius_x) * (cos(t)/sin(t))
+                // This gives the correct rotation perpendicular to the ellipse
+                let tangent_angle =
+                    (self.radius_y * angle.cos()).atan2(-self.radius_x * angle.sin());
+                let rotation = tangent_angle + PI / 2.0;
+                (pos, rotation)
+            })
+            .collect()
+    }
+}
+
 // Toggle widget
 #[derive(Debug, Clone)]
 pub struct Toggle {
@@ -1003,7 +1129,6 @@ impl TextInput {
 mod tests {
     use super::*;
     use anyhow::Result;
-    use wgpu::util::DeviceExt;
 
     #[test]
     fn nine_slice_emits_expected_tiles() {
@@ -1039,7 +1164,7 @@ mod tests {
         // collection can be built end-to-end and is non-empty for a simple label.
         let mut world = World::new();
         world.insert_resource(RenderCommands::default());
-        let mut cmds = world.get_resource_mut::<RenderCommands>().unwrap();
+        let cmds = world.get_resource_mut::<RenderCommands>().unwrap();
         // Prepare a trivial text draw (won't submit to GPU in this headless test, but ensures UI path stays intact)
         cmds.draw_text(
             "roboto".into(),

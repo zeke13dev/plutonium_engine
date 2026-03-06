@@ -22,14 +22,50 @@ API styles:
 Cargo features:
 ```toml
 [features]
-default = ["backend-wgpu"]
-backend-wgpu = []           # WGPU backend
-raster = []                 # PNG/JPEG helpers
-widgets = []                # Retained-mode widgets
-layout = []                 # Simple layout helpers (anchors/percent)
-anim = []                   # Tweening/animation helpers
-replay = []                 # RNG streams and record/replay helpers
+default = ["backend-wgpu", "widgets"]
+backend-wgpu = []           # WGPU backend (always enabled by default)
+widgets = []                # Retained-mode widgets (enabled by default)
+raster = []                 # PNG/JPEG helpers (opt-in)
+layout = []                 # Simple layout helpers (anchors/percent) (opt-in)
+anim = []                   # Tweening/animation helpers (opt-in)
+replay = []                 # RNG streams and record/replay helpers (opt-in)
+wasm = []                   # Opt-in wasm32 compile support (target wasm32-unknown-unknown)
 ```
+
+To enable optional features in your project:
+```toml
+[dependencies]
+plutonium_engine = { path = "../path/to/plutonium_engine", features = ["layout", "anim"] }
+```
+
+See `docs/features-and-modules.md` for details.
+
+WASM compile check:
+```bash
+cargo check --workspace --target wasm32-unknown-unknown --features wasm
+```
+
+WASM runtime entrypoint (existing canvas required):
+```rust
+// cfg(target_arch = "wasm32")
+plutonium_engine::app::run_app_wasm(config, "game-canvas", frame_callback).await?;
+```
+For browser-debug workflows, use:
+`run_app_wasm_with_options(config, canvas_id, WasmAppConfig { prevent_default: false, ..Default::default() }, frame_callback)`.
+
+WASM-safe loading hooks (wasm32 only):
+- `load_font_from_bytes(...)`
+- `load_msdf_font_from_bytes(...)`
+- `create_texture_svg_from_str(...)`
+- `create_texture_raster_from_url(...)` (requires `raster` feature)
+- `begin_texture_raster_from_url(...)` + `poll_texture_raster_from_url(...)` (sync-frame friendly, requires `raster`)
+
+WASM text smoke test (opens browser and serves local page):
+```bash
+scripts/run_wasm_text_smoke.sh
+```
+It builds with `PROFILE=release` by default for browser responsiveness.
+Set `PROFILE=debug` only when you need debug symbols.
 
 Versioning:
 - The public API may evolve; see `CHANGELOG.md` for details.
@@ -62,8 +98,11 @@ Further docs in `docs/`:
 - `docs/layering.md`
 - `docs/getting-started.md`
 - `docs/layout.md`
+- `docs/textures.md`
 - `docs/instancing-and-batching.md`
 
 Examples:
 - `actions_demo`: input action map (buttons/axes) and button hover/press/focus visuals.
+- `halo_showcase`: demonstrates `draw_halo` (screen-space) and `draw_halo_for_object` (including offscreen false behavior), plus preset cycling.
+- `halo_text_container`: minimal halo/glow example around text rendered inside a `TextContainer`.
 # CI Test Comment

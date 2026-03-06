@@ -14,11 +14,16 @@ fn asset(name: &str) -> String {
 }
 // Duplicate minimal types to avoid snapshot bin depending on game crate directly
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
+#[serde(default)]
 struct FrameInputRecordLocal {
     pressed_keys: Vec<String>,
     mouse_x: f32,
     mouse_y: f32,
     lmb_down: bool,
+    rmb_down: bool,
+    mmb_down: bool,
+    scroll_dx: f32,
+    scroll_dy: f32,
     committed_text: Vec<String>,
 }
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
@@ -101,6 +106,10 @@ fn record_minimal_script(
         mouse_x: 10.0,
         mouse_y: 10.0,
         lmb_down: false,
+        rmb_down: false,
+        mmb_down: false,
+        scroll_dx: 0.0,
+        scroll_dy: 0.0,
         committed_text: vec![],
     };
     let file = RecordingFileLocal {
@@ -187,6 +196,9 @@ fn replay_scene_from(path: &str) -> anyhow::Result<()> {
         model: tf.transform,
         uv_offset: [uv.x, uv.y],
         uv_scale: [uv.width, uv.height],
+        tint: [1.0, 1.0, 1.0, 1.0],
+        msdf_px_range: 0.0,
+        _msdf_pad: [0.0, 0.0, 0.0],
     };
     let inst_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("replay-scene-inst2"),
@@ -1031,6 +1043,9 @@ fn snapshot_checkerboard() -> anyhow::Result<()> {
             model,
             uv_offset: [uv.x, uv.y],
             uv_scale: [uv.width, uv.height],
+            tint: [1.0, 1.0, 1.0, 1.0],
+            msdf_px_range: 0.0,
+            _msdf_pad: [0.0, 0.0, 0.0],
         });
     }
 
@@ -1168,7 +1183,7 @@ fn snapshot_single_sprite() -> anyhow::Result<()> {
         height: 256.0,
     };
     let pos = Position { x: 50.0, y: 50.0 };
-    let tf = texture.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0);
+    let tf = texture.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
     let tf_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("sprite-tf-ubo"),
         contents: bytemuck::cast_slice(&[tf]),
@@ -1212,6 +1227,9 @@ fn snapshot_single_sprite() -> anyhow::Result<()> {
             model: tf.transform,
             uv_offset: [0.0, 0.0],
             uv_scale: [1.0, 1.0],
+            tint: [1.0, 1.0, 1.0, 1.0],
+            msdf_px_range: 0.0,
+            _msdf_pad: [0.0, 0.0, 0.0],
         };
         let inst_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("snap-single-instance"),
@@ -1302,11 +1320,15 @@ fn snapshot_many_sprites() -> anyhow::Result<()> {
                 x: 16.0 + c as f32 * spacing,
                 y: 16.0 + r as f32 * spacing,
             };
-            let tf = texture.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0);
+            let tf =
+                texture.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
             instances.push(InstanceRaw {
                 model: tf.transform,
                 uv_offset: [0.0, 0.0],
                 uv_scale: [1.0, 1.0],
+                tint: [1.0, 1.0, 1.0, 1.0],
+                msdf_px_range: 0.0,
+                _msdf_pad: [0.0, 0.0, 0.0],
             });
         }
     }
@@ -1448,7 +1470,7 @@ fn snapshot_demo_player() -> anyhow::Result<()> {
         height: 256.0,
     };
     let pos = Position { x: 80.0, y: 80.0 };
-    let tf = texture.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0);
+    let tf = texture.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
 
     // Render
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -1480,6 +1502,9 @@ fn snapshot_demo_player() -> anyhow::Result<()> {
             model: tf.transform,
             uv_offset: [0.0, 0.0],
             uv_scale: [1.0, 1.0],
+            tint: [1.0, 1.0, 1.0, 1.0],
+            msdf_px_range: 0.0,
+            _msdf_pad: [0.0, 0.0, 0.0],
         };
         let inst_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("demo-player-inst"),
@@ -1620,11 +1645,14 @@ fn snapshot_menu_ui() -> anyhow::Result<()> {
         height: 120.0,
     };
     let pos = Position { x: 20.0, y: 60.0 };
-    let tf = bg.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0);
+    let tf = bg.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
     let inst_raw = InstanceRaw {
         model: tf.transform,
         uv_offset: [0.0, 0.0],
         uv_scale: [1.0, 1.0],
+        tint: [1.0, 1.0, 1.0, 1.0],
+        msdf_px_range: 0.0,
+        _msdf_pad: [0.0, 0.0, 0.0],
     };
     let inst_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("menu-inst"),
@@ -1875,6 +1903,9 @@ fn snapshot_menu_ui_text() -> anyhow::Result<()> {
                     model: tf.transform,
                     uv_offset: [uv.x, uv.y],
                     uv_scale: [uv.width, uv.height],
+                    tint: [1.0, 1.0, 1.0, 1.0],
+                    msdf_px_range: 0.0,
+                    _msdf_pad: [0.0, 0.0, 0.0],
                 });
             }
             pen_x += info.advance_width;
@@ -2025,6 +2056,9 @@ fn snapshot_menu_panel() -> anyhow::Result<()> {
             ],
             uv_offset: [0.0, 0.0],
             uv_scale: [1.0, 1.0],
+            tint: [1.0, 1.0, 1.0, 1.0],
+            msdf_px_range: 0.0,
+            _msdf_pad: [0.0, 0.0, 0.0],
         };
         let inst_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("panel-inst"),
@@ -2176,11 +2210,15 @@ fn snapshot_menu_button_focused() -> anyhow::Result<()> {
         Position { x: 20.0, y: 60.0 },
         Position { x: 0.0, y: 0.0 },
         0.0,
+        1.0,
     );
     let btn_raw = InstanceRaw {
         model: btn_tf.transform,
         uv_offset: [0.0, 0.0],
         uv_scale: [1.0, 1.0],
+        tint: [1.0, 1.0, 1.0, 1.0],
+        msdf_px_range: 0.0,
+        _msdf_pad: [0.0, 0.0, 0.0],
     };
     let btn_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("btnf-btn"),
@@ -2369,11 +2407,15 @@ fn snapshot_menu_button_hovered() -> anyhow::Result<()> {
         Position { x: 20.0, y: 60.0 },
         Position { x: 0.0, y: 0.0 },
         0.0,
+        1.0,
     );
     let btn_raw = InstanceRaw {
         model: btn_tf.transform,
         uv_offset: [0.0, 0.0],
         uv_scale: [1.0, 1.0],
+        tint: [1.0, 1.0, 1.0, 1.0],
+        msdf_px_range: 0.0,
+        _msdf_pad: [0.0, 0.0, 0.0],
     };
     let btn_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("btnh-btn"),
@@ -2545,11 +2587,15 @@ fn snapshot_menu_button_pressed() -> anyhow::Result<()> {
         Position { x: 20.0, y: 62.0 },
         Position { x: 0.0, y: 0.0 },
         0.0,
+        1.0,
     );
     let btn_raw = InstanceRaw {
         model: btn_tf.transform,
         uv_offset: [0.0, 0.0],
         uv_scale: [1.0, 1.0],
+        tint: [1.0, 1.0, 1.0, 1.0],
+        msdf_px_range: 0.0,
+        _msdf_pad: [0.0, 0.0, 0.0],
     };
     let btn_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("btnp-btn"),
@@ -3166,6 +3212,10 @@ fn snapshot_replay_driven() -> anyhow::Result<()> {
             mouse_x: 10.0,
             mouse_y: 10.0,
             lmb_down: false,
+            rmb_down: false,
+            mmb_down: false,
+            scroll_dx: 0.0,
+            scroll_dy: 0.0,
             committed_text: vec![],
         };
         let script = ReplayScriptLocal {
@@ -3264,11 +3314,15 @@ fn snapshot_transitions() -> anyhow::Result<()> {
             Position { x: 0.0, y: 0.0 },
             Position { x: 0.0, y: 0.0 },
             0.0,
+            1.0,
         );
         let bg_raw = InstanceRaw {
             model: bg_tf.transform,
             uv_offset: [0.0, 0.0],
             uv_scale: [1.0, 1.0],
+            tint: [1.0, 1.0, 1.0, 1.0],
+            msdf_px_range: 0.0,
+            _msdf_pad: [0.0, 0.0, 0.0],
         };
         let bg_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("trans-bg"),
@@ -3319,11 +3373,15 @@ fn snapshot_transitions() -> anyhow::Result<()> {
             Position { x: 20.0, y: 20.0 },
             Position { x: 0.0, y: 0.0 },
             0.0,
+            1.0,
         );
         let fg_raw = InstanceRaw {
             model: fg_tf.transform,
             uv_offset: [0.0, 0.0],
             uv_scale: [1.0, 1.0],
+            tint: [1.0, 1.0, 1.0, 1.0],
+            msdf_px_range: 0.0,
+            _msdf_pad: [0.0, 0.0, 0.0],
         };
         let fg_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("trans-fg"),
@@ -3446,11 +3504,15 @@ fn snapshot_transitions_frame2() -> anyhow::Result<()> {
             Position { x: 0.0, y: 0.0 },
             Position { x: 0.0, y: 0.0 },
             0.0,
+            1.0,
         );
         let bg_raw = InstanceRaw {
             model: bg_tf.transform,
             uv_offset: [0.0, 0.0],
             uv_scale: [1.0, 1.0],
+            tint: [1.0, 1.0, 1.0, 1.0],
+            msdf_px_range: 0.0,
+            _msdf_pad: [0.0, 0.0, 0.0],
         };
         let bg_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("trans2-bg"),
@@ -3501,11 +3563,15 @@ fn snapshot_transitions_frame2() -> anyhow::Result<()> {
             Position { x: 60.0, y: 60.0 },
             Position { x: 0.0, y: 0.0 },
             0.0,
+            1.0,
         );
         let fg_raw = InstanceRaw {
             model: fg_tf.transform,
             uv_offset: [0.0, 0.0],
             uv_scale: [1.0, 1.0],
+            tint: [1.0, 1.0, 1.0, 1.0],
+            msdf_px_range: 0.0,
+            _msdf_pad: [0.0, 0.0, 0.0],
         };
         let fg_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("trans2-fg"),
@@ -3604,11 +3670,15 @@ fn snapshot_deal_grid() -> anyhow::Result<()> {
             Position { x, y },
             Position { x: 0.0, y: 0.0 },
             0.0,
+            1.0,
         );
         raws.push(InstanceRaw {
             model: tf.transform,
             uv_offset: [0.0, 0.0],
             uv_scale: [1.0, 1.0],
+            tint: [1.0, 1.0, 1.0, 1.0],
+            msdf_px_range: 0.0,
+            _msdf_pad: [0.0, 0.0, 0.0],
         });
     }
     let inst_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -3783,11 +3853,14 @@ fn snapshot_timeline_anim() -> anyhow::Result<()> {
             width: 256.0,
             height: 256.0,
         };
-        let tf = sprite.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0);
+        let tf = sprite.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
         let raw = InstanceRaw {
             model: tf.transform,
             uv_offset: [0.0, 0.0],
             uv_scale: [1.0, 1.0],
+            tint: [1.0, 1.0, 1.0, 1.0],
+            msdf_px_range: 0.0,
+            _msdf_pad: [0.0, 0.0, 0.0],
         };
         let inst_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("timeline-inst"),
@@ -3939,11 +4012,15 @@ fn snapshot_timeline_anim_multiframe(frames: usize, frame_dt: f32) -> anyhow::Re
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            let tf = sprite.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0);
+            let tf =
+                sprite.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
             let raw = InstanceRaw {
                 model: tf.transform,
                 uv_offset: [0.0, 0.0],
                 uv_scale: [1.0, 1.0],
+                tint: [1.0, 1.0, 1.0, 1.0],
+                msdf_px_range: 0.0,
+                _msdf_pad: [0.0, 0.0, 0.0],
             };
             let inst_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("timeline-mf-inst"),
@@ -4088,11 +4165,15 @@ fn snapshot_rng_pattern(seed: u64) -> anyhow::Result<()> {
                 Position { x: px, y: py },
                 Position { x: 0.0, y: 0.0 },
                 0.0,
+                1.0,
             );
             let raw = InstanceRaw {
                 model: tf.transform,
                 uv_offset: [0.0, 0.0],
                 uv_scale: [1.0, 1.0],
+                tint: [1.0, 1.0, 1.0, 1.0],
+                msdf_px_range: 0.0,
+                _msdf_pad: [0.0, 0.0, 0.0],
             };
             let inst_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("rngp-inst"),
@@ -4306,12 +4387,20 @@ fn snapshot_deal_grid_anim_multiframe(
                     let y = deck_pos.1 + (d.to.1 - deck_pos.1) * k;
                     Position { x, y }
                 };
-                let tf =
-                    card.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0);
+                let tf = card.get_transform_uniform(
+                    viewport,
+                    pos,
+                    Position { x: 0.0, y: 0.0 },
+                    0.0,
+                    1.0,
+                );
                 let raw = InstanceRaw {
                     model: tf.transform,
                     uv_offset: [0.0, 0.0],
                     uv_scale: [1.0, 1.0],
+                    tint: [1.0, 1.0, 1.0, 1.0],
+                    msdf_px_range: 0.0,
+                    _msdf_pad: [0.0, 0.0, 0.0],
                 };
                 let inst_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("deal-anim-inst"),

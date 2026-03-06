@@ -22,6 +22,7 @@ pub struct ShapeInternal {
     outline: String,
     stroke: f32,
     shape_type: ShapeType,
+    z: i32,
 }
 
 impl ShapeInternal {
@@ -50,6 +51,7 @@ impl ShapeInternal {
             outline,
             stroke,
             shape_type,
+            z: 0,
         }
     }
 
@@ -116,6 +118,18 @@ impl ShapeInternal {
             }
         }
     }
+
+    pub fn set_z(&mut self, z: i32) {
+        self.z = z;
+    }
+
+    pub fn get_z(&self) -> i32 {
+        self.z
+    }
+
+    pub fn render_with_z(&self, engine: &mut PlutoniumEngine, z: i32) {
+        engine.queue_texture_with_layer(&self.texture_id, Some(self.position), z);
+    }
 }
 
 pub struct Shape {
@@ -181,6 +195,23 @@ impl Shape {
     pub fn render(&self, engine: &mut PlutoniumEngine) {
         self.internal.borrow().render(engine);
     }
+
+    pub fn render_with_z(&self, engine: &mut PlutoniumEngine, z: i32) {
+        self.internal.borrow().render_with_z(engine, z);
+    }
+
+    pub fn set_z(&self, z: i32) {
+        self.internal.borrow_mut().set_z(z);
+    }
+
+    pub fn get_z(&self) -> i32 {
+        self.internal.borrow().get_z()
+    }
+
+    pub fn with_z(self, z: i32) -> Self {
+        self.set_z(z);
+        self
+    }
 }
 // Move PlutoObject implementation to ShapeInternal
 impl PlutoObject for ShapeInternal {
@@ -206,5 +237,9 @@ impl PlutoObject for ShapeInternal {
 
     fn set_pos(&mut self, new_pos: Position) {
         self.position = new_pos;
+    }
+
+    fn render(&self, engine: &mut PlutoniumEngine) {
+        self.render_with_z(engine, self.z);
     }
 }

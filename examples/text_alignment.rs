@@ -99,7 +99,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         width: 900,
         height: 600,
     };
-    run_app(config, move |engine, _| {
+    run_app(config, move |engine, _, _app| {
         engine.clear_render_queue();
         // Ensure font once
         let font_path = format!("{}/examples/media/roboto.ttf", env!("CARGO_MANIFEST_DIR"));

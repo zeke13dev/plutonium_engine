@@ -19,7 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut text2d: Option<Text2D> = None;
     let mut debug_shape: Option<Shape> = None;
 
-    run_app(config, move |engine, _frame| {
+    run_app(config, move |engine, frame, _app| {
         // Initialize text objects on first frame
         if text2d.is_none() {
             // Load the font (absolute path from crate root)
@@ -29,6 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Err(FontError::IoError(err)) => println!("I/O error occurred: {}", err),
                 Err(FontError::InvalidFontData) => println!("Invalid font data"),
                 Err(FontError::AtlasRenderError) => println!("Atlas render error occurred"),
+                Err(other) => println!("Font load error: {:?}", other),
             }
 
             // Create text with the specified font
@@ -62,7 +63,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         engine.clear_render_queue();
 
         // Update engine state
-        engine.update(None, &None);
+        engine.update(None, &None, frame.delta_time);
 
         // Render text and debug shape
         if let Some(text) = &text2d {

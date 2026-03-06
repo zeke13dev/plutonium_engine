@@ -21,12 +21,23 @@ pollster = "0.4.0"
 tiny-skia = "0.11.4"
 resvg = "0.44.0"
 rusttype = "0.9.3"
+rustybuzz = "0.14.1"
 anyhow = "1.0.86"
-arboard = "3.4.0"
 
 uuid = { version = "1.11.0", features = ["v4"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+getrandom = { version = "0.2.15", features = ["js"], optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+freetype-rs = "0.36.0"
+arboard = "3.4.0"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2.99"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3.76"
+web-sys = { version = "0.3.76", features = ["Window", "Document", "Element", "HtmlCanvasElement", "Performance", "Response", "console"] }
 
 [dependencies.bytemuck]
 version = "1.21.0"
@@ -40,6 +51,7 @@ widgets = []       # enable retained-mode widgets (Button, TextInput, etc.)
 layout = []        # enable simple layout helpers (anchors/percent)
 anim = []          # enable tweening/animation APIs
 replay = []        # enable record/replay helpers and RNG-driven examples
+wasm = ["dep:getrandom"] # opt-in wasm32 support (enables JS entropy backend)
 
 [workspace]
 members = [
@@ -53,7 +65,9 @@ members = [
     "plutonium_game/examples/demo_card_game",
 ]
 
+[[example]]
+name = "jitter_test"
+path = "examples/jitter_test.rs"
+
 [dev-dependencies]
 plutonium_game_input = { path = "plutonium_game/crates/input" }
-
-

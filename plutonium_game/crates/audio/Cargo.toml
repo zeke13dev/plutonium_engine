@@ -10,6 +10,7 @@ plutonium_game_core = { path = "../core" }
 rodio = { version = "0.17", optional = true, default-features = false, features = ["wav"] }
 
 [features]
+default = []
 rodio-backend = ["rodio"]
-
+wasm = []
 

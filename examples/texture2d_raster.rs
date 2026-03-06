@@ -8,7 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let mut tex_id = None;
 
-    run_app(config, move |engine, _frame| {
+    run_app(config, move |engine, _frame, _app| {
         if tex_id.is_none() {
             #[cfg(feature = "raster")]
             let (id, _dims) = engine.create_texture_raster_from_path(

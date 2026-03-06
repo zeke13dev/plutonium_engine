@@ -10,6 +10,7 @@ pub struct InputState {
     pub just_pressed: HashSet<String>,
     pub just_released: HashSet<String>,
     prev_pressed: HashSet<String>,
+    pub text_input: String,
     // Mouse
     pub mouse_x: f32,
     pub mouse_y: f32,
@@ -17,6 +18,16 @@ pub struct InputState {
     pub lmb_just_pressed: bool,
     pub lmb_just_released: bool,
     prev_lmb_down: bool,
+    pub rmb_down: bool,
+    pub rmb_just_pressed: bool,
+    pub rmb_just_released: bool,
+    prev_rmb_down: bool,
+    pub mmb_down: bool,
+    pub mmb_just_pressed: bool,
+    pub mmb_just_released: bool,
+    prev_mmb_down: bool,
+    pub scroll_delta_x: f32,
+    pub scroll_delta_y: f32,
 }
 
 impl InputState {
@@ -30,12 +41,36 @@ impl InputState {
     }
 
     pub fn update_mouse(&mut self, x: f32, y: f32, lmb_down_now: bool) {
+        self.update_mouse_buttons(x, y, lmb_down_now, false, false);
+    }
+
+    pub fn update_mouse_buttons(
+        &mut self,
+        x: f32,
+        y: f32,
+        lmb_down_now: bool,
+        rmb_down_now: bool,
+        mmb_down_now: bool,
+    ) {
         self.mouse_x = x;
         self.mouse_y = y;
         self.lmb_just_pressed = lmb_down_now && !self.prev_lmb_down;
         self.lmb_just_released = !lmb_down_now && self.prev_lmb_down;
         self.lmb_down = lmb_down_now;
         self.prev_lmb_down = lmb_down_now;
+        self.rmb_just_pressed = rmb_down_now && !self.prev_rmb_down;
+        self.rmb_just_released = !rmb_down_now && self.prev_rmb_down;
+        self.rmb_down = rmb_down_now;
+        self.prev_rmb_down = rmb_down_now;
+        self.mmb_just_pressed = mmb_down_now && !self.prev_mmb_down;
+        self.mmb_just_released = !mmb_down_now && self.prev_mmb_down;
+        self.mmb_down = mmb_down_now;
+        self.prev_mmb_down = mmb_down_now;
+    }
+
+    pub fn update_scroll(&mut self, dx: f32, dy: f32) {
+        self.scroll_delta_x = dx;
+        self.scroll_delta_y = dy;
     }
 
     pub fn is_pressed(&self, key: &str) -> bool {
@@ -43,6 +78,14 @@ impl InputState {
     }
     pub fn is_just_pressed(&self, key: &str) -> bool {
         self.just_pressed.contains(key)
+    }
+
+    pub fn text_input_chars(&self) -> impl Iterator<Item = char> + '_ {
+        self.text_input.chars()
+    }
+
+    pub fn clear_text_input(&mut self) {
+        self.text_input.clear();
     }
 }
 
@@ -69,11 +112,16 @@ impl ActionMap {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct FrameInputRecord {
     pub pressed_keys: Vec<String>,
     pub mouse_x: f32,
     pub mouse_y: f32,
     pub lmb_down: bool,
+    pub rmb_down: bool,
+    pub mmb_down: bool,
+    pub scroll_dx: f32,
+    pub scroll_dy: f32,
     pub committed_text: Vec<String>,
 }
 
@@ -84,12 +132,24 @@ impl FrameInputRecord {
             mouse_x: input.mouse_x,
             mouse_y: input.mouse_y,
             lmb_down: input.lmb_down,
+            rmb_down: input.rmb_down,
+            mmb_down: input.mmb_down,
+            scroll_dx: input.scroll_delta_x,
+            scroll_dy: input.scroll_delta_y,
             committed_text: commits.to_vec(),
         }
     }
     pub fn apply_to(&self, input: &mut InputState) {
         input.update_from_keys(self.pressed_keys.clone());
-        input.update_mouse(self.mouse_x, self.mouse_y, self.lmb_down);
+        input.update_mouse_buttons(
+            self.mouse_x,
+            self.mouse_y,
+            self.lmb_down,
+            self.rmb_down,
+            self.mmb_down,
+        );
+        input.update_scroll(self.scroll_dx, self.scroll_dy);
+        input.text_input = self.committed_text.join("");
     }
 }
 

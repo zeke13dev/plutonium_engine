@@ -10,6 +10,7 @@ pub struct UpdateContext<'a> {
     pub queue: &'a wgpu::Queue,
     pub viewport_size: &'a Size,
     pub camera_position: &'a Position,
+    pub font_cache_version: u32,
 }
 
 pub trait PlutoObject {

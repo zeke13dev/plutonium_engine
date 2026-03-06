@@ -9,6 +9,7 @@ pub struct Texture2DInternal {
     id: Uuid,
     texture_key: Uuid,
     dimensions: Rectangle,
+    z: i32,
 }
 
 impl Texture2DInternal {
@@ -17,6 +18,7 @@ impl Texture2DInternal {
             id,
             texture_key,
             dimensions,
+            z: 0,
         }
     }
 
@@ -26,6 +28,18 @@ impl Texture2DInternal {
 
     pub fn set_pos(&mut self, new_position: Position) {
         self.dimensions.set_pos(new_position);
+    }
+
+    pub fn set_z(&mut self, z: i32) {
+        self.z = z;
+    }
+
+    pub fn get_z(&self) -> i32 {
+        self.z
+    }
+
+    pub fn render_with_z(&self, engine: &mut PlutoniumEngine, z: i32) {
+        engine.queue_texture_with_layer(&self.texture_key, Some(self.pos()), z);
     }
 }
 
@@ -52,6 +66,10 @@ impl PlutoObject for Texture2DInternal {
 
     fn set_pos(&mut self, new_position: Position) {
         self.set_pos(new_position);
+    }
+
+    fn render(&self, engine: &mut PlutoniumEngine) {
+        self.render_with_z(engine, self.z);
     }
 }
 
@@ -86,5 +104,22 @@ impl Texture2D {
 
     pub fn render(&self, engine: &mut PlutoniumEngine) {
         self.internal.borrow().render(engine);
+    }
+
+    pub fn render_with_z(&self, engine: &mut PlutoniumEngine, z: i32) {
+        self.internal.borrow().render_with_z(engine, z);
+    }
+
+    pub fn set_z(&self, z: i32) {
+        self.internal.borrow_mut().set_z(z);
+    }
+
+    pub fn get_z(&self) -> i32 {
+        self.internal.borrow().get_z()
+    }
+
+    pub fn with_z(self, z: i32) -> Self {
+        self.set_z(z);
+        self
     }
 }

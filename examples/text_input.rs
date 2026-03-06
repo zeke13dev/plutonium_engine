@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut text_input: Option<TextInput> = None;
 
-    run_app(config, move |engine, frame| {
+    run_app(config, move |engine, frame, _app| {
         // Initialize text input on first frame
         if text_input.is_none() {
             // Load font

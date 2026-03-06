@@ -1,6 +1,8 @@
 use crate::TextureSVG;
 use std::cell::RefCell;
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 use uuid::Uuid;
 use winit::keyboard::Key;
@@ -134,6 +136,18 @@ pub struct Text2DInternal {
     font_size: f32,
     content: String,
     container: TextContainer,
+    z: i32,
+    color: [f32; 4], // RGBA
+    auto_size_enabled: bool,
+    wrap_enabled: bool,
+    min_font_size: f32,
+    max_font_size: f32,
+    cached_font_size: Option<f32>,
+    cached_wrapped_text: Option<String>,
+    last_content_hash: Option<u64>,
+    last_container_dims: Option<(f32, f32)>,
+    last_dpi_scale_factor: Option<f32>,
+    last_font_cache_version: u32,
 }
 
 impl Text2DInternal {
@@ -161,6 +175,18 @@ impl Text2DInternal {
             font_size,
             content: content.to_string(),
             container: container.unwrap_or(default_container),
+            z: 0,
+            color: [1.0, 1.0, 1.0, 1.0], // Default to white
+            auto_size_enabled: false,
+            wrap_enabled: false,
+            min_font_size: 8.0,
+            max_font_size: 128.0,
+            cached_font_size: None,
+            cached_wrapped_text: None,
+            last_content_hash: None,
+            last_container_dims: None,
+            last_dpi_scale_factor: None,
+            last_font_cache_version: 0,
         }
     }
 
@@ -170,6 +196,9 @@ impl Text2DInternal {
         if self.container.get_dimensions() == self.dimensions {
             self.container.set_dimensions(dimensions);
         }
+        self.last_container_dims = None;
+        self.cached_font_size = None;
+        self.cached_wrapped_text = None;
     }
     pub fn get_render_position(&self, text_width: f32) -> Position {
         self.container
@@ -178,6 +207,9 @@ impl Text2DInternal {
 
     pub fn set_container(&mut self, container: TextContainer) {
         self.container = container;
+        self.last_container_dims = None;
+        self.cached_font_size = None;
+        self.cached_wrapped_text = None;
     }
 
     pub fn get_container(&self) -> &TextContainer {
@@ -196,34 +228,28 @@ impl Text2DInternal {
         &self,
         char_index: usize,
         text_renderer: &TextRenderer,
-        current_line: usize,
+        _current_line: usize,
     ) -> Position {
-        let padding = self.font_size * 0.15;
         let line_height = self.font_size * 1.2;
 
-        // Split text into lines
-        let text = &self.content[..char_index.min(self.content.len())];
-        let lines: Vec<&str> = text.split('\n').collect();
-
-        // Handle case where current_line is beyond available lines
-        if current_line >= lines.len() {
-            return Position {
-                x: self.dimensions.x + padding,
-                y: self.dimensions.y + current_line as f32 * line_height,
-            };
+        let mut idx = char_index.min(self.content.len());
+        while idx > 0 && !self.content.is_char_boundary(idx) {
+            idx -= 1;
         }
-
-        // Get the text of just the current line
-        let current_line_text = lines[current_line];
-
-        // Measure the width of the current line
-        let line_width = text_renderer
-            .measure_text(current_line_text, &self.font_key)
-            .0;
+        let text_prefix = &self.content[..idx];
+        let derived_line = text_prefix.chars().filter(|&ch| ch == '\n').count();
+        let current_line_text = text_prefix.rsplit('\n').next().unwrap_or("");
+        let line_width = text_renderer.measure_caret_advance(
+            current_line_text,
+            &self.font_key,
+            self.font_size,
+            0.0,
+            0.0,
+        );
 
         Position {
-            x: self.dimensions.x + line_width + padding,
-            y: self.dimensions.y + current_line as f32 * line_height,
+            x: self.dimensions.x + line_width,
+            y: self.dimensions.y + derived_line as f32 * line_height,
         }
     }
     pub fn get_cursor_position_info(
@@ -259,7 +285,13 @@ impl Text2DInternal {
             return (index_offset, clicked_line);
         }
 
-        let line_width = text_renderer.measure_text(line_content, &self.font_key).0;
+        let line_width = text_renderer.measure_caret_advance(
+            line_content,
+            &self.font_key,
+            self.font_size,
+            0.0,
+            0.0,
+        );
 
         // Handle click beyond line end
         if relative_x >= line_width {
@@ -268,9 +300,16 @@ impl Text2DInternal {
 
         // Measure each character position in the current line
         let mut prev_width = 0.0;
-        for (idx, _) in line_content.char_indices() {
-            let substr = &line_content[..=idx];
-            let width = text_renderer.measure_text(substr, &self.font_key).0;
+        for (idx, ch) in line_content.char_indices() {
+            let next_idx = idx + ch.len_utf8();
+            let substr = &line_content[..next_idx];
+            let width = text_renderer.measure_caret_advance(
+                substr,
+                &self.font_key,
+                self.font_size,
+                0.0,
+                0.0,
+            );
 
             // Find the midpoint between current and previous character
             let char_midpoint = (width + prev_width) / 2.0;
@@ -280,10 +319,9 @@ impl Text2DInternal {
                 return (index_offset + idx, clicked_line);
             }
 
-            // If this is the last character and we haven't returned yet,
-            // the cursor should go after it
-            if idx == line_content.len() - 1 {
-                return (index_offset + idx + 1, clicked_line);
+            // If this is the last character and we haven't returned yet, cursor goes after it
+            if next_idx == line_content.len() {
+                return (index_offset + next_idx, clicked_line);
             }
 
             prev_width = width;
@@ -301,15 +339,24 @@ impl Text2DInternal {
 
     pub fn set_content(&mut self, new_content: &str) {
         self.content = new_content.to_string();
+        self.last_content_hash = None;
+        self.cached_font_size = None;
+        self.cached_wrapped_text = None;
     }
 
     pub fn append_content(&mut self, new_content: &str) {
         self.content.push_str(new_content);
+        self.last_content_hash = None;
+        self.cached_font_size = None;
+        self.cached_wrapped_text = None;
     }
 
     pub fn pop_content(&mut self) -> bool {
         if !self.content.is_empty() {
             self.content.pop();
+            self.last_content_hash = None;
+            self.cached_font_size = None;
+            self.cached_wrapped_text = None;
             true
         } else {
             false
@@ -321,6 +368,271 @@ impl Text2DInternal {
 
     pub fn get_font(&self) -> &str {
         &self.font_key
+    }
+
+    pub fn set_z(&mut self, z: i32) {
+        self.z = z;
+    }
+
+    pub fn get_z(&self) -> i32 {
+        self.z
+    }
+
+    pub fn set_color(&mut self, color: [f32; 4]) {
+        self.color = color;
+    }
+
+    pub fn get_color(&self) -> [f32; 4] {
+        self.color
+    }
+
+    fn wrap_text_to_lines(
+        &self,
+        text: &str,
+        font_size: f32,
+        available_width: f32,
+        text_renderer: &TextRenderer,
+    ) -> String {
+        if text.is_empty() || available_width <= 0.0 {
+            return String::new();
+        }
+
+        let mut result = Vec::new();
+
+        // Split by existing newlines to preserve manual line breaks
+        for segment in text.split('\n') {
+            if segment.is_empty() {
+                result.push(String::new());
+                continue;
+            }
+
+            let words: Vec<&str> = segment.split_whitespace().collect();
+            if words.is_empty() {
+                result.push(String::new());
+                continue;
+            }
+
+            let mut current_line = String::new();
+
+            for word in words {
+                let test_line = if current_line.is_empty() {
+                    word.to_string()
+                } else {
+                    format!("{} {}", current_line, word)
+                };
+
+                // Measure the test line
+                let (line_width, _) = text_renderer.measure_text(
+                    &test_line,
+                    &self.font_key,
+                    0.0,
+                    0.0,
+                    Some(font_size),
+                );
+
+                let scaled_width = line_width;
+
+                if scaled_width <= available_width {
+                    current_line = test_line;
+                } else {
+                    // Line would be too long, start new line
+                    if !current_line.is_empty() {
+                        result.push(current_line);
+                        current_line = word.to_string();
+                    } else {
+                        // Single word is too long, keep it anyway
+                        result.push(word.to_string());
+                    }
+                }
+            }
+
+            // Don't forget the last line
+            if !current_line.is_empty() {
+                result.push(current_line);
+            }
+        }
+
+        result.join("\n")
+    }
+
+    fn calculate_fitted_font_size(
+        &self,
+        text: &str,
+        available_width: f32,
+        available_height: f32,
+        text_renderer: &TextRenderer,
+    ) -> f32 {
+        if text.is_empty() || available_width <= 0.0 || available_height <= 0.0 {
+            return self.font_size;
+        }
+
+        // Helper function to check if text fits at a given font size
+        let text_fits = |font_size: f32| -> bool {
+            let text_to_measure = if self.wrap_enabled {
+                self.wrap_text_to_lines(text, font_size, available_width, text_renderer)
+            } else {
+                text.to_string()
+            };
+
+            let (text_width, line_count) = text_renderer.measure_text(
+                &text_to_measure,
+                &self.font_key,
+                0.0,
+                0.0,
+                Some(font_size),
+            );
+
+            let scaled_width = text_width;
+            let text_height = font_size * line_count as f32 * self.container.line_height_mul;
+
+            scaled_width <= available_width && text_height <= available_height
+        };
+
+        // Binary search to find the largest font size that fits
+        let mut low = self.min_font_size;
+        let mut high = self.max_font_size;
+
+        // Quick optimization: if even max size fits, return it
+        if text_fits(high) {
+            return high;
+        }
+
+        // Quick check: if min size doesn't fit, return it anyway
+        if !text_fits(low) {
+            return low;
+        }
+
+        // Binary search when difference is large (> 4px)
+        if high - low > 4.0 {
+            while high - low > 1.0 {
+                let mid = (low + high) / 2.0;
+                if text_fits(mid) {
+                    low = mid;
+                } else {
+                    high = mid;
+                }
+            }
+        }
+
+        // Linear refinement - find the largest size that fits
+        let mut size = high.floor();
+        while size >= self.min_font_size {
+            if text_fits(size) {
+                return size;
+            }
+            size -= 1.0;
+        }
+
+        // Return minimum size even if text doesn't fit
+        self.min_font_size
+    }
+
+    fn needs_recalculation(&self, dpi_scale_factor: f32, font_cache_version: u32) -> bool {
+        if !self.auto_size_enabled && !self.wrap_enabled {
+            // Even if auto-size/wrap is off, we might need to re-layout if DPI changed
+            // because measure_text results might change or font atlases might be rebuilt.
+            return self.last_dpi_scale_factor != Some(dpi_scale_factor)
+                || self.last_font_cache_version != font_cache_version;
+        }
+
+        let mut hasher = DefaultHasher::new();
+        self.content.hash(&mut hasher);
+        let content_hash = hasher.finish();
+
+        let dims = (
+            self.container.dimensions.width,
+            self.container.dimensions.height,
+        );
+
+        self.last_content_hash != Some(content_hash)
+            || self.last_container_dims != Some(dims)
+            || self.last_dpi_scale_factor != Some(dpi_scale_factor)
+            || self.last_font_cache_version != font_cache_version
+    }
+
+    pub fn render_with_z(&self, engine: &mut PlutoniumEngine, z: i32) {
+        // Compute values on-the-fly if cache is empty
+        let available_width = self.container.dimensions.width - (self.container.padding * 2.0);
+        let available_height = self.container.dimensions.height - (self.container.padding * 2.0);
+
+        // Determine font size to use (from cache or compute on-the-fly)
+        let font_size_to_use = if self.auto_size_enabled {
+            if let Some(cached) = self.cached_font_size {
+                cached
+            } else {
+                // Compute on-the-fly if cache is empty
+                self.calculate_fitted_font_size(
+                    &self.content,
+                    available_width,
+                    available_height,
+                    &engine.text_renderer,
+                )
+            }
+        } else {
+            self.font_size
+        };
+
+        // Determine text to render (from cache or compute on-the-fly)
+        let text_to_render_owned: Option<String> = if self.wrap_enabled {
+            if self.cached_wrapped_text.is_some() {
+                None // Use cached version
+            } else {
+                // Compute on-the-fly if cache is empty
+                Some(self.wrap_text_to_lines(
+                    &self.content,
+                    font_size_to_use,
+                    available_width,
+                    &engine.text_renderer,
+                ))
+            }
+        } else {
+            None
+        };
+
+        let text_to_render: &str = if let Some(ref owned) = text_to_render_owned {
+            owned
+        } else if self.wrap_enabled {
+            self.cached_wrapped_text.as_ref().unwrap_or(&self.content)
+        } else {
+            &self.content
+        };
+
+        // Measure using processed text
+        let (text_width, line_count) = engine.text_renderer.measure_text(
+            text_to_render,
+            &self.font_key,
+            0.0,
+            0.0,
+            Some(font_size_to_use),
+        );
+
+        let scaled_width = text_width;
+        let text_height = font_size_to_use * line_count as f32;
+
+        // Compute a single alignment via container, then render with a neutral container
+        let container_pos = self
+            .container
+            .calculate_text_position(scaled_width, text_height);
+
+        // Avoid applying alignment twice: provide a neutral container for layout
+        let mut neutral = self.container.clone();
+        neutral.h_align = HorizontalAlignment::Left;
+        neutral.v_align = VerticalAlignment::Top;
+
+        // Always honor the resolved font size when laying out glyphs.
+        let font_override = Some(font_size_to_use);
+
+        engine.queue_text_with_spacing(
+            text_to_render,
+            &self.font_key,
+            container_pos,
+            &neutral,
+            0.0,
+            0.0,
+            z,
+            self.color,
+            font_override,
+        );
     }
 }
 
@@ -354,45 +666,93 @@ impl PlutoObject for Text2DInternal {
         _mouse_info: Option<MouseInfo>,
         _key_pressed: &Option<Key>,
         _texture_map: &mut HashMap<Uuid, TextureSVG>,
-        _update_context: Option<UpdateContext>,
-        _dpi_scale_factor: f32,
-        text_renderer: &TextRenderer, // Add this parameter
+        update_context: Option<UpdateContext>,
+        dpi_scale_factor: f32,
+        text_renderer: &TextRenderer,
     ) {
-        // Measure the text dimensions
-        let (text_width, line_count) = text_renderer.measure_text(&self.content, &self.font_key);
+        let font_cache_version = update_context
+            .as_ref()
+            .map(|c| c.font_cache_version)
+            .unwrap_or(0);
 
-        // Update the dimensions of the text container
-        self.dimensions.width = text_width;
-        self.dimensions.height = self.font_size * line_count as f32;
+        // Check if recalculation is needed
+        let needs_recalc = self.needs_recalculation(dpi_scale_factor, font_cache_version);
 
-        // Update the container's dimensions to reflect changes
-        self.container.set_dimensions(self.dimensions);
+        if needs_recalc {
+            let available_width = self.container.dimensions.width - (self.container.padding * 2.0);
+            let available_height =
+                self.container.dimensions.height - (self.container.padding * 2.0);
+
+            // Step 1: Determine font size to use
+            let font_size_to_use = if self.auto_size_enabled {
+                let fitted = self.calculate_fitted_font_size(
+                    &self.content,
+                    available_width,
+                    available_height,
+                    text_renderer,
+                );
+                self.cached_font_size = Some(fitted);
+                fitted
+            } else {
+                self.font_size
+            };
+
+            // Step 2: Apply wrapping if enabled
+            let text_to_measure = if self.wrap_enabled {
+                let wrapped = self.wrap_text_to_lines(
+                    &self.content,
+                    font_size_to_use,
+                    available_width,
+                    text_renderer,
+                );
+                self.cached_wrapped_text = Some(wrapped.clone());
+                wrapped
+            } else {
+                self.content.clone()
+            };
+
+            // Step 3: Measure final dimensions
+            let (text_width, line_count) = text_renderer.measure_text(
+                &text_to_measure,
+                &self.font_key,
+                0.0,
+                0.0,
+                Some(font_size_to_use),
+            );
+
+            let scaled_width = text_width;
+
+            self.dimensions.width = scaled_width;
+            self.dimensions.height = font_size_to_use * line_count as f32;
+
+            // Update cache tracking
+            let mut hasher = DefaultHasher::new();
+            self.content.hash(&mut hasher);
+            self.last_content_hash = Some(hasher.finish());
+            self.last_container_dims = Some((
+                self.container.dimensions.width,
+                self.container.dimensions.height,
+            ));
+            self.last_dpi_scale_factor = Some(dpi_scale_factor);
+            self.last_font_cache_version = font_cache_version;
+        } else {
+            // No recalculation needed, but still update dimensions if not using adaptive features
+            if !self.auto_size_enabled && !self.wrap_enabled {
+                let (text_width, line_count) = text_renderer.measure_text(
+                    &self.content,
+                    &self.font_key,
+                    0.0,
+                    0.0,
+                    Some(self.font_size),
+                );
+                self.dimensions.width = text_width;
+                self.dimensions.height = self.font_size * line_count as f32;
+            }
+        }
     }
 
     fn render(&self, engine: &mut PlutoniumEngine) {
-        // First measure the text
-        let (text_width, line_count) = engine
-            .text_renderer
-            .measure_text(&self.content, &self.font_key);
-        let text_height = self.font_size * line_count as f32;
-
-        // Compute a single alignment via container, then render with a neutral container
-        let container_pos = self
-            .container
-            .calculate_text_position(text_width, text_height);
-
-        // Avoid applying alignment twice: provide a neutral container for layout
-        let mut neutral = self.container.clone();
-        neutral.h_align = HorizontalAlignment::Left;
-        neutral.v_align = VerticalAlignment::Top;
-        engine.queue_text_with_spacing(
-            &self.content,
-            &self.font_key,
-            container_pos,
-            &neutral,
-            0.0,
-            0.0,
-        );
+        self.render_with_z(engine, self.z);
     }
 }
 
@@ -483,6 +843,10 @@ impl Text2D {
         self.internal.borrow().font_size
     }
 
+    pub fn get_font_key(&self) -> String {
+        self.internal.borrow().font_key.clone()
+    }
+
     pub fn get_dimensions(&self) -> Rectangle {
         self.internal.borrow().dimensions()
     }
@@ -501,6 +865,88 @@ impl Text2D {
 
     pub fn render(&self, engine: &mut PlutoniumEngine) {
         self.internal.borrow().render(engine);
+    }
+
+    pub fn render_with_z(&self, engine: &mut PlutoniumEngine, z: i32) {
+        self.internal.borrow().render_with_z(engine, z);
+    }
+
+    pub fn set_z(&self, z: i32) {
+        self.internal.borrow_mut().set_z(z);
+    }
+
+    pub fn get_z(&self) -> i32 {
+        self.internal.borrow().get_z()
+    }
+
+    pub fn with_z(self, z: i32) -> Self {
+        self.set_z(z);
+        self
+    }
+
+    pub fn set_color(&self, color: [f32; 4]) {
+        self.internal.borrow_mut().set_color(color);
+    }
+
+    pub fn get_color(&self) -> [f32; 4] {
+        self.internal.borrow().get_color()
+    }
+
+    pub fn with_color(self, color: [f32; 4]) -> Self {
+        self.set_color(color);
+        self
+    }
+
+    /// Enable or disable automatic font sizing.
+    /// When enabled, the font size will be automatically adjusted to fit the container,
+    /// searching between min_font_size and max_font_size to find the largest size that fits.
+    pub fn with_auto_size(self, enabled: bool) -> Self {
+        self.internal.borrow_mut().auto_size_enabled = enabled;
+        self.internal.borrow_mut().cached_font_size = None; // Invalidate cache
+        self
+    }
+
+    /// Enable or disable text wrapping.
+    /// When enabled, text will wrap to multiple lines to fit the container width.
+    pub fn with_wrap(self, enabled: bool) -> Self {
+        self.internal.borrow_mut().wrap_enabled = enabled;
+        self.internal.borrow_mut().cached_wrapped_text = None; // Invalidate cache
+        self
+    }
+
+    /// Set the minimum font size for auto-sizing.
+    /// When auto-sizing is enabled, the font will never be smaller than this value.
+    /// Default: 8.0
+    pub fn with_min_font_size(self, size: f32) -> Self {
+        self.internal.borrow_mut().min_font_size = size;
+        self
+    }
+
+    /// Set the maximum font size for auto-sizing.
+    /// When auto-sizing is enabled, the font will never be larger than this value.
+    /// This allows text to grow to fill available space.
+    /// Default: 128.0
+    pub fn with_max_font_size(self, size: f32) -> Self {
+        self.internal.borrow_mut().max_font_size = size;
+        self
+    }
+
+    pub fn set_auto_size(&self, enabled: bool) {
+        self.internal.borrow_mut().auto_size_enabled = enabled;
+        self.internal.borrow_mut().cached_font_size = None; // Invalidate cache
+    }
+
+    pub fn set_wrap(&self, enabled: bool) {
+        self.internal.borrow_mut().wrap_enabled = enabled;
+        self.internal.borrow_mut().cached_wrapped_text = None; // Invalidate cache
+    }
+
+    pub fn set_min_font_size(&self, size: f32) {
+        self.internal.borrow_mut().min_font_size = size;
+    }
+
+    pub fn set_max_font_size(&self, size: f32) {
+        self.internal.borrow_mut().max_font_size = size;
     }
 
     pub fn get_id(&self) -> Uuid {
@@ -536,14 +982,20 @@ impl Text2D {
         if index > content.len() {
             return;
         }
+        if !content.is_char_boundary(index) {
+            return;
+        }
 
         // Handle different insertion cases
         if content.is_empty() || index == content.len() {
             content.push_str(c);
         } else {
-            let (before, after) = content.split_at(index);
-            *content = format!("{}{}{}", before, c, after);
+            content.insert_str(index, c);
         }
+
+        internal.last_content_hash = None;
+        internal.cached_font_size = None;
+        internal.cached_wrapped_text = None;
     }
 
     pub fn remove_at(&mut self, index: usize) -> bool {
@@ -554,11 +1006,24 @@ impl Text2D {
         if index >= content.len() {
             return false;
         }
+        if !content.is_char_boundary(index) {
+            return false;
+        }
 
-        // Remove character at index
-        let (before, after) = content.split_at(index);
-        let after = &after[1..]; // Skip the character we're removing
-        *content = format!("{}{}", before, after);
+        let next_index = content[index..]
+            .chars()
+            .next()
+            .map(|ch| index + ch.len_utf8())
+            .unwrap_or(index);
+
+        if next_index == index {
+            return false;
+        }
+
+        content.replace_range(index..next_index, "");
+        internal.last_content_hash = None;
+        internal.cached_font_size = None;
+        internal.cached_wrapped_text = None;
         true
     }
 }

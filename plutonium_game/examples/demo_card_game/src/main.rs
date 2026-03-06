@@ -150,7 +150,9 @@ fn main() {
 
     let _ = run_app(
         WindowConfig::default(),
-        move |engine: &mut PlutoniumEngine, frame: &FrameContext| {
+        move |engine: &mut PlutoniumEngine,
+              frame: &FrameContext,
+              _app: &mut plutonium_engine::app::PlutoniumApp| {
             // Startup-like: queue load request exactly once
             static mut TEX_HANDLE: Option<(plutonium_game_assets::Handle, uuid::Uuid)> = None;
             static mut BTN_BG_HANDLE: Option<(plutonium_game_assets::Handle, uuid::Uuid)> = None;
@@ -246,11 +248,14 @@ fn main() {
             if let Some(input) = game.world.get_resource_mut::<InputState>() {
                 let key_strings = frame.pressed_keys.iter().map(|k| format!("{:?}", k));
                 input.update_from_keys(key_strings);
-                input.update_mouse(
+                input.update_mouse_buttons(
                     frame.mouse_info.mouse_pos.x,
                     frame.mouse_info.mouse_pos.y,
                     frame.mouse_info.is_lmb_clicked,
+                    frame.mouse_info.is_rmb_clicked,
+                    frame.mouse_info.is_mmb_clicked,
                 );
+                input.update_scroll(frame.scroll_delta.x, frame.scroll_delta.y);
             }
             game.world
                 .insert_resource(TextCommits(frame.text_commits.clone()));

@@ -11,6 +11,23 @@ use std::{
 };
 use wgpu::util::DeviceExt;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn monotonic_now_seconds() -> f64 {
+    use std::sync::OnceLock;
+    use std::time::Instant;
+
+    static START: OnceLock<Instant> = OnceLock::new();
+    START.get_or_init(Instant::now).elapsed().as_secs_f64()
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn monotonic_now_seconds() -> f64 {
+    web_sys::window()
+        .and_then(|w| w.performance())
+        .map(|p| p.now() / 1000.0)
+        .unwrap_or(0.0)
+}
+
 pub struct DrawingContext<'a> {
     pub rpass: &'a mut wgpu::RenderPass<'a>,
     pub pipeline: &'a wgpu::RenderPipeline,
@@ -56,6 +73,12 @@ pub struct InstanceRaw {
     pub uv_offset: [f32; 2],
     #[allow(dead_code)]
     pub uv_scale: [f32; 2],
+    #[allow(dead_code)]
+    pub msdf_px_range: f32,
+    #[allow(dead_code)]
+    pub _msdf_pad: [f32; 3],
+    #[allow(dead_code)]
+    pub tint: [f32; 4],
 }
 
 #[repr(C)]
@@ -80,6 +103,32 @@ pub struct RectInstanceRaw {
     pub _pad1: [f32; 2],
     #[allow(dead_code)]
     pub _pad2: [f32; 4],
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[allow(dead_code)]
+pub struct GlowInstanceRaw {
+    #[allow(dead_code)]
+    pub model: [[f32; 4]; 4],
+    #[allow(dead_code)]
+    pub color: [f32; 4],
+    #[allow(dead_code)]
+    pub rect_size_px: [f32; 2],
+    #[allow(dead_code)]
+    pub corner_radius_px: f32,
+    #[allow(dead_code)]
+    pub glow_radius_px: f32,
+    #[allow(dead_code)]
+    pub sigma: f32,
+    #[allow(dead_code)]
+    pub max_alpha: f32,
+    #[allow(dead_code)]
+    pub mode: f32,
+    #[allow(dead_code)]
+    pub border_width: f32,
+    #[allow(dead_code)]
+    pub _pad: [f32; 4],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -374,12 +423,14 @@ impl PartialEq for Rectangle {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct MouseInfo {
     pub is_rmb_clicked: bool,
     pub is_lmb_clicked: bool,
     pub is_mmb_clicked: bool,
     pub mouse_pos: Position,
+    pub scroll_dx: f32,
+    pub scroll_dy: f32,
 }
 
 // Simple sliding-window frame time metrics for real-time reporting
@@ -387,7 +438,7 @@ pub struct MouseInfo {
 pub struct FrameTimeMetrics {
     buffer: VecDeque<f32>, // seconds
     capacity: usize,
-    last_report: std::time::Instant,
+    last_report_secs: f64,
     report_period_secs: f32,
 }
 
@@ -396,7 +447,7 @@ impl FrameTimeMetrics {
         Self {
             buffer: VecDeque::with_capacity(capacity),
             capacity,
-            last_report: std::time::Instant::now(),
+            last_report_secs: monotonic_now_seconds(),
             report_period_secs,
         }
     }
@@ -441,11 +492,12 @@ impl FrameTimeMetrics {
     }
 
     pub fn maybe_report(&mut self) -> Option<String> {
-        let elapsed = self.last_report.elapsed().as_secs_f32();
+        let now = monotonic_now_seconds();
+        let elapsed = (now - self.last_report_secs).max(0.0) as f32;
         if elapsed < self.report_period_secs {
             return None;
         }
-        self.last_report = std::time::Instant::now();
+        self.last_report_secs = now;
         self.stats().map(|(p50, p95, p99, fps)| {
             format!(
 				"frame_metrics p50_ms={:.2} p95_ms={:.2} p99_ms={:.2} avg_fps={:.1} window_frames={}",

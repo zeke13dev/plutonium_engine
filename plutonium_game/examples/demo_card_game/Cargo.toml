@@ -14,4 +14,15 @@ plutonium_game_audio = { path = "../../crates/audio" }
 plutonium_game_gameplay = { path = "../../crates/gameplay" }
 uuid = "1"
 
+[features]
+default = []
+wasm = [
+    "plutonium_engine/wasm",
+    "plutonium_game_core/wasm",
+    "plutonium_game_input/wasm",
+    "plutonium_game_assets/wasm",
+    "plutonium_game_ui/wasm",
+    "plutonium_game_audio/wasm",
+    "plutonium_game_gameplay/wasm",
+]
 

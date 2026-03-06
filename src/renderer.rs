@@ -6,7 +6,6 @@ use uuid::Uuid;
 use crate::texture_atlas::TextureAtlas;
 use crate::texture_svg::TextureSVG;
 use crate::utils::{RectInstanceRaw, Size};
-// use crate::PlutoniumEngine; // not needed right now
 
 // Expose the queued items to the renderer backend
 // Reserved for future use
@@ -47,6 +46,20 @@ pub struct RectCommand {
     pub border_color: [f32; 4],
     pub transform: [[f32; 4]; 4],
     pub z: i32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct GlowCommand {
+    pub transform: [[f32; 4]; 4],
+    pub color: [f32; 4],
+    pub width_px: f32,
+    pub height_px: f32,
+    pub corner_radius_px: f32,
+    pub glow_radius_px: f32,
+    pub sigma: f32,
+    pub max_alpha: f32,
+    pub mode: f32,
+    pub border_width: f32,
 }
 
 pub struct RectBatch {

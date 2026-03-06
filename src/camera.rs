@@ -8,6 +8,7 @@ pub struct Camera {
     activated: bool,
     pub tether_target: Option<Uuid>,
     tether_size: Option<Size>,
+    smoothing_strength: f32,
 }
 
 impl Camera {
@@ -37,7 +38,26 @@ impl Camera {
             Position { x: 0.0, y: 0.0 }
         }
     }
+
+    pub fn logical_pos(&self) -> Position {
+        self.position
+    }
     pub fn set_pos(&mut self, new_pos: Position) {
+        self.position = self.desired_position(new_pos);
+    }
+
+    pub fn set_pos_with_dt(&mut self, new_pos: Position, delta_time: f32) {
+        let desired = self.desired_position(new_pos);
+        if self.smoothing_strength > 0.0 && delta_time > 0.0 {
+            let alpha = 1.0 - (-self.smoothing_strength * delta_time).exp();
+            self.position.x += (desired.x - self.position.x) * alpha;
+            self.position.y += (desired.y - self.position.y) * alpha;
+        } else {
+            self.position = desired;
+        }
+    }
+
+    fn desired_position(&self, new_pos: Position) -> Position {
         if let Some(boundary) = &self.boundary {
             // Calculate the logical boundary taking into account both camera position and tether size
             let logical_boundary = if let Some(tether_size) = self.tether_size {
@@ -68,7 +88,6 @@ impl Camera {
                     0.0
                 }
             };
-            self.position.x += dx;
 
             // Handle the y-direction
             let dy = {
@@ -82,10 +101,13 @@ impl Camera {
                     0.0
                 }
             };
-            self.position.y += dy;
+            Position {
+                x: self.position.x + dx,
+                y: self.position.y + dy,
+            }
         } else {
             // If no boundary is set, simply update the position
-            self.position = new_pos;
+            new_pos
         }
     }
 
@@ -96,6 +118,7 @@ impl Camera {
             activated: false,
             boundary: None,
             tether_size: None,
+            smoothing_strength: 0.0,
         }
     }
 
@@ -105,5 +128,13 @@ impl Camera {
 
     pub fn set_tether_size(&mut self, size: Option<Size>) {
         self.tether_size = size;
+    }
+
+    pub fn set_smoothing_strength(&mut self, smoothing_strength: f32) {
+        self.smoothing_strength = smoothing_strength.max(0.0);
+    }
+
+    pub fn smoothing_strength(&self) -> f32 {
+        self.smoothing_strength
     }
 }

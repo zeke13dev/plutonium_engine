@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         height: 600,
     };
     let mut sprite = None;
-    run_app(config, move |engine, _| {
+    run_app(config, move |engine, _, _app| {
         if sprite.is_none() {
             sprite = Some(engine.create_texture_2d(
                 "examples/media/square.svg",

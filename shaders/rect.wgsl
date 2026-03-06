@@ -77,7 +77,8 @@ fn fs_main(
     var out_color: vec4<f32> = color;
     if (border_thickness_px > 0.0) {
         let inner_r = max(r - border_thickness_px, 0.0);
-        let q_in = abs(p_px) - (half_size_px - vec2<f32>(inner_r, inner_r));
+        let inner_half_size = half_size_px - vec2<f32>(border_thickness_px, border_thickness_px);
+        let q_in = abs(p_px) - (inner_half_size - vec2<f32>(inner_r, inner_r));
         let outside_in = max(q_in, vec2<f32>(0.0, 0.0));
         let dist_inner = length(outside_in) - inner_r;
 

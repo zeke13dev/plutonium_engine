@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut player_pos = Position::default();
     let mut player = None;
 
-    run_app(config, move |engine, frame| {
+    run_app(config, move |engine, frame, _app| {
         // Create game objects on first frame
         if player.is_none() {
             player = Some(engine.create_texture_2d(

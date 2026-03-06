@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut atlas: Option<TextureAtlas2D> = None;
     let scale_factor = 0.5;
 
-    run_app(config, move |engine, _frame| {
+    run_app(config, move |engine, _frame, _app| {
         // Initialize atlas on first frame
         if atlas.is_none() {
             atlas = Some(engine.create_texture_atlas_2d(

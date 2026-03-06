@@ -431,19 +431,19 @@ impl TextureAtlas {
     fn initialize_buffers(device: &wgpu::Device) -> (Vec<Vertex>, wgpu::Buffer, wgpu::Buffer) {
         let vertices = vec![
             Vertex {
-                position: [-0.5, 0.5],
+                position: [0.0, 0.0],
                 tex_coords: [0.0, 0.0],
             },
             Vertex {
-                position: [0.5, 0.5],
+                position: [1.0, 0.0],
                 tex_coords: [1.0, 0.0],
             },
             Vertex {
-                position: [-0.5, -0.5],
+                position: [0.0, -1.0],
                 tex_coords: [0.0, 1.0],
             },
             Vertex {
-                position: [0.5, -0.5],
+                position: [1.0, -1.0],
                 tex_coords: [1.0, 1.0],
             },
         ];
@@ -540,26 +540,21 @@ impl TextureAtlas {
         viewport_size: Size,
         camera_position: Position,
     ) {
-        let viewport_width = viewport_size.width;
-        let viewport_height = viewport_size.height;
-
         let tile_size = self.tile_size;
+        self.adjust_vertex_texture_coordinates(tile_size, viewport_size);
         self.update_vertex_buffer(device);
 
-        // Calculate NDC scaling factors
-        let width_ndc = tile_size.width / viewport_width;
-        let height_ndc = tile_size.height / viewport_height;
+        let width_ndc_scale = 2.0 * (tile_size.width / viewport_size.width);
+        let height_ndc_scale = 2.0 * (tile_size.height / viewport_size.height);
 
-        // Calculate NDC position
         let ndc_x = (2.0 * (self.dimensions.x - camera_position.x)) / viewport_size.width - 1.0;
         let ndc_y = 1.0 - (2.0 * (self.dimensions.y - camera_position.y)) / viewport_size.height;
 
-        // Construct transformation matrix in column-major order
         let transform = [
-            [1.0, 0.0, 0.0, ndc_x + width_ndc],
-            [0.0, 1.0, 0.0, ndc_y - height_ndc],
+            [width_ndc_scale, 0.0, 0.0, 0.0],
+            [0.0, height_ndc_scale, 0.0, 0.0],
             [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0],
+            [ndc_x, ndc_y, 0.0, 1.0],
         ];
 
         self.transform_uniform.transform = transform;
@@ -658,25 +653,20 @@ impl TextureAtlas {
         let final_x = (pos.x - camera_pos.x) * position_scale;
         let final_y = (pos.y - camera_pos.y) * position_scale;
 
-        // Convert to NDC
-        let ndc_left = 2.0 * (final_x / viewport_size.width) - 1.0;
-        let ndc_top = -2.0 * (final_y / viewport_size.height) + 1.0;
+        // Width and height in NDC scale
+        let tile_w_ndc_scale = 2.0 * (scaled_tile_w / viewport_size.width);
+        let tile_h_ndc_scale = 2.0 * (scaled_tile_h / viewport_size.height);
 
-        // Width and height in NDC
-        let tile_w_ndc = 2.0 * (scaled_tile_w / viewport_size.width);
-        let tile_h_ndc = 2.0 * (scaled_tile_h / viewport_size.height);
+        // Calculate NDC position for the top-left (0,0) of our quad.
+        let ndc_x = 2.0 * (final_x / viewport_size.width) - 1.0;
+        let ndc_y = 1.0 - 2.0 * (final_y / viewport_size.height);
 
         TransformUniform {
             transform: [
-                [tile_w_ndc, 0.0, 0.0, 0.0], // Scale X
-                [0.0, tile_h_ndc, 0.0, 0.0], // Scale Y (no flip)
-                [0.0, 0.0, 1.0, 0.0],        // Z remains untouched
-                [
-                    ndc_left + tile_w_ndc * 0.5, // Translate X (centered)
-                    ndc_top - tile_h_ndc * 0.5,  // Translate Y (centered)
-                    0.0,
-                    1.0,
-                ],
+                [tile_w_ndc_scale, 0.0, 0.0, 0.0],
+                [0.0, tile_h_ndc_scale, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [ndc_x, ndc_y, 0.0, 1.0],
             ],
         }
     }
@@ -754,7 +744,7 @@ impl TextureAtlas {
     }
 
     /// Adjusts the vertex texture coordinates based on the tile size and viewport size.
-    pub fn adjust_vertex_texture_coordinates(&mut self, tile_size: Size, viewport_size: Size) {
+    pub fn adjust_vertex_texture_coordinates(&mut self, _tile_size: Size, _viewport_size: Size) {
         let tex_coords = [
             [0.0, 0.0], // Top-left
             [1.0, 0.0], // Top-right
@@ -762,24 +752,21 @@ impl TextureAtlas {
             [1.0, 1.0], // Bottom-right
         ];
 
-        let width_ndc = tile_size.width / viewport_size.width;
-        let height_ndc = tile_size.height / viewport_size.height;
-
         self.vertices = vec![
             Vertex {
-                position: [-width_ndc, height_ndc],
+                position: [0.0, 0.0],
                 tex_coords: tex_coords[0],
             },
             Vertex {
-                position: [width_ndc, height_ndc],
+                position: [1.0, 0.0],
                 tex_coords: tex_coords[1],
             },
             Vertex {
-                position: [-width_ndc, -height_ndc],
+                position: [0.0, -1.0],
                 tex_coords: tex_coords[2],
             },
             Vertex {
-                position: [width_ndc, -height_ndc],
+                position: [1.0, -1.0],
                 tex_coords: tex_coords[3],
             },
         ];

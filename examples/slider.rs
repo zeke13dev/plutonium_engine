@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut focused: bool = false;
     let mut dragging: bool = false;
 
-    run_app(config, move |engine, frame| {
+    run_app(config, move |engine, frame, _app| {
         // Immediate-mode frame
         engine.begin_frame();
 
