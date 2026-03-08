@@ -80,10 +80,6 @@ fn draw_demo(engine: &mut PlutoniumEngine) {
             .with_alignment(*h_align, *v_align)
             .with_line_height_mul(1.1)
             .with_padding(16.0);
-        // Avoid double alignment: neutralize inner layout alignment and pass computed origin
-        let mut neutral = container.clone();
-        neutral.h_align = HorizontalAlignment::Left;
-        neutral.v_align = VerticalAlignment::Top;
         engine.queue_text(
             &format!("{}\nSample text", label),
             "roboto",
