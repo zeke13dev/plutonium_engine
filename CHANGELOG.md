@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.7.2] - Unreleased
+## [0.8.0] - Unreleased
 
 ### Added
 - **Perimeter Glow API** - New `draw_rect_glow` method for neon-style perimeter effects around rounded rectangles. Uses SDF-based rendering for sharp core lines and exponential soft-glow falloff (both inward and outward).
@@ -18,7 +18,7 @@
 - **Texture: NDC Math & Standardization** - Standardized on a 0.0 to 1.0 unit quad and fixed NDC transformation math for all texture and atlas rendering, improving placement accuracy and fixing double-scaling bugs.
 - **Texture: Sprite Scaling** - `DrawParams::scale` is now correctly applied when using `draw_texture`.
 
-## [1.0.0] - 2026-02-06
+## [0.7.2] - 2026-02-06
 
 ### Major Update: Smooth Camera + Movement Validation
 

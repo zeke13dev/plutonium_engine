@@ -1,4 +1,4 @@
-use crate::utils::{MouseInfo, Position, Rectangle, Size};
+use crate::utils::{MouseInfo, Rectangle, Size};
 use uuid::Uuid;
 use winit::keyboard::{Key, NamedKey};
 
@@ -462,6 +462,7 @@ pub(crate) fn popup_layout_for_active(active: &ActivePopup, window_size: Size) -
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Position;
 
     fn base_config() -> PopupConfig {
         PopupConfig {

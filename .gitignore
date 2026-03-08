@@ -8,3 +8,9 @@ debug_atlas.png
 response.md
 AGENTS.md
 TODO.md
+
+# Release cleanup
+.DS_Store
+**/target/
+debug_*.png
+*.mds
