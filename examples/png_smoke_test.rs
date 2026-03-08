@@ -11,7 +11,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         height: 900,
     };
 
-    let mut parrot_tex = None;
+    #[allow(unused_mut)]
+    let mut parrot_tex: Option<(uuid::Uuid, Rectangle)> = None;
 
     run_app(config, move |engine, _frame, _app| {
         // Load the PNG on the first frame
