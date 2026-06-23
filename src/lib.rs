@@ -20,6 +20,7 @@ pub mod input;
 pub mod layout;
 pub mod popup;
 mod glow;
+mod gpu_timer;
 mod popup_render;
 pub mod renderer;
 pub mod rng;
@@ -499,21 +500,8 @@ pub struct PlutoniumEngine<'a> {
     rect_instance_pool: Vec<RectInstanceBuffer>,
     rect_pool_cursor: usize,
     frame_counter: u64,
-    // GPU timing instrumentation (optional)
-    #[allow(dead_code)]
-    timestamp_query: Option<wgpu::QuerySet>,
-    #[allow(dead_code)]
-    timestamp_buf: Option<wgpu::Buffer>,
-    #[allow(dead_code)]
-    timestamp_staging: Option<wgpu::Buffer>,
-    #[allow(dead_code)]
-    timestamp_period_ns: f32,
-    #[allow(dead_code)]
-    timestamp_count: u32,
-    #[allow(dead_code)]
-    timestamp_frame_index: u32,
-    #[allow(dead_code)]
-    gpu_metrics: FrameTimeMetrics,
+    // GPU timing instrumentation (optional, owned by GpuTimer)
+    gpu_timer: gpu_timer::GpuTimer,
     // Global UI clip rectangle (logical coords)
     current_scissor: Option<Rectangle>,
     // Nested clip stack (logical coords); top-most is applied. Each push intersects with previous.
@@ -1454,14 +1442,11 @@ impl<'a> PlutoniumEngine<'a> {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
-        // GPU timestamp begin
-        let (qset, qbuf, qcount) = (
-            self.timestamp_query.as_ref(),
-            self.timestamp_buf.as_ref(),
-            self.timestamp_count,
-        );
+        // GPU timestamp begin — access fields directly to allow field-level borrow splitting
+        // (calling &self methods on gpu_timer would lock all of self during the render loop)
+        let qcount = self.gpu_timer.count;
         let qindex = if qcount >= 2 {
-            self.timestamp_frame_index % (qcount / 2)
+            self.gpu_timer.frame_index % (qcount / 2)
         } else {
             0
         };
@@ -1489,7 +1474,7 @@ impl<'a> PlutoniumEngine<'a> {
                     },
                 })],
                 depth_stencil_attachment: None,
-                timestamp_writes: qset.map(|qs| wgpu::RenderPassTimestampWrites {
+                timestamp_writes: self.gpu_timer.query.as_ref().map(|qs| wgpu::RenderPassTimestampWrites {
                     query_set: qs,
                     beginning_of_pass_write_index: Some(q0),
                     end_of_pass_write_index: Some(q1),
@@ -2042,53 +2027,11 @@ impl<'a> PlutoniumEngine<'a> {
             self.rect_draw_calls_count = rect_draw_calls;
         }
         // End timestamp + resolve
-        if let (Some(qs), Some(buf)) = (qset, qbuf) {
-            let base = (((q0 as u64) * 8) / wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT)
-                * wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT;
-            encoder.resolve_query_set(qs, q0..(q1 + 1), buf, base);
-        }
+        self.gpu_timer.resolve(&mut encoder, q0, q1);
         self.queue.submit(Some(encoder.finish()));
         frame.present();
         // Read back timestamps (synchronously for simplicity)
-        if let (Some(src), Some(dst)) = (&self.timestamp_buf, &self.timestamp_staging) {
-            // Copy resolved results into MAP_READ staging
-            let mut enc = self
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("copy ts"),
-                });
-            let base = (((q0 as u64) * 8) / wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT)
-                * wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT;
-            enc.copy_buffer_to_buffer(src, base, dst, base, wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT);
-            self.queue.submit(Some(enc.finish()));
-            let start = base;
-            let end = start + 16;
-            let slice = dst.slice(start..end);
-            let (tx, rx) = std::sync::mpsc::channel();
-            slice.map_async(wgpu::MapMode::Read, move |res| {
-                let _ = tx.send(res.is_ok());
-            });
-            // Block until mapping completes
-            self.device.poll(wgpu::Maintain::Wait);
-            if rx.recv().unwrap_or(false) {
-                let data = slice.get_mapped_range();
-                if data.len() >= 16 {
-                    let t0 = u64::from_le_bytes(data[0..8].try_into().unwrap());
-                    let t1 = u64::from_le_bytes(data[8..16].try_into().unwrap());
-                    if t1 > t0 {
-                        let dt_ns = (t1 - t0) as f64 * (self.timestamp_period_ns as f64);
-                        let dt_s = (dt_ns / 1_000_000_000.0) as f32;
-                        self.gpu_metrics.record(dt_s);
-                        if let Some(line) = self.gpu_metrics.maybe_report() {
-                            println!("gpu_{}", line);
-                        }
-                    }
-                }
-                drop(data);
-                dst.unmap();
-            }
-        }
-        self.timestamp_frame_index = self.timestamp_frame_index.wrapping_add(1);
+        self.gpu_timer.readback_and_report(&self.device, &self.queue, q0);
         Ok(())
     }
 
@@ -3535,35 +3478,8 @@ impl<'a> PlutoniumEngine<'a> {
         let pending_raster_url_loads = HashMap::new();
         let transform_pool = TransformPool::new();
 
-        // Optional GPU timestamp query setup
-        let mut timestamp_query: Option<wgpu::QuerySet> = None;
-        let mut timestamp_buf: Option<wgpu::Buffer> = None;
-        let mut timestamp_count: u32 = 0;
-        let timestamp_period_ns: f32 = queue.get_timestamp_period();
-        let mut timestamp_staging_buf: Option<wgpu::Buffer> = None;
-        if device.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
-            // 2 queries per frame across a small ring buffer
-            timestamp_count = 128;
-            timestamp_query = Some(device.create_query_set(&wgpu::QuerySetDescriptor {
-                label: Some("gpu-timestamps"),
-                ty: wgpu::QueryType::Timestamp,
-                count: timestamp_count,
-            }));
-            timestamp_buf = Some(device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("gpu-timestamps-buffer"),
-                size: (timestamp_count as u64) * 8,
-                usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC,
-                mapped_at_creation: false,
-            }));
-            // Staging buffer for CPU readback
-            let staging = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("gpu-timestamps-staging"),
-                size: (timestamp_count as u64) * 8,
-                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-                mapped_at_creation: false,
-            });
-            timestamp_staging_buf = Some(staging);
-        }
+        // Optional GPU timestamp query setup (construction delegated to GpuTimer)
+        let gpu_timer = gpu_timer::GpuTimer::new(&device, &queue);
 
         #[cfg(target_arch = "wasm32")]
         web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(
@@ -3607,13 +3523,7 @@ impl<'a> PlutoniumEngine<'a> {
             rect_pool_cursor: 0,
             frame_counter: 0,
             instance_bind_group_layout,
-            timestamp_query,
-            timestamp_buf,
-            timestamp_staging: timestamp_staging_buf,
-            timestamp_period_ns,
-            timestamp_count,
-            timestamp_frame_index: 0,
-            gpu_metrics: FrameTimeMetrics::new(600, 5.0),
+            gpu_timer,
             current_scissor: None,
             clip_stack: Vec::new(),
             rect_style_keys: HashSet::new(),

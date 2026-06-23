@@ -46,7 +46,7 @@ Status legend: `[ ]` pending · `[~]` in_progress · `[x]` done.
 - **VERIFY:** `cargo build --all-features && cargo test --all && cargo run --bin snapshots`
 - **Complexity:** medium
 
-### [ ] T006 — Extract `GpuTimer` into `src/gpu_timer.rs` (behavior-preserving)
+### [x] T006 — Extract `GpuTimer` into `src/gpu_timer.rs` (behavior-preserving)
 - Create `pub(crate) struct GpuTimer` owning `timestamp_query/buf/staging/period_ns/count/frame_index` + `gpu_metrics`. Methods take `&Device`/`&mut Encoder`/`&Queue` as params (never `self`) to avoid split-borrow walls. `render()` calls `self.gpu_timer.begin(...)`/`resolve_and_record(...)`/`maybe_report()`. EXACT behavior: identical timestamp-feature gating (adapter-feature-conditional query creation), identical buffer map/unmap lifecycle, identical drop/encoder ordering, NO new per-frame allocation, identical `gpu_metrics` output. Does NOT fix the P4 `poll(Wait)` stall (separate task).
 - **Files:** new `src/gpu_timer.rs`; `src/lib.rs` (remove 7 fields, add `gpu_timer`, update `new`/`render`).
 - **Depends on:** T001.
