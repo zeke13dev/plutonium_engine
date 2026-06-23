@@ -14,7 +14,7 @@ Status legend: `[ ]` pending · `[~]` in_progress · `[x]` done.
 - **VERIFY:** `bash scripts/check-api.sh && cargo test --test api_autotraits`
 - **Complexity:** medium
 
-### [ ] T002 — Extract `src/font_raster.rs` (whole raster-font cluster)
+### [x] T002 — Extract `src/font_raster.rs` (whole raster-font cluster)
 - Move the ENTIRE cohesive raster-font cluster — public methods (`load_raster_font*`, warm-cache API) AND every shared associated helper they call (`sanitize_*`, `quantize_*`, `glyphs_from_set`, `choose_loaded_raster_entry`, `build_tiny_raster_fallback_from_font_data`, atlas-build helpers, ~lib.rs:1066-1630) — into an `impl<'a> PlutoniumEngine<'a>` block in `src/font_raster.rs`. Move private helper structs `RasterFontFamily`, `PendingRasterWarmRequest`, `RasterAtlasBuild`, `RasterSizeEntry`, `PendingRasterTextureUrlLoad` there (→ `pub(crate)`; engine fields reference them). Any helper still called from lib.rs/other modules → `pub(crate)`. Move the cluster TOGETHER so no public method is orphaned from a now-private helper.
 - **Files:** new `src/font_raster.rs`; `src/lib.rs`.
 - **Depends on:** T001.
