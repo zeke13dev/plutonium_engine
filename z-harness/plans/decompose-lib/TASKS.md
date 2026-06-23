@@ -54,7 +54,7 @@ Status legend: `[ ]` pending · `[~]` in_progress · `[x]` done.
 - **VERIFY:** `cargo test --all && cargo run --bin snapshots`
 - **Complexity:** high
 
-### [ ] T007 — Extract core render/draw into `src/render.rs` + `src/draw.rs`
+### [x] T007 — Extract core render/draw into `src/render.rs` + `src/draw.rs`
 - Move `render()` into `src/render.rs` — its function-local `flush_batch` closure and the three function-local `macro_rules!` (`flush_rect_batch!`/`flush_glow_batch!`/`flush_atlas_batch!`) travel inside the function body (no separate macro module). Move batch helpers `TransformPool`/`RectInstanceBuffer`/`RectStyleKey` + free fns `to_rgba_u8`/`quant_10x` (→ `pub(crate)` as needed). Move `draw_*`/`queue_*` immediate-mode methods into `src/draw.rs`. Keep any `impl Trait for PlutoniumEngine` (Drop/Debug) in lib.rs or render.rs — do not scatter. LAST extraction (widest internal deps).
 - **Files:** new `src/render.rs`, `src/draw.rs`; `src/lib.rs`.
 - **Depends on:** T002, T003, T004, T005, T006.
