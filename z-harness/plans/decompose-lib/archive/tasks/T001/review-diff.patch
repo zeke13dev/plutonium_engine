@@ -1,0 +1,196 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 7b38849..09049db 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -24,3 +24,21 @@ jobs:
+         run: cargo build --bin snapshots
+       - name: run snapshots
+         run: cargo run --bin snapshots
++  api-surface:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++      - uses: dtolnay/rust-toolchain@stable
++        with:
++          targets: wasm32-unknown-unknown
++      - uses: dtolnay/rust-toolchain@nightly
++        with:
++          targets: wasm32-unknown-unknown
++      - name: Cache cargo
++        uses: Swatinem/rust-cache@v2
++      - name: Install cargo-public-api
++        run: cargo install cargo-public-api --locked
++      - name: auto-trait guard test
++        run: cargo test --test api_autotraits
++      - name: check public API (host + wasm32)
++        run: bash scripts/check-api.sh
+diff --git a/scripts/check-api.sh b/scripts/check-api.sh
+new file mode 100755
+index 0000000..c5a0bd8
+--- /dev/null
++++ b/scripts/check-api.sh
+@@ -0,0 +1,74 @@
++#!/usr/bin/env bash
++# check-api.sh — regenerate public-API snapshots and diff against the committed baselines.
++# Exits non-zero if the public surface has changed for either host or wasm32 targets.
++#
++# Requirements:
++#   cargo-public-api >= 0.52 (cargo install cargo-public-api)
++#   nightly toolchain installed (rustup toolchain install nightly)
++#   wasm32-unknown-unknown target for nightly (rustup target add wasm32-unknown-unknown --toolchain nightly)
++#
++# cargo-public-api requires rustdoc's unstable JSON output, which is only available on the nightly
++# compiler. We invoke it by pointing RUSTDOC/RUSTC at the nightly toolchain binaries while keeping
++# the regular (stable) cargo as the driver. The "+toolchain" cargo proxy form is NOT used because
++# this repo's CI may have cargo installed outside rustup (e.g. MacPorts).
++#
++# If nightly is unavailable this script exits 1 with a clear error message.
++
++set -euo pipefail
++
++REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
++
++BASELINE_HOST="${REPO_ROOT}/api-baseline-host.txt"
++BASELINE_WASM="${REPO_ROOT}/api-baseline-wasm.txt"
++
++CARGO_PUBLIC_API="${CARGO_PUBLIC_API:-cargo-public-api}"
++
++# Locate the nightly toolchain binaries.  On systems where rustup is the cargo driver the
++# +toolchain syntax works; on systems where cargo is installed separately (e.g. MacPorts) we fall
++# back to the explicit toolchain binary path.
++if rustup toolchain list 2>/dev/null | grep -q 'nightly'; then
++    NIGHTLY_HOME="$(rustup toolchain list --verbose 2>/dev/null \
++        | awk '/^nightly/{print $2; exit}' || true)"
++    if [[ -z "${NIGHTLY_HOME}" ]]; then
++        # Older rustup: derive path from well-known convention
++        NIGHTLY_HOME="$(rustup show home)"/toolchains/"$(rustup toolchain list | awk '/^nightly/{print $1; exit}')"
++    fi
++    NIGHTLY_RUSTDOC="${NIGHTLY_HOME}/bin/rustdoc"
++    NIGHTLY_RUSTC="${NIGHTLY_HOME}/bin/rustc"
++else
++    echo "error: nightly toolchain not found." >&2
++    echo "Install with: rustup toolchain install nightly" >&2
++    echo "Then: rustup target add wasm32-unknown-unknown --toolchain nightly" >&2
++    exit 1
++fi
++
++if [[ ! -x "${NIGHTLY_RUSTDOC}" ]]; then
++    echo "error: nightly rustdoc not found at ${NIGHTLY_RUSTDOC}" >&2
++    exit 1
++fi
++
++export RUSTDOC="${NIGHTLY_RUSTDOC}"
++export RUSTC="${NIGHTLY_RUSTC}"
++
++cd "${REPO_ROOT}"
++
++fail=0
++
++echo "=== Checking host public API ==="
++if ! diff <("${CARGO_PUBLIC_API}" --simplified --all-features 2>/dev/null) "${BASELINE_HOST}"; then
++    echo "FAIL: host public API has changed from baseline (${BASELINE_HOST})" >&2
++    fail=1
++else
++    echo "OK: host public API matches baseline."
++fi
++
++echo ""
++echo "=== Checking wasm32 public API ==="
++if ! diff <("${CARGO_PUBLIC_API}" --simplified --target wasm32-unknown-unknown --features wasm 2>/dev/null) "${BASELINE_WASM}"; then
++    echo "FAIL: wasm32 public API has changed from baseline (${BASELINE_WASM})" >&2
++    fail=1
++else
++    echo "OK: wasm32 public API matches baseline."
++fi
++
++exit "${fail}"
+diff --git a/tests/api_autotraits.rs b/tests/api_autotraits.rs
+new file mode 100644
+index 0000000..175a694
+--- /dev/null
++++ b/tests/api_autotraits.rs
+@@ -0,0 +1,84 @@
++// api_autotraits.rs — static auto-trait guard for the plutonium_engine public surface.
++//
++// PURPOSE: This file will FAIL TO COMPILE if a future refactor accidentally removes Send+Sync
++// from a public type that currently implements both traits. The assertions are compile-time only;
++// there is nothing to run at test time.
++//
++// NEGATIVE BOUNDS (PlutoniumEngine, PlutoniumApp, …):
++// Rust does not support a direct compile-time assertion that a type is *not* Send/Sync.
++// These types are !Send/!Sync because they hold `Rc<RefCell<…>>` and non-Send wgpu handles.
++// That invariant is documented here; if a future refactor tries to make them Send by replacing
++// Rc with Arc, the reviewer must consciously remove the doc comment and re-evaluate the policy.
++//
++// POSITIVE BOUNDS:
++// Plain-data (POD) public types that are currently Send+Sync are asserted below.  If any of
++// these types gains a non-Send field (e.g. a raw pointer or Rc), the assertion function below
++// will fail at compile time with a "T: Send" unsatisfied bound error.
++
++use plutonium_engine::{
++    DrawParams, FontLoadOptions, GlyphSet, HaloFalloff, HaloMode, HaloPreset, HaloStyle,
++    PrewarmConfig, PrewarmPolicy, RasterHintingMode, TextureFit, WarmStats,
++};
++
++use plutonium_engine::app::{FrameContext, WindowConfig};
++
++use plutonium_engine::popup::{PopupAction, PopupActionStyle, PopupConfig, PopupDismissReason, PopupEvent, PopupSize};
++
++/// Compile-time assertion: T must implement both Send and Sync.
++///
++/// If a type listed below loses Send or Sync, this function will fail to compile for that type.
++fn assert_send_sync<T: Send + Sync>() {}
++
++#[test]
++fn public_pod_types_are_send_and_sync() {
++    // Primitive params / config bags — all Copy or Clone POD, must remain Send+Sync.
++    assert_send_sync::<DrawParams>();
++    assert_send_sync::<TextureFit>();
++    assert_send_sync::<WarmStats>();
++    assert_send_sync::<FontLoadOptions>();
++    assert_send_sync::<RasterHintingMode>();
++    assert_send_sync::<GlyphSet>();
++    assert_send_sync::<PrewarmPolicy>();
++    assert_send_sync::<PrewarmConfig>();
++
++    // Halo / highlight types — Copy structs / enums defined in lib.rs.
++    assert_send_sync::<HaloFalloff>();
++    assert_send_sync::<HaloMode>();
++    assert_send_sync::<HaloPreset>();
++    assert_send_sync::<HaloStyle>();
++
++    // App config — simple fields (String, u32); must remain thread-safe.
++    assert_send_sync::<WindowConfig>();
++
++    // Frame context — only POD fields; must remain Send+Sync.
++    assert_send_sync::<FrameContext>();
++
++    // Popup config and related plain types.
++    assert_send_sync::<PopupConfig>();
++    assert_send_sync::<PopupSize>();
++    assert_send_sync::<PopupAction>();
++    assert_send_sync::<PopupActionStyle>();
++    assert_send_sync::<PopupDismissReason>();
++    assert_send_sync::<PopupEvent>();
++}
++
++// --------------------------------------------------------------------------
++// INTENTIONALLY !Send / !Sync types — documented here, NOT asserted.
++//
++// The following public types are INTENTIONALLY not Send or Sync because they
++// contain `Rc<RefCell<…>>` internals (pluto_objects) or non-Send wgpu resources
++// (PlutoniumEngine, PlutoniumApp). Do NOT add them to `assert_send_sync` above:
++//
++//   plutonium_engine::PlutoniumEngine<'_>       — holds Rc + wgpu::Device (non-Send)
++//   plutonium_engine::app::PlutoniumApp         — owns PlutoniumEngine + Rc callback
++//   plutonium_engine::pluto_objects::*::Shape   — wraps Rc<RefCell<ShapeInternal>>
++//   plutonium_engine::pluto_objects::*::Text2D  — wraps Rc<RefCell<…>>
++//   plutonium_engine::pluto_objects::*::Texture2D / TextureAtlas2D
++//   plutonium_engine::pluto_objects::button::Button / ButtonInternal
++//   plutonium_engine::pluto_objects::text_input::TextInput / TextInputInternal
++//   plutonium_engine::anim::Timeline<T>         — contains Rc<…> callbacks
++//   plutonium_engine::text::FontAtlas / TextRenderer / TinyRasterFallbackSpec
++//
++// If a future refactor converts these from Rc to Arc to enable Send, that change
++// should be an explicit design decision, not an accidental side-effect.
++// --------------------------------------------------------------------------

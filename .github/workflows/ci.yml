@@ -24,3 +24,21 @@ jobs:
         run: cargo build --bin snapshots
       - name: run snapshots
         run: cargo run --bin snapshots
+  api-surface:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Install cargo-public-api
+        run: cargo install cargo-public-api --locked
+      - name: auto-trait guard test
+        run: cargo test --test api_autotraits
+      - name: check public API (host + wasm32)
+        run: bash scripts/check-api.sh

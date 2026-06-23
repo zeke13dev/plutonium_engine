@@ -6,7 +6,7 @@ Status legend: `[ ]` pending · `[~]` in_progress · `[x]` done.
 
 **Standing visibility rule:** any method/helper moved into a child module that is still called from lib.rs or a sibling module MUST be `pub(crate)` (a bare private `fn` in `src/foo.rs` is unreachable from siblings). Public TYPE definitions never move (stay in lib.rs). Public inherent methods may move (their `PlutoniumEngine::method` path is file-independent). `#[cfg]`/`#[inline]`/`#[must_use]`/doc-comments move verbatim with each item.
 
-### [ ] T001 — Stand up the zero-API-change verification harness
+### [x] T001 — Stand up the zero-API-change verification harness
 - Install/pin `cargo-public-api`; `rustup target add wasm32-unknown-unknown`; capture baseline public-surface snapshots BEFORE any code moves (host + wasm32); add a `scripts/check-api.sh` that regenerates + diffs both targets; add a static auto-trait guard test pinning the engine + public wrapper types' CURRENT `Send`/`Sync` status; add a CI job that runs `check-api.sh`.
 - **Files:** new `api-baseline-host.txt`, `api-baseline-wasm.txt`, `scripts/check-api.sh`, `tests/api_autotraits.rs`; `.github/workflows/ci.yml`; `CONTRIBUTING.md` (if present).
 - **Depends on:** none.
