@@ -62,7 +62,7 @@ Status legend: `[ ]` pending · `[~]` in_progress · `[x]` done.
 - **VERIFY:** `cargo build --all-features && cargo test --all && cargo run --bin snapshots`
 - **Complexity:** high
 
-### [ ] T008 — Final cleanup + full gate (host + wasm)
+### [x] T008 — Final cleanup + full gate (host + wasm)
 - Relocate any remaining stray private helper to its owning module; trim lib.rs to struct + fields + `new`/`new_async` + public type defs + `mod`/`pub use` decls; confirm `wc -l src/lib.rs` < ~1500; run the complete gate on host AND wasm32.
 - **Files:** `src/lib.rs` + any module needing a stray item.
 - **Depends on:** T007.

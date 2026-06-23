@@ -105,7 +105,7 @@ impl<'a> PlutoniumEngine<'a> {
 
     /// Load an MSDF font from in-memory PNG bytes and a JSON metadata string.
     ///
-    /// This is the portable equivalent of [`load_msdf_font`] for embedded or downloaded assets.
+    /// This is the portable equivalent of `load_msdf_font` for embedded or downloaded assets.
     /// Works on both native and WASM targets. Use `include_bytes!` / `include_str!` to embed
     /// pre-baked MSDF assets, avoiding runtime rasterization (critical for WASM performance).
     pub fn load_msdf_font_from_png_bytes(

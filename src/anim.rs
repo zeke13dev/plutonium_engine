@@ -4,7 +4,7 @@ pub enum Ease {
     EaseIn,
     EaseOut,
     EaseInOut,
-    /// CSS-like cubic-bezier; maps input progress t in [0,1] to output y by solving x(t)=progress.
+    /// CSS-like cubic-bezier; maps input progress t in \[0,1\] to output y by solving x(t)=progress.
     CubicBezier {
         x1: f32,
         y1: f32,
