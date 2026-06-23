@@ -30,7 +30,7 @@ Status legend: `[ ]` pending · `[~]` in_progress · `[x]` done.
 - **VERIFY:** `cargo build --all-features && cargo test --all && cargo run --bin snapshots`
 - **Complexity:** medium
 
-### [ ] T004 — Extract `src/popup_render.rs`
+### [x] T004 — Extract `src/popup_render.rs`
 - Move `render_popup_overlay` + popup-render methods (~3560-3748) into `src/popup_render.rs`; cross-called ones → `pub(crate)`. `PopupRuntimeState`/public popup types stay in popup.rs/lib.rs. Preserve cfg/attributes/docs.
 - **Files:** new `src/popup_render.rs`; `src/lib.rs`.
 - **Depends on:** T001.
