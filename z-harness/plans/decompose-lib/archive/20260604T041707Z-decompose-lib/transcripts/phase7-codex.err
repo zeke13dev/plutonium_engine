@@ -1,0 +1,3365 @@
+OpenAI Codex v0.133.0
+--------
+workdir: /Users/zeke/dev/plutonium_engine/.claude/worktrees/eager-tharp-b3022f
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 019e90e2-8020-7d01-86c5-f4a1ed3a3278
+--------
+user
+Critique this finalized refactor plan for decomposing a 5531-line Rust lib.rs (wgpu 2D engine) into modules with ZERO public-API change. The decisions/risks were already vetted (impl-block split is safe: child modules CAN access crate-root struct private fields, compile-verified; macros move first; render/draw last; GpuTimer behavior-preserving; cargo-public-api gate on host+wasm; public type defs stay in lib.rs). Below are the FINAL SPEC + TASKS. Tell me ONLY: any task that is mis-ordered, any acceptance criterion that is not actually verifiable, any extraction that will NOT compile as ordered, or any gap. Terse. If sound, say 'No blockers/majors'.
+===== SPEC =====
+# SPEC — decompose-lib
+
+## Overview
+
+Split `src/lib.rs` (5531 lines: ~30 type defs + one `impl<'a> PlutoniumEngine<'a>` with 133 methods) into topic modules. **Hard invariant: zero public-API change.** Mechanism: move PRIVATE method clusters into `impl<'a> PlutoniumEngine<'a>` blocks in child modules (child modules can read the crate-root struct's private fields — verified). The `PlutoniumEngine` struct, all its fields, and every PUBLIC type definition stay in `lib.rs`. Only private items relocate.
+
+## Planning Inputs
+
+| Artifact | Path | generated_at |
+|----------|------|--------------|
+| (none) | — | none — fresh /z-plan run (seeded by prod-readiness-audit REPORT.md, not a precontext artifact) |
+
+## Invariants (apply to every task)
+
+1. **Public surface unchanged.** `cargo-public-api` diff vs the T001 baseline is EMPTY, on BOTH `host` and `wasm32-unknown-unknown`. Public type DEFINITIONS never move (no re-export canonical-path drift).
+2. **Behavior unchanged.** `cargo test --all` green; `cargo run --bin snapshots` produces byte-identical goldens (no `UPDATE_SNAPSHOTS=1` unless a change is explicitly intended — only T007 may, and only if proven equivalent).
+3. **cfg/feature gates preserved verbatim.** Every moved method keeps its `#[cfg(...)]` / `#[cfg(feature=...)]` attributes; wasm/native branches do not drift.
+4. **Attributes preserved.** `#[inline]`, `#[must_use]`, `#[track_caller]`, doc-comments move with their method (cargo-public-api can false-pass on these — manual check per task).
+5. **Docs clean.** `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features` builds (catches broken intra-doc links from moved methods).
+6. **No new allocation in hot paths.** Especially T007 (GpuTimer) and T008 (render/draw).
+
+## Modules to create (private items only)
+
+| File | Contents (private methods + private helpers moved from lib.rs) |
+|------|----------------------------------------------------------------|
+| `src/render_macros.rs` | `flush_batch!`, `flush_atlas_batch!`, `flush_rect_batch!`, `flush_glow_batch!` as `macro_rules!` + `pub(crate) use`. |
+| `src/font_raster.rs` | raster-font load/atlas/warm-queue methods (~lib.rs:1066-1630 cluster) + helper structs `RasterFontFamily`, `PendingRasterWarmRequest`, `RasterAtlasBuild`, `RasterSizeEntry`, `PendingRasterTextureUrlLoad` (→ `pub(crate)`). |
+| `src/font_msdf.rs` | MSDF font methods (`load_msdf_font`, MSDF atlas build). |
+| `src/popup_render.rs` | `render_popup_overlay` + popup-render private methods (~3560-3748). |
+| `src/glow.rs` | private halo/glow methods (`draw_halo_world_rect`, etc., ~3998-4163). Public `HaloStyle/HaloMode/HaloPreset/HaloFalloff/HaloPreset` definitions STAY in lib.rs. |
+| `src/gpu_timer.rs` | `GpuTimer` struct owning `timestamp_query/buf/staging/period_ns/count/frame_index` + `gpu_metrics`; methods `new`, `begin(&Device,&mut Encoder)`, `resolve_and_record(...)`, `maybe_report()`. Behavior-identical to inline code at ~3440-3501. |
+| `src/render.rs` | core `render()` + batch helpers `TransformPool`, `RectInstanceBuffer`, `RectStyleKey`, free fns `to_rgba_u8`/`quant_10x`. |
+| `src/draw.rs` | `draw_*` / `queue_*` immediate-mode methods. |
+
+`src/lib.rs` after the pass: `PlutoniumEngine` struct + fields, `new`/`new_async`, all PUBLIC type defs, `mod` declarations + `pub use` (only where a public type was ALREADY re-exported), top-level small impls. Target < ~1500 lines.
+
+## Verification harness (T001)
+
+- `cargo install cargo-public-api` (document in CONTRIBUTING / CI).
+- Baseline: `cargo public-api --simplified > $PLAN_DIR/api-baseline-host.txt` and the wasm32 equivalent.
+- Per task: regenerate and `diff` against baseline; non-empty diff = task fails.
+- Static auto-trait guard in a test: assert the engine and public wrapper types retain their current `Send`/`Sync` status (engine is `!Send` via `Rc`; a compile-fail test or `static_assertions`-style check pins it).
+- CI job added (pairs with audit RE2/T017).
+
+## Edge cases / risks (from consult)
+
+- **Macros:** render/draw methods use the flush macros → macros must move FIRST (T002) with `pub(crate) use`, else textual scope breaks.
+- **Extension-trait `use`:** each module re-imports the exact wgpu/bytemuck/font `use` set its moved methods need; a dropped extension-trait import silently changes method resolution → caught by `cargo build`.
+- **GpuTimer borrow:** pass `&Device`/`&mut Encoder` as params, never `&PlutoniumApp`/`self`, to avoid split-borrow walls.
+- **Trait impls** (`impl Drop/Debug for PlutoniumEngine`): keep in lib.rs or render.rs — do not scatter.
+===== TASKS =====
+# TASKS — decompose-lib
+
+Status legend: `[ ]` pending · `[~]` in_progress · `[x]` done.
+
+Every task's acceptance includes the standing invariant gate (SPEC "Invariants"): empty `cargo-public-api` diff vs the T001 baseline on host **and** wasm32, `cargo test --all` green, byte-identical snapshots, `cargo doc -D warnings` clean. Listed acceptance lines below are IN ADDITION to that gate.
+
+### [ ] T001 — Stand up the zero-API-change verification harness
+- Install/pin `cargo-public-api`; capture baseline public-surface snapshots BEFORE any code moves, for host and `wasm32-unknown-unknown`; add a static auto-trait guard test pinning the engine + public wrapper types' current `Send`/`Sync` status; add a CI job that fails on a non-empty diff.
+- **Files:** new `z-harness/plans/decompose-lib/api-baseline-host.txt`, `api-baseline-wasm.txt`; new `tests/api_autotraits.rs`; `.github/workflows/ci.yml`; `CONTRIBUTING.md` (note the tool) if present.
+- **Depends on:** none.
+- **Acceptance:** baseline snapshots committed; `cargo public-api` runs clean on host + wasm; auto-trait test compiles and encodes the CURRENT (pre-refactor) trait status; CI job present and green on the untouched tree.
+- **VERIFY:** `cargo public-api --simplified && cargo test --test api_autotraits`
+- **Complexity:** medium
+
+### [ ] T002 — Relocate the flush macros to `src/render_macros.rs`
+- Move `flush_batch!`, `flush_atlas_batch!`, `flush_rect_batch!`, `flush_glow_batch!` out of lib.rs into `src/render_macros.rs` as `macro_rules!` + `pub(crate) use <name>;`; add `mod render_macros;` and `use crate::render_macros::*;` (or per-macro) so existing call sites in lib.rs still resolve. No method moves yet.
+- **Files:** new `src/render_macros.rs`; `src/lib.rs`.
+- **Depends on:** T001.
+- **Acceptance:** macros defined once in the new module and imported; lib.rs render path compiles using them unchanged; zero behavior/API change.
+- **VERIFY:** `cargo build --all-features && cargo run --bin snapshots`
+- **Complexity:** medium
+
+### [ ] T003 — Extract `src/font_raster.rs`
+- Move the raster-font cluster (load/atlas/warm-queue methods, ~lib.rs:1066-1630) into an `impl<'a> PlutoniumEngine<'a>` block in `src/font_raster.rs`; move private helpers `RasterFontFamily`, `PendingRasterWarmRequest`, `RasterAtlasBuild`, `RasterSizeEntry`, `PendingRasterTextureUrlLoad` there too, bumping them to `pub(crate)`; re-import their names in lib.rs (struct fields reference them). Preserve all `#[cfg]`/attributes/doc-comments verbatim.
+- **Files:** new `src/font_raster.rs`; `src/lib.rs`.
+- **Depends on:** T001, T002.
+- **Acceptance:** raster-font methods live in the new module; lib.rs no longer defines them; private helper types are `pub(crate)` and referenced by the engine fields; behavior + API unchanged.
+- **VERIFY:** `cargo build --all-features && cargo test --all && cargo run --bin snapshots`
+- **Complexity:** high
+
+### [ ] T004 — Extract `src/font_msdf.rs`
+- Move MSDF font methods (`load_msdf_font`, MSDF atlas build + related private helpers) into `src/font_msdf.rs`. Preserve cfg/attributes/docs.
+- **Files:** new `src/font_msdf.rs`; `src/lib.rs`.
+- **Depends on:** T001, T002 (and T003 if any shared raster helper is referenced — co-sequence with T003).
+- **Acceptance:** MSDF methods relocated; lib.rs free of them; behavior + API unchanged.
+- **VERIFY:** `cargo build --all-features && cargo test --all && cargo run --bin snapshots`
+- **Complexity:** medium
+
+### [ ] T005 — Extract `src/popup_render.rs`
+- Move `render_popup_overlay` + popup-render private methods (~3560-3748) into `src/popup_render.rs`. `PopupRuntimeState` / public popup types stay where they are (popup.rs / lib.rs). Preserve cfg/attributes/docs.
+- **Files:** new `src/popup_render.rs`; `src/lib.rs`.
+- **Depends on:** T001, T002.
+- **Acceptance:** popup-render methods relocated; behavior + API unchanged; popup snapshots/tests green.
+- **VERIFY:** `cargo build --all-features && cargo test --all && cargo run --bin snapshots`
+- **Complexity:** medium
+
+### [ ] T006 — Extract `src/glow.rs`
+- Move PRIVATE halo/glow methods (`draw_halo_world_rect`, etc., ~3998-4163) into `src/glow.rs`. **Keep** the public `HaloStyle/HaloMode/HaloPreset/HaloFalloff` enum/struct definitions + their impls in lib.rs (D5) so `plutonium_engine::HaloStyle` path is unchanged. Preserve cfg/attributes/docs.
+- **Files:** new `src/glow.rs`; `src/lib.rs`.
+- **Depends on:** T001, T002.
+- **Acceptance:** private glow methods relocated; public Halo* types unmoved; halo snapshots/tests green; API diff empty.
+- **VERIFY:** `cargo build --all-features && cargo test --all && cargo run --bin snapshots`
+- **Complexity:** medium
+
+### [ ] T007 — Extract `GpuTimer` into `src/gpu_timer.rs` (behavior-preserving)
+- Create a `pub(crate) struct GpuTimer` owning `timestamp_query/buf/staging/period_ns/count/frame_index` + `gpu_metrics`. Methods take `&Device`/`&mut Encoder`/`&Queue` as params (never `self`). `render()` calls `self.gpu_timer.begin(...)` / `resolve_and_record(...)` / `maybe_report()`. EXACT behavior: same timestamp-feature gating, same buffer map/unmap lifecycle, same drop/encoder ordering, NO new per-frame allocation, identical `gpu_metrics` output. Does NOT fix the P4 `poll(Wait)` stall.
+- **Files:** new `src/gpu_timer.rs`; `src/lib.rs` (remove the 7 fields, add `gpu_timer: GpuTimer`, update `new`/`render`).
+- **Depends on:** T001, T002.
+- **Acceptance:** 7 timestamp fields replaced by one `gpu_timer` field; render snapshots byte-identical; gpu-metrics report output identical for a fixed seed/frame count; no new per-frame `create_buffer*`/alloc introduced (diff-reviewed); API diff empty (these are private fields).
+- **VERIFY:** `cargo test --all && cargo run --bin snapshots`
+- **Complexity:** high
+
+### [ ] T008 — Extract core render/draw into `src/render.rs` + `src/draw.rs`
+- Move `render()` + batch helpers (`TransformPool`, `RectInstanceBuffer`, `RectStyleKey`, free fns `to_rgba_u8`/`quant_10x`) into `src/render.rs`; move `draw_*`/`queue_*` immediate-mode methods into `src/draw.rs`. Keep any `impl Trait for PlutoniumEngine` (Drop/Debug) in lib.rs or render.rs (do not scatter). This task is LAST among extractions — it depends on macros (T002) and the leaf modules already being out so the moved code references stable internals.
+- **Files:** new `src/render.rs`, `src/draw.rs`; `src/lib.rs`.
+- **Depends on:** T002, T003, T004, T005, T006, T007.
+- **Acceptance:** render + draw/queue methods relocated; flush macros imported from `render_macros`; all snapshots byte-identical; API diff empty.
+- **VERIFY:** `cargo build --all-features && cargo test --all && cargo run --bin snapshots`
+- **Complexity:** high
+
+### [ ] T009 — Final cleanup + full gate
+- Relocate any remaining stray private helper structs/free-fns to their owning module; trim lib.rs to the engine struct + fields + `new`/`new_async` + public type defs + `mod`/`pub use` declarations; confirm lib.rs < ~1500 lines; run the complete gate on host AND wasm32.
+- **Files:** `src/lib.rs` + any module needing a stray item.
+- **Depends on:** T008.
+- **Acceptance:** `wc -l src/lib.rs` < ~1500; `cargo public-api` diff EMPTY on host + wasm32; `cargo test --all` green; `cargo run --bin snapshots` byte-identical; `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features` clean; auto-trait guard test still passes (engine still `!Send`).
+- **VERIFY:** `cargo public-api --simplified && cargo test --all && cargo run --bin snapshots && RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features`
+- **Complexity:** medium
+
+---
+**Ordering summary:** T001 → T002 → (T003, T004, T005, T006, T007 in any order, each independently gated) → T008 → T009. 9 tasks, within the 10-20 target.
+
+codex
+I’ll sanity-check the plan against the current tree rather than only reviewing it abstractly, focusing on the named symbols and dependency order.
+exec
+/bin/zsh -lc 'rg --files' in /Users/zeke/dev/plutonium_engine/.claude/worktrees/eager-tharp-b3022f
+exec
+/bin/zsh -lc 'rg -n "macro_rules!|struct RasterFontFamily|PendingRasterWarmRequest|RasterAtlasBuild|RasterSizeEntry|PendingRasterTextureUrlLoad|fn load_msdf_font|render_popup_overlay|draw_halo_world_rect|GpuTimer|timestamp_query|gpu_metrics|struct TransformPool|struct RectInstanceBuffer|struct RectStyleKey|fn to_rgba_u8|fn quant_10x|impl<'"'a> PlutoniumEngine|pub struct Halo|pub enum Halo|impl Drop|impl Debug\" src/lib.rs" in /Users/zeke/dev/plutonium_engine/.claude/worktrees/eager-tharp-b3022f
+exec
+/bin/zsh -lc 'rg -n "public-api|snapshots|wasm32|api_autotraits|static_assertions|Send|Sync" .github CONTRIBUTING.md Cargo.toml tests src 2>/dev/null' in /Users/zeke/dev/plutonium_engine/.claude/worktrees/eager-tharp-b3022f
+ succeeded in 0ms:
+206:struct PendingRasterTextureUrlLoad {
+212:struct RasterSizeEntry {
+217:struct RasterFontFamily {
+223:    loaded_sizes: HashMap<(u32, u32), RasterSizeEntry>,
+227:struct PendingRasterWarmRequest {
+233:struct RasterAtlasBuild {
+247:pub enum HaloFalloff {
+280:pub enum HaloMode {
+295:pub enum HaloPreset {
+306:pub struct HaloStyle {
+448:struct TransformPool {
+455:struct RectInstanceBuffer {
+464:struct RectStyleKey {
+471:fn to_rgba_u8(c: [f32; 4]) -> [u8; 4] {
+480:fn quant_10x(v: f32) -> u16 {
+530:    pending_raster_warm: VecDeque<PendingRasterWarmRequest>,
+533:    pending_raster_url_loads: HashMap<Uuid, PendingRasterTextureUrlLoad>,
+546:    timestamp_query: Option<wgpu::QuerySet>,
+558:    gpu_metrics: FrameTimeMetrics,
+574:impl<'a> PlutoniumEngine<'a> {
+725:    ) -> Option<(&RasterSizeEntry, bool)> {
+736:        let mut nearest: Option<(&RasterSizeEntry, u32, u32)> = None;
+958:            loaded_sizes.insert((size_q, current_dpi_q), RasterSizeEntry { atlas_key });
+1056:                    .insert((size_q, current_dpi_q), RasterSizeEntry { atlas_key });
+1131:            RasterAtlasBuild {
+1193:                .push_back(PendingRasterWarmRequest {
+1282:                            .insert((req.size_q, req.dpi_q), RasterSizeEntry { atlas_key });
+1308:    ) -> Result<RasterAtlasBuild, FontError> {
+1442:        Ok(RasterAtlasBuild {
+1462:    ) -> Result<RasterAtlasBuild, FontError> {
+1629:    pub fn load_msdf_font(
+1714:    pub fn load_msdf_font_from_png_bytes(
+1766:    pub fn load_msdf_font_from_bytes(
+1822:    pub fn load_msdf_font_with_tiny_raster(
+1885:    pub fn load_msdf_font_from_ttf(
+2867:            self.timestamp_query.as_ref(),
+3004:            macro_rules! flush_rect_batch {
+3122:            macro_rules! flush_glow_batch {
+3182:            macro_rules! flush_atlas_batch {
+3489:                        self.gpu_metrics.record(dt_s);
+3490:                        if let Some(line) = self.gpu_metrics.maybe_report() {
+3523:        self.render_popup_overlay();
+3560:    fn render_popup_overlay(&mut self) {
+3998:    fn draw_halo_world_rect(&mut self, world_rect: Rectangle, style: HaloStyle) {
+4088:        self.draw_halo_world_rect(world_rect, style);
+4326:            .insert(request_id, PendingRasterTextureUrlLoad { position, state });
+5417:        let mut timestamp_query: Option<wgpu::QuerySet> = None;
+5425:            timestamp_query = Some(device.create_query_set(&wgpu::QuerySetDescriptor {
+5488:            timestamp_query,
+5494:            gpu_metrics: FrameTimeMetrics::new(600, 5.0),
+
+ succeeded in 0ms:
+src/camera.rs
+src/button.rs
+src/utils.rs
+src/app.rs
+src/traits.rs
+src/input.rs
+src/text.rs
+src/texture_svg.rs
+src/texture_atlas.rs
+src/lib.rs
+src/anim.rs
+src/bin/msdf_bake.rs
+src/bin/snapshots.rs
+src/rng.rs
+src/renderer.rs
+src/ui.rs
+src/layout.rs
+src/pluto_objects/button.rs
+src/pluto_objects/text2d.rs
+src/pluto_objects/text_input.rs
+src/pluto_objects/texture_atlas_2d.rs
+src/pluto_objects/texture_2d.rs
+src/pluto_objects/shapes.rs
+src/popup.rs
+shaders/glow.wgsl
+shaders/shader.wgsl
+shaders/text_msdf.wgsl
+shaders/rect.wgsl
+scripts/run_wasm_text_smoke.sh
+examples/media/test.svg
+examples/media/roboto.msdf.json
+examples/media/input.svg
+examples/media/square.svg
+examples/media/button.svg
+examples/media/roboto.ttf
+examples/media/player.svg
+examples/media/map_atlas.svg
+examples/media/boundary.svg
+examples/media/drawing.svg
+examples/media/roboto.msdf.png
+examples/media/parrot.png
+examples/camera.rs
+examples/layout_percent_position.rs
+examples/jitter_test.rs
+examples/halo_text_container.rs
+examples/slider.rs
+examples/halo_showcase.rs
+examples/text2d.rs
+examples/button_debug.rs
+examples/texture2d.rs
+examples/text_autosize_demo.rs
+examples/layout_basic.rs
+examples/grid.rs
+examples/anim_demo.rs
+examples/text_input.rs
+examples/text_alignment.rs
+examples/toggle.rs
+examples/texture_atlas2d.rs
+examples/actions_demo.rs
+examples/png_smoke_test.rs
+examples/rect_glow_test.rs
+examples/raster_cache_visual_test.rs
+examples/msdf_visual_test.rs
+examples/ui_primitives.rs
+examples/texture2d_raster.rs
+examples/wasm_text_smoke.rs
+examples/layout_top_bar.rs
+README.md
+docs/creating-ui-lib.md
+docs/text-style-example.md
+docs/layout.md
+docs/layering.md
+docs/api-styles.md
+docs/instancing-and-batching.md
+docs/getting-started.md
+docs/features-and-modules.md
+docs/ui-lib-example.md
+docs/textures.md
+docs/coordinates-and-dpi.md
+docs/layout-positioning-example.md
+z-harness/metrics.jsonl
+z-harness/plans/prod-readiness-audit/escalation.md
+z-harness/plans/prod-readiness-audit/findings-design.md
+z-harness/plans/prod-readiness-audit/SPEC.md
+z-harness/plans/prod-readiness-audit/PLAN.md
+z-harness/plans/prod-readiness-audit/findings-cleanliness.md
+z-harness/plans/prod-readiness-audit/TASKS.md
+z-harness/plans/prod-readiness-audit/REPORT.md
+z-harness/plans/prod-readiness-audit/findings-perf.md
+tests/uv_tests.rs
+tests/transform_tests.rs
+tests/camera_tests.rs
+tests/anim_tests.rs
+tests/halo_tests.rs
+tests/layout_tests.rs
+tests/rng_tests.rs
+z-harness/plans/prod-readiness-audit/findings-correctness.md
+CHANGELOG.md
+LICENSE
+Cargo.toml
+snapshots/replays/rec.json
+snapshots/replays/app_session.json
+snapshots/replays/minimal.json
+z-harness/plans/decompose-lib/SPEC.md
+z-harness/plans/decompose-lib/PLAN.md
+z-harness/plans/decompose-lib/TASKS.md
+z-harness/plans/prod-readiness-audit/archive/20260603T045500Z-prod-readiness-audit/events.jsonl
+z-harness/plans/prod-readiness-audit/archive/20260603T045500Z-prod-readiness-audit/phase1-scope.md
+snapshots/actual/replay_scene.png
+snapshots/actual/transitions.png
+snapshots/actual/transitions_frame2.png
+snapshots/actual/menu_text.png
+snapshots/actual/menu_button_focused.png
+snapshots/actual/timeline_frame0.png
+snapshots/actual/menu_panel.png
+snapshots/actual/timeline_frame1.png
+snapshots/actual/timeline_frame.png
+snapshots/actual/demo_player.png
+snapshots/actual/checkerboard.png
+snapshots/actual/timeline_frame2.png
+snapshots/actual/deal_grid.png
+snapshots/actual/deal_grid_anim2.png
+snapshots/actual/deal_grid_anim3.png
+snapshots/actual/sprite.png
+snapshots/actual/rng_pattern.png
+snapshots/actual/deal_grid_anim1.png
+snapshots/actual/deal_grid_anim0.png
+snapshots/actual/slider_states.png
+snapshots/actual/many_sprites.png
+snapshots/actual/button_states.png
+snapshots/actual/menu_button_hovered.png
+snapshots/actual/toggle_states.png
+snapshots/actual/map_atlas.png
+snapshots/actual/menu_button_pressed.png
+snapshots/actual/menu_button.png
+z-harness/plans/prod-readiness-audit/archive/20260603T045500Z-prod-readiness-audit/transcripts/consult-codex.err
+z-harness/plans/prod-readiness-audit/archive/20260603T045500Z-prod-readiness-audit/transcripts/consult-gemini.err
+z-harness/plans/prod-readiness-audit/archive/20260603T045500Z-prod-readiness-audit/transcripts/consult-gemini.txt
+z-harness/plans/prod-readiness-audit/archive/20260603T045500Z-prod-readiness-audit/transcripts/consult-codex.txt
+z-harness/plans/prod-readiness-audit/archive/20260603T045500Z-prod-readiness-audit/transcripts/review-codex-tasks-2.txt
+z-harness/plans/prod-readiness-audit/archive/20260603T045500Z-prod-readiness-audit/transcripts/review-codex-tasks.err
+z-harness/plans/prod-readiness-audit/archive/20260603T045500Z-prod-readiness-audit/transcripts/review-codex-tasks.txt
+z-harness/plans/prod-readiness-audit/archive/20260603T045500Z-prod-readiness-audit/transcripts/review-codex-tasks-2.err
+z-harness/plans/decompose-lib/archive/20260604T041707Z-decompose-lib/decisions.md
+z-harness/plans/decompose-lib/archive/20260604T041707Z-decompose-lib/phase3-decisions-final.md
+z-harness/plans/decompose-lib/archive/20260604T041707Z-decompose-lib/phase1-context.md
+z-harness/plans/decompose-lib/archive/20260604T041707Z-decompose-lib/phase0-premise.md
+z-harness/archive/20260603T045500Z-prod-readiness-audit/events.jsonl
+z-harness/plans/decompose-lib/archive/20260604T041707Z-decompose-lib/transcripts/consult-codex.err
+z-harness/plans/decompose-lib/archive/20260604T041707Z-decompose-lib/transcripts/consult-gemini.err
+z-harness/plans/decompose-lib/archive/20260604T041707Z-decompose-lib/transcripts/phase7-codex.txt
+z-harness/plans/decompose-lib/archive/20260604T041707Z-decompose-lib/transcripts/phase7-codex.err
+z-harness/plans/decompose-lib/archive/20260604T041707Z-decompose-lib/transcripts/consult-gemini.txt
+z-harness/plans/decompose-lib/archive/20260604T041707Z-decompose-lib/transcripts/consult-codex.txt
+plutonium_game/snapshots/replays/minimal.json
+z-harness/archive/20260604T041707Z-decompose-lib/events.jsonl
+plutonium_game/examples/demo_card_game/Cargo.toml
+plutonium_game/examples/arc_layout_demo.rs
+plutonium_game/examples/demo_card_game/manifest.toml
+plutonium_game/snapshots/actual/replay_scene.png
+plutonium_game/snapshots/actual/transitions.png
+plutonium_game/snapshots/actual/transitions_frame2.png
+plutonium_game/snapshots/actual/menu_text.png
+plutonium_game/snapshots/actual/menu_button_focused.png
+plutonium_game/snapshots/actual/menu_panel.png
+plutonium_game/snapshots/actual/demo_player.png
+plutonium_game/snapshots/actual/checkerboard.png
+plutonium_game/snapshots/actual/deal_grid.png
+plutonium_game/snapshots/actual/sprite.png
+plutonium_game/snapshots/actual/slider_states.png
+plutonium_game/snapshots/actual/many_sprites.png
+plutonium_game/snapshots/actual/button_states.png
+plutonium_game/snapshots/actual/menu_button_hovered.png
+plutonium_game/snapshots/actual/toggle_states.png
+plutonium_game/snapshots/actual/map_atlas.png
+plutonium_game/snapshots/actual/menu_button_pressed.png
+plutonium_game/snapshots/actual/menu_button.png
+plutonium_game/README.md
+plutonium_game/examples/demo_card_game/src/main.rs
+plutonium_game/examples/arc_layout_demo/Cargo.toml
+plutonium_game/snapshots/golden/replay_scene.png
+plutonium_game/snapshots/golden/transitions.png
+plutonium_game/snapshots/golden/transitions_frame2.png
+plutonium_game/snapshots/golden/menu_text.png
+plutonium_game/snapshots/golden/menu_button_focused.png
+plutonium_game/snapshots/golden/menu_panel.png
+plutonium_game/snapshots/golden/demo_player.png
+plutonium_game/snapshots/golden/checkerboard.png
+plutonium_game/snapshots/golden/deal_grid.png
+plutonium_game/snapshots/golden/sprite.png
+plutonium_game/snapshots/golden/slider_states.png
+plutonium_game/snapshots/golden/many_sprites.png
+plutonium_game/snapshots/golden/button_states.png
+plutonium_game/snapshots/golden/menu_button_hovered.png
+plutonium_game/snapshots/golden/toggle_states.png
+plutonium_game/snapshots/golden/map_atlas.png
+plutonium_game/snapshots/golden/menu_button_pressed.png
+plutonium_game/snapshots/golden/menu_button.png
+plutonium_game/examples/arc_layout_demo/src/main.rs
+plutonium_game/docs/ecs_and_input.md
+plutonium_game/docs/architecture.md
+plutonium_game/docs/scenes_and_focus.md
+plutonium_game/docs/ui_and_theme.md
+plutonium_game/crates/assets/src/lib.rs
+plutonium_game/crates/assets/Cargo.toml
+plutonium_game/crates/input/src/tests.rs
+plutonium_game/crates/input/src/lib.rs
+plutonium_game/crates/input/Cargo.toml
+plutonium_game/crates/audio/Cargo.toml
+plutonium_game/crates/gameplay/Cargo.toml
+plutonium_game/crates/audio/src/lib.rs
+plutonium_game/crates/gameplay/src/lib.rs
+plutonium_game/crates/core/Cargo.toml
+plutonium_game/crates/core/src/tests.rs
+plutonium_game/crates/core/src/lib.rs
+plutonium_game/crates/ui/tests/state_cache_tests.rs
+plutonium_game/crates/ui/Cargo.toml
+plutonium_game/crates/ui/src/immediate/context.rs
+plutonium_game/crates/ui/src/immediate/input_map.rs
+plutonium_game/crates/ui/src/immediate/input.rs
+plutonium_game/crates/ui/src/immediate/state.rs
+plutonium_game/crates/ui/src/immediate/focus.rs
+plutonium_game/crates/ui/src/immediate/mod.rs
+plutonium_game/crates/ui/src/immediate/drag_drop.rs
+plutonium_game/crates/ui/src/immediate/painter.rs
+plutonium_game/crates/ui/src/immediate/layout.rs
+plutonium_game/crates/ui/src/immediate/types.rs
+plutonium_game/crates/ui/src/immediate/tooltip.rs
+plutonium_game/crates/ui/src/immediate/draw_list.rs
+plutonium_game/crates/ui/src/immediate/response.rs
+plutonium_game/crates/ui/examples/progress_demo.rs
+plutonium_game/crates/ui/examples/style_stack_demo.rs
+plutonium_game/crates/ui/examples/image_demo.rs
+plutonium_game/crates/ui/examples/hello_world.rs
+plutonium_game/crates/ui/examples/tooltip_demo.rs
+plutonium_game/crates/ui/examples/layout_demo.rs
+plutonium_game/crates/ui/examples/drag_drop_demo.rs
+plutonium_game/crates/ui/examples/text_input_demo.rs
+plutonium_game/crates/ui/src/lib.rs
+plutonium_game/crates/ui/README.md
+snapshots/golden/rng_pattern.png
+snapshots/golden/deal_grid_anim1.png
+snapshots/golden/deal_grid_anim0.png
+snapshots/golden/slider_states.png
+snapshots/golden/many_sprites.png
+snapshots/golden/button_states.png
+snapshots/golden/menu_button_hovered.png
+snapshots/golden/toggle_states.png
+snapshots/golden/map_atlas.png
+snapshots/golden/menu_button_pressed.png
+snapshots/golden/menu_button.png
+snapshots/golden/demo_player.png
+snapshots/golden/checkerboard.png
+snapshots/golden/timeline_frame2.png
+snapshots/golden/deal_grid.png
+snapshots/golden/deal_grid_anim2.png
+snapshots/golden/deal_grid_anim3.png
+snapshots/golden/sprite.png
+snapshots/golden/menu_panel.png
+snapshots/golden/timeline_frame1.png
+snapshots/golden/timeline_frame.png
+snapshots/golden/menu_button_focused.png
+snapshots/golden/timeline_frame0.png
+snapshots/golden/menu_text.png
+snapshots/golden/transitions_frame2.png
+snapshots/golden/replay_scene.png
+snapshots/golden/transitions.png
+
+ exited 2 in 0ms:
+Cargo.toml:20:    "snapshots/**",
+Cargo.toml:41:[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+Cargo.toml:45:[target.'cfg(target_arch = "wasm32")'.dependencies]
+Cargo.toml:63:wasm = ["dep:getrandom"] # opt-in wasm32 support (enables JS entropy backend)
+src/utils.rs:14:#[cfg(not(target_arch = "wasm32"))]
+src/utils.rs:23:#[cfg(target_arch = "wasm32")]
+src/app.rs:6:#[cfg(target_arch = "wasm32")]
+src/app.rs:9:#[cfg(target_arch = "wasm32")]
+src/app.rs:11:#[cfg(target_arch = "wasm32")]
+src/app.rs:13:#[cfg(target_arch = "wasm32")]
+src/app.rs:15:#[cfg(target_arch = "wasm32")]
+src/app.rs:57:#[cfg(target_arch = "wasm32")]
+src/app.rs:64:#[cfg(target_arch = "wasm32")]
+src/app.rs:110:    #[cfg(target_arch = "wasm32")]
+src/app.rs:112:    #[cfg(target_arch = "wasm32")]
+src/app.rs:115:    #[cfg(target_arch = "wasm32")]
+src/app.rs:117:    #[cfg(target_arch = "wasm32")]
+src/app.rs:119:    #[cfg(target_arch = "wasm32")]
+src/app.rs:130:#[cfg(target_arch = "wasm32")]
+src/app.rs:135:#[cfg(target_arch = "wasm32")]
+src/app.rs:147:#[cfg(target_arch = "wasm32")]
+src/app.rs:219:            #[cfg(target_arch = "wasm32")]
+src/app.rs:221:            #[cfg(target_arch = "wasm32")]
+src/app.rs:223:            #[cfg(target_arch = "wasm32")]
+src/app.rs:225:            #[cfg(target_arch = "wasm32")]
+src/app.rs:227:            #[cfg(target_arch = "wasm32")]
+src/app.rs:387:    #[cfg(target_arch = "wasm32")]
+src/app.rs:397:        #[cfg(target_arch = "wasm32")]
+src/app.rs:414:        #[cfg(target_arch = "wasm32")]
+src/app.rs:423:        #[cfg(target_arch = "wasm32")]
+src/app.rs:440:                    #[cfg(target_arch = "wasm32")]
+src/app.rs:448:            #[cfg(target_arch = "wasm32")]
+src/app.rs:450:            #[cfg(not(target_arch = "wasm32"))]
+src/app.rs:457:            #[cfg(target_arch = "wasm32")]
+src/app.rs:501:            #[cfg(target_arch = "wasm32")]
+src/app.rs:531:                                self.start_recording("snapshots/replays/app_session.json");
+src/app.rs:532:                                println!("recording started -> snapshots/replays/app_session.json");
+src/app.rs:535:                            let _ = self.start_replay("snapshots/replays/app_session.json");
+src/app.rs:536:                            println!("replay started from snapshots/replays/app_session.json");
+src/app.rs:626:                #[cfg(target_arch = "wasm32")]
+src/app.rs:822:                #[cfg(target_arch = "wasm32")]
+src/app.rs:927:#[cfg(target_arch = "wasm32")]
+src/app.rs:939:#[cfg(target_arch = "wasm32")]
+src/texture_atlas.rs:620:    // Accessors for snapshots/tests where direct binding is useful
+.github/workflows/ci.yml:23:      - name: build snapshots
+.github/workflows/ci.yml:24:        run: cargo build --bin snapshots
+.github/workflows/ci.yml:25:      - name: run snapshots
+.github/workflows/ci.yml:26:        run: cargo run --bin snapshots
+src/anim.rs:229:        // This is a simple implementation intended for tests/snapshots, not a high-perf runtime.
+src/bin/snapshots.rs:271:    fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:272:    fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:273:    let out_actual = Path::new("snapshots/actual/replay_scene.png");
+src/bin/snapshots.rs:274:    let out_golden = Path::new("snapshots/golden/replay_scene.png");
+src/bin/snapshots.rs:430:    fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:431:    fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:432:    let out_actual = Path::new("snapshots/actual/map_atlas.png");
+src/bin/snapshots.rs:433:    let out_golden = Path::new("snapshots/golden/map_atlas.png");
+src/bin/snapshots.rs:517:    // Instance layout for snapshots (group 3)
+src/bin/snapshots.rs:571:// Rect SDF pipeline for UI primitives in snapshots
+src/bin/snapshots.rs:874:    std::fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:875:    std::fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:876:    let out_actual = std::path::Path::new("snapshots/actual/toggle_states.png");
+src/bin/snapshots.rs:877:    let out_golden = std::path::Path::new("snapshots/golden/toggle_states.png");
+src/bin/snapshots.rs:1121:    fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:1122:    fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:1123:    let out_actual = Path::new("snapshots/actual/checkerboard.png");
+src/bin/snapshots.rs:1124:    let out_golden = Path::new("snapshots/golden/checkerboard.png");
+src/bin/snapshots.rs:1252:    std::fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:1253:    std::fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:1254:    let out_actual = std::path::Path::new("snapshots/actual/sprite.png");
+src/bin/snapshots.rs:1255:    let out_golden = std::path::Path::new("snapshots/golden/sprite.png");
+src/bin/snapshots.rs:1409:    std::fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:1410:    std::fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:1411:    let out_actual = std::path::Path::new("snapshots/actual/many_sprites.png");
+src/bin/snapshots.rs:1412:    let out_golden = std::path::Path::new("snapshots/golden/many_sprites.png");
+src/bin/snapshots.rs:1558:    std::fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:1559:    std::fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:1560:    let out_actual = std::path::Path::new("snapshots/actual/demo_player.png");
+src/bin/snapshots.rs:1561:    let out_golden = std::path::Path::new("snapshots/golden/demo_player.png");
+src/bin/snapshots.rs:1708:    std::fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:1709:    std::fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:1710:    let out_actual = std::path::Path::new("snapshots/actual/menu_button.png");
+src/bin/snapshots.rs:1711:    let out_golden = std::path::Path::new("snapshots/golden/menu_button.png");
+src/bin/snapshots.rs:1964:    std::fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:1965:    std::fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:1966:    let out_actual = std::path::Path::new("snapshots/actual/menu_text.png");
+src/bin/snapshots.rs:1967:    let out_golden = std::path::Path::new("snapshots/golden/menu_text.png");
+src/bin/snapshots.rs:2118:    std::fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:2119:    std::fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:2120:    let out_actual = std::path::Path::new("snapshots/actual/menu_panel.png");
+src/bin/snapshots.rs:2121:    let out_golden = std::path::Path::new("snapshots/golden/menu_panel.png");
+src/bin/snapshots.rs:2321:    std::fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:2322:    std::fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:2323:    let out_actual = std::path::Path::new("snapshots/actual/menu_button_focused.png");
+src/bin/snapshots.rs:2324:    let out_golden = std::path::Path::new("snapshots/golden/menu_button_focused.png");
+src/bin/snapshots.rs:2505:    std::fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:2506:    std::fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:2507:    let out_actual = std::path::Path::new("snapshots/actual/menu_button_hovered.png");
+src/bin/snapshots.rs:2508:    let out_golden = std::path::Path::new("snapshots/golden/menu_button_hovered.png");
+src/bin/snapshots.rs:2685:    std::fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:2686:    std::fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:2687:    let out_actual = std::path::Path::new("snapshots/actual/menu_button_pressed.png");
+src/bin/snapshots.rs:2688:    let out_golden = std::path::Path::new("snapshots/golden/menu_button_pressed.png");
+src/bin/snapshots.rs:2930:    std::fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:2931:    std::fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:2932:    let out_actual = std::path::Path::new("snapshots/actual/slider_states.png");
+src/bin/snapshots.rs:2933:    let out_golden = std::path::Path::new("snapshots/golden/slider_states.png");
+src/bin/snapshots.rs:3184:    std::fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:3185:    std::fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:3186:    let out_actual = std::path::Path::new("snapshots/actual/button_states.png");
+src/bin/snapshots.rs:3187:    let out_golden = std::path::Path::new("snapshots/golden/button_states.png");
+src/bin/snapshots.rs:3206:    let script_path = std::path::Path::new("snapshots/replays/minimal.json");
+src/bin/snapshots.rs:3410:    std::fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:3411:    std::fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:3412:    let out_actual = std::path::Path::new("snapshots/actual/transitions.png");
+src/bin/snapshots.rs:3413:    let out_golden = std::path::Path::new("snapshots/golden/transitions.png");
+src/bin/snapshots.rs:3598:    std::fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:3599:    std::fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:3600:    let out_actual = std::path::Path::new("snapshots/actual/transitions_frame2.png");
+src/bin/snapshots.rs:3601:    let out_golden = std::path::Path::new("snapshots/golden/transitions_frame2.png");
+src/bin/snapshots.rs:3753:    std::fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:3754:    std::fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:3755:    let out_actual = std::path::Path::new("snapshots/actual/deal_grid.png");
+src/bin/snapshots.rs:3756:    let out_golden = std::path::Path::new("snapshots/golden/deal_grid.png");
+src/bin/snapshots.rs:3911:    fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:3912:    fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:3913:    let out_actual = Path::new("snapshots/actual/timeline_frame.png");
+src/bin/snapshots.rs:3914:    let out_golden = Path::new("snapshots/golden/timeline_frame.png");
+src/bin/snapshots.rs:4071:        fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:4072:        fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:4073:        let actual_str = format!("snapshots/actual/timeline_frame{}.png", i);
+src/bin/snapshots.rs:4074:        let golden_str = format!("snapshots/golden/timeline_frame{}.png", i);
+src/bin/snapshots.rs:4224:    fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:4225:    fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:4226:    let out_actual = Path::new("snapshots/actual/rng_pattern.png");
+src/bin/snapshots.rs:4227:    let out_golden = Path::new("snapshots/golden/rng_pattern.png");
+src/bin/snapshots.rs:4427:        fs::create_dir_all("snapshots/actual").ok();
+src/bin/snapshots.rs:4428:        fs::create_dir_all("snapshots/golden").ok();
+src/bin/snapshots.rs:4429:        let actual_str = format!("snapshots/actual/deal_grid_anim{}.png", fi);
+src/bin/snapshots.rs:4430:        let golden_str = format!("snapshots/golden/deal_grid_anim{}.png", fi);
+src/bin/snapshots.rs:4454:        eprintln!("no wgpu adapter available; skipping snapshots");
+src/lib.rs:47:#[cfg(not(target_arch = "wasm32"))]
+src/lib.rs:62:#[cfg(all(feature = "raster", target_arch = "wasm32"))]
+src/lib.rs:64:#[cfg(all(feature = "raster", target_arch = "wasm32"))]
+src/lib.rs:91:#[cfg(not(target_arch = "wasm32"))]
+src/lib.rs:200:#[cfg(all(feature = "raster", target_arch = "wasm32"))]
+src/lib.rs:204:#[cfg(all(feature = "raster", target_arch = "wasm32"))]
+src/lib.rs:532:    #[cfg(all(feature = "raster", target_arch = "wasm32"))]
+src/lib.rs:575:    #[cfg(all(feature = "raster", target_arch = "wasm32"))]
+src/lib.rs:615:    #[cfg(all(feature = "raster", target_arch = "wasm32"))]
+src/lib.rs:975:    #[cfg(target_arch = "wasm32")]
+src/lib.rs:1080:        #[cfg(target_arch = "wasm32")]
+src/lib.rs:1082:        #[cfg(not(target_arch = "wasm32"))]
+src/lib.rs:1301:    #[cfg(not(target_arch = "wasm32"))]
+src/lib.rs:1455:    #[cfg(target_arch = "wasm32")]
+src/lib.rs:1464:            "hinted raster atlas generation is not available on wasm32".to_string(),
+src/lib.rs:1468:    #[cfg(not(target_arch = "wasm32"))]
+src/lib.rs:1618:    #[cfg(target_arch = "wasm32")]
+src/lib.rs:1625:            "tiny raster fallback generation is not available on wasm32".to_string(),
+src/lib.rs:1765:    #[cfg(target_arch = "wasm32")]
+src/lib.rs:4258:    #[cfg(target_arch = "wasm32")]
+src/lib.rs:4298:    #[cfg(all(feature = "raster", target_arch = "wasm32"))]
+src/lib.rs:4308:    #[cfg(all(feature = "raster", target_arch = "wasm32"))]
+src/lib.rs:4330:    #[cfg(all(feature = "raster", target_arch = "wasm32"))]
+src/lib.rs:4510:            #[cfg(not(target_arch = "wasm32"))]
+src/lib.rs:4882:    #[cfg(not(target_arch = "wasm32"))]
+src/lib.rs:4912:    #[cfg(target_arch = "wasm32")]
+src/lib.rs:4919:        panic!("PlutoniumEngine::new is not available on wasm32. Use PlutoniumEngine::new_async.");
+src/lib.rs:4922:    #[cfg(target_arch = "wasm32")]
+src/lib.rs:5009:        #[cfg(target_arch = "wasm32")]
+src/lib.rs:5012:        #[cfg(target_arch = "wasm32")]
+src/lib.rs:5064:        #[cfg(target_arch = "wasm32")]
+src/lib.rs:5169:        #[cfg(target_arch = "wasm32")]
+src/lib.rs:5215:        #[cfg(target_arch = "wasm32")]
+src/lib.rs:5287:        #[cfg(target_arch = "wasm32")]
+src/lib.rs:5349:        #[cfg(target_arch = "wasm32")]
+src/lib.rs:5412:        #[cfg(all(feature = "raster", target_arch = "wasm32"))]
+src/lib.rs:5446:        #[cfg(target_arch = "wasm32")]
+src/lib.rs:5473:            #[cfg(all(feature = "raster", target_arch = "wasm32"))]
+
+codex
+The symbol scan confirms the named clusters exist where the plan expects. I’m checking the macro and timer bodies now because those are the two places where extraction can compile-fail despite the high-level ordering looking right.
+exec
+/bin/zsh -lc "sed -n '1,120p' Cargo.toml" in /Users/zeke/dev/plutonium_engine/.claude/worktrees/eager-tharp-b3022f
+exec
+/bin/zsh -lc "sed -n '2820,3520p' src/lib.rs" in /Users/zeke/dev/plutonium_engine/.claude/worktrees/eager-tharp-b3022f
+ succeeded in 0ms:
+[package]
+name = "plutonium_engine"
+version = "0.8.0"
+authors = ["Zeke Barnett coding@zeke13.com"]
+description = "Pure Rust Graphics Engine"
+license = "Apache-2.0"
+repository = "https://github.com/zeke13dev/plutonium"
+homepage = "https://zeke13.com"                       # not quite open yet; stay tuned!
+documentation = "https://docs.rs/plutonium_engine"
+readme = "README.md"
+keywords = ["wgpu", "rendering", "svg"]
+categories = ["graphics", "rendering"]
+edition = "2021"
+exclude = [
+    ".DS_Store",
+    "**/.DS_Store",
+    ".github/**",
+    "NEXTREADMENEXT.md",
+    "debug_*.png",
+    "snapshots/**",
+    "plutonium_game/**",
+]
+
+[dependencies]
+image = "0.25.5"
+winit = "0.30.8"
+wgpu = "23.0.1"
+env_logger = "0.11.6"
+pollster = "0.4.0"
+tiny-skia = "0.11.4"
+resvg = "0.44.0"
+rusttype = "0.9.3"
+rustybuzz = "0.14.1"
+anyhow = "1.0.86"
+
+uuid = { version = "1.11.0", features = ["v4"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+getrandom = { version = "0.2.15", features = ["js"], optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+freetype-rs = "0.36.0"
+arboard = "3.4.0"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2.99"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3.76"
+web-sys = { version = "0.3.76", features = ["Window", "Document", "Element", "HtmlCanvasElement", "Performance", "Response", "console"] }
+
+[dependencies.bytemuck]
+version = "1.21.0"
+features = ["derive"]
+
+[features]
+default = ["backend-wgpu", "widgets"]
+backend-wgpu = []
+raster = []        # enable PNG/JPEG helper APIs
+widgets = []       # enable retained-mode widgets (Button, TextInput, etc.)
+layout = []        # enable simple layout helpers (anchors/percent)
+anim = []          # enable tweening/animation APIs
+replay = []        # enable record/replay helpers and RNG-driven examples
+wasm = ["dep:getrandom"] # opt-in wasm32 support (enables JS entropy backend)
+
+[workspace]
+members = [
+    ".",
+    "plutonium_game/crates/core",
+    "plutonium_game/crates/input",
+    "plutonium_game/crates/assets",
+    "plutonium_game/crates/ui",
+    "plutonium_game/crates/audio",
+    "plutonium_game/crates/gameplay",
+    "plutonium_game/examples/demo_card_game",
+]
+
+[[example]]
+name = "jitter_test"
+path = "examples/jitter_test.rs"
+
+[dev-dependencies]
+plutonium_game_input = { path = "plutonium_game/crates/input" }
+
+ succeeded in 0ms:
+    pub fn debug_viewport_size(&self) -> Size {
+        self.viewport_size
+    }
+
+    pub fn unload_texture(&mut self, texture_key: &Uuid) -> bool {
+        self.texture_map.remove(texture_key).is_some()
+    }
+
+    pub fn unload_atlas(&mut self, atlas_key: &Uuid) -> bool {
+        self.atlas_map.remove(atlas_key).is_some()
+    }
+
+    pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+        if self.size.width == 0 || self.size.height == 0 {
+            return Ok(());
+        }
+
+        let frame = match self.surface.get_current_texture() {
+            Ok(frame) => frame,
+            Err(e) => {
+                match e {
+                    wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated => {
+                        // Reconfigure the surface and skip this frame
+                        self.surface.configure(&self.device, &self.config);
+                        return Ok(());
+                    }
+                    wgpu::SurfaceError::OutOfMemory => {
+                        return Err(e);
+                    }
+                    wgpu::SurfaceError::Timeout => {
+                        // Skip this frame and try again on the next one
+                        return Ok(());
+                    }
+                }
+            }
+        };
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
+        // GPU timestamp begin
+        let (qset, qbuf, qcount) = (
+            self.timestamp_query.as_ref(),
+            self.timestamp_buf.as_ref(),
+            self.timestamp_count,
+        );
+        let qindex = if qcount >= 2 {
+            self.timestamp_frame_index % (qcount / 2)
+        } else {
+            0
+        };
+        let q0 = qindex * 2;
+        let q1 = q0 + 1;
+        // We'll write timestamps via render pass timestamp_writes when supported.
+
+        {
+            // sort by z, stable to preserve submission order within same layer
+            self.render_queue.sort_by(|a, b| a.z.cmp(&b.z));
+
+            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.1,
+                            g: 0.2,
+                            b: 0.3,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: qset.map(|qs| wgpu::RenderPassTimestampWrites {
+                    query_set: qs,
+                    beginning_of_pass_write_index: Some(q0),
+                    end_of_pass_write_index: Some(q1),
+                }),
+                occlusion_query_set: None,
+            });
+
+            // Set default pipeline for texture/atlas draws; rect draws will override temporarily
+            rpass.set_pipeline(&self.render_pipeline);
+
+            // Streaming batcher that preserves z-order and interleaves atlas draws
+            let mut current_tex: Option<Uuid> = None;
+            let mut batch_indices: Vec<usize> = Vec::new();
+            let mut current_atlas: Option<Uuid> = None;
+            let mut current_atlas_is_msdf = false;
+            let mut atlas_instances: Vec<crate::utils::InstanceRaw> = Vec::new();
+            // Rect batching
+            let mut rect_instances: Vec<crate::utils::RectInstanceRaw> = Vec::new();
+            let mut rect_draw_calls: usize = 0;
+            // Glow batching
+            let mut glow_instances: Vec<crate::utils::GlowInstanceRaw> = Vec::new();
+            let mut active_item_clip: Option<Rectangle> = None;
+            let mut scissor_initialized = false;
+
+            // Helper to flush a pending sprite batch
+            let flush_batch = |rpass: &mut wgpu::RenderPass<'_>,
+                               tex_id: Option<Uuid>,
+                               indices: &mut Vec<usize>| {
+                if indices.is_empty() {
+                    return;
+                }
+                if let Some(tid) = tex_id {
+                    if let Some(texture) = self.texture_map.get(&tid) {
+                        // Build per-instance data: model + uv (full sprite)
+                        let instances: Vec<crate::utils::InstanceRaw> = indices
+                            .iter()
+                            .map(|i| crate::utils::InstanceRaw {
+                                model: self.transform_pool.cpu_mats[*i],
+                                uv_offset: [0.0, 0.0],
+                                uv_scale: [1.0, 1.0],
+                                tint: [1.0, 1.0, 1.0, 1.0],
+                                msdf_px_range: 0.0,
+                                _msdf_pad: [0.0, 0.0, 0.0],
+                            })
+                            .collect();
+                        let instance_buffer =
+                            self.device
+                                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                    label: Some("instance data (sprite)"),
+                                    contents: bytemuck::cast_slice(&instances),
+                                    usage: wgpu::BufferUsages::STORAGE,
+                                });
+                        let instance_bg =
+                            self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                                layout: &self.instance_bind_group_layout,
+                                entries: &[wgpu::BindGroupEntry {
+                                    binding: 0,
+                                    resource: instance_buffer.as_entire_binding(),
+                                }],
+                                label: Some("instance_bind_group"),
+                            });
+
+                        // Bind texture, identity world, uv and instance buffer
+                        rpass.set_bind_group(0, texture.bind_group(), &[]);
+                        rpass.set_bind_group(3, &instance_bg, &[]);
+
+                        let identity = TransformUniform {
+                            transform: [
+                                [1.0, 0.0, 0.0, 0.0],
+                                [0.0, 1.0, 0.0, 0.0],
+                                [0.0, 0.0, 1.0, 0.0],
+                                [0.0, 0.0, 0.0, 1.0],
+                            ],
+                        };
+                        let id_buf =
+                            self.device
+                                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                    label: Some("id-ubo"),
+                                    contents: bytemuck::bytes_of(&identity),
+                                    usage: wgpu::BufferUsages::UNIFORM,
+                                });
+                        let id_bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                            layout: &self.transform_bind_group_layout,
+                            entries: &[wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: id_buf.as_entire_binding(),
+                            }],
+                            label: Some("id-bg"),
+                        });
+                        rpass.set_bind_group(1, &id_bg, &[]);
+                        rpass.set_bind_group(2, texture.uv_bind_group(), &[]);
+                        rpass.set_vertex_buffer(0, texture.vertex_buffer_slice());
+                        rpass.set_index_buffer(
+                            texture.index_buffer_slice(),
+                            wgpu::IndexFormat::Uint16,
+                        );
+                        rpass.draw_indexed(0..texture.num_indices(), 0, 0..(indices.len() as u32));
+                    }
+                }
+                indices.clear();
+            };
+
+            // Macro to flush a pending rect batch (replaces closure to avoid borrow conflicts)
+            macro_rules! flush_rect_batch {
+                ($rpass:expr, $instances:expr) => {
+                    if !$instances.is_empty() {
+                        let bytes_needed = ($instances.len()
+                            * std::mem::size_of::<crate::utils::RectInstanceRaw>())
+                            as u64;
+                        let mut chosen: Option<usize> = None;
+                        for (i, entry) in self.rect_instance_pool.iter().enumerate() {
+                            if !entry.used_this_frame && entry.capacity >= bytes_needed {
+                                chosen = Some(i);
+                                break;
+                            }
+                        }
+                        let idx = if let Some(i) = chosen {
+                            i
+                        } else {
+                            let cap = bytes_needed.next_power_of_two().max(256);
+                            let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                                label: Some("rect-instance-buffer"),
+                                size: cap,
+                                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                                mapped_at_creation: false,
+                            });
+                            let bind_group =
+                                self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                                    label: Some("rect-instance-bg"),
+                                    layout: &self.instance_bind_group_layout,
+                                    entries: &[wgpu::BindGroupEntry {
+                                        binding: 0,
+                                        resource: buffer.as_entire_binding(),
+                                    }],
+                                });
+                            self.rect_instance_pool.push(RectInstanceBuffer {
+                                buffer,
+                                capacity: cap,
+                                bind_group,
+                                used_this_frame: false,
+                                last_used_frame: self.frame_counter,
+                            });
+                            self.rect_instance_pool.len() - 1
+                        };
+                        {
+                            let entry = &mut self.rect_instance_pool[idx];
+                            if entry.capacity < bytes_needed {
+                                let cap = bytes_needed.next_power_of_two();
+                                let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                                    label: Some("rect-instance-buffer"),
+                                    size: cap,
+                                    usage: wgpu::BufferUsages::STORAGE
+                                        | wgpu::BufferUsages::COPY_DST,
+                                    mapped_at_creation: false,
+                                });
+                                entry.buffer = buffer;
+                                entry.capacity = cap;
+                                entry.bind_group =
+                                    self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                                        label: Some("rect-instance-bg"),
+                                        layout: &self.instance_bind_group_layout,
+                                        entries: &[wgpu::BindGroupEntry {
+                                            binding: 0,
+                                            resource: entry.buffer.as_entire_binding(),
+                                        }],
+                                    });
+                            }
+                            self.queue.write_buffer(
+                                &entry.buffer,
+                                0,
+                                bytemuck::cast_slice(&$instances),
+                            );
+                            entry.used_this_frame = true;
+                            entry.last_used_frame = self.frame_counter;
+                        }
+
+                        if self.rect_identity_bg.is_none() {
+                            let identity = TransformUniform {
+                                transform: [
+                                    [1.0, 0.0, 0.0, 0.0],
+                                    [0.0, 1.0, 0.0, 0.0],
+                                    [0.0, 0.0, 1.0, 0.0],
+                                    [0.0, 0.0, 0.0, 1.0],
+                                ],
+                            };
+                            let id_buf =
+                                self.device
+                                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                        label: Some("rect-id-ubo"),
+                                        contents: bytemuck::bytes_of(&identity),
+                                        usage: wgpu::BufferUsages::UNIFORM,
+                                    });
+                            let id_bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                                layout: &self.transform_bind_group_layout,
+                                entries: &[wgpu::BindGroupEntry {
+                                    binding: 0,
+                                    resource: id_buf.as_entire_binding(),
+                                }],
+                                label: Some("rect-id-bg"),
+                            });
+                            self.rect_identity_bg = Some(id_bg);
+                        }
+
+                        $rpass.set_pipeline(&self.rect_pipeline);
+                        $rpass.set_bind_group(0, &self.rect_dummy_bg, &[]);
+                        $rpass.set_bind_group(1, self.rect_identity_bg.as_ref().unwrap(), &[]);
+                        $rpass.set_bind_group(2, &self.rect_dummy_bg, &[]);
+                        $rpass.set_bind_group(3, &self.rect_instance_pool[idx].bind_group, &[]);
+                        $rpass.set_vertex_buffer(0, self.rect_vertex_buffer.slice(..));
+                        $rpass.set_index_buffer(
+                            self.rect_index_buffer.slice(..),
+                            wgpu::IndexFormat::Uint16,
+                        );
+                        $rpass.draw_indexed(0..6, 0, 0..($instances.len() as u32));
+                        rect_draw_calls += 1;
+                        $instances.clear();
+                    }
+                };
+            }
+
+            // Macro to flush pending glow instances inline
+            macro_rules! flush_glow_batch {
+                ($rpass:expr, $glow_insts:expr) => {
+                    if !$glow_insts.is_empty() {
+                        let glow_buf =
+                            self.device
+                                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                    label: Some("glow-instance-buffer"),
+                                    contents: bytemuck::cast_slice(&$glow_insts),
+                                    usage: wgpu::BufferUsages::STORAGE,
+                                });
+                        let glow_bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                            label: Some("glow-instance-bg"),
+                            layout: &self.glow_instance_bgl,
+                            entries: &[wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: glow_buf.as_entire_binding(),
+                            }],
+                        });
+                        if self.rect_identity_bg.is_none() {
+                            let identity = TransformUniform {
+                                transform: [
+                                    [1.0, 0.0, 0.0, 0.0],
+                                    [0.0, 1.0, 0.0, 0.0],
+                                    [0.0, 0.0, 1.0, 0.0],
+                                    [0.0, 0.0, 0.0, 1.0],
+                                ],
+                            };
+                            let id_buf =
+                                self.device
+                                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                        label: Some("glow-id-ubo"),
+                                        contents: bytemuck::bytes_of(&identity),
+                                        usage: wgpu::BufferUsages::UNIFORM,
+                                    });
+                            let id_bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                                layout: &self.transform_bind_group_layout,
+                                entries: &[wgpu::BindGroupEntry {
+                                    binding: 0,
+                                    resource: id_buf.as_entire_binding(),
+                                }],
+                                label: Some("glow-id-bg"),
+                            });
+                            self.rect_identity_bg = Some(id_bg);
+                        }
+                        $rpass.set_pipeline(&self.glow_pipeline);
+                        $rpass.set_bind_group(0, &self.rect_dummy_bg, &[]);
+                        $rpass.set_bind_group(1, self.rect_identity_bg.as_ref().unwrap(), &[]);
+                        $rpass.set_bind_group(2, &self.rect_dummy_bg, &[]);
+                        $rpass.set_bind_group(3, &glow_bg, &[]);
+                        $rpass.set_vertex_buffer(0, self.rect_vertex_buffer.slice(..));
+                        $rpass.set_index_buffer(
+                            self.rect_index_buffer.slice(..),
+                            wgpu::IndexFormat::Uint16,
+                        );
+                        $rpass.draw_indexed(0..6, 0, 0..($glow_insts.len() as u32));
+                        $glow_insts.clear();
+                    }
+                };
+            }
+
+            macro_rules! flush_atlas_batch {
+                ($rpass:expr, $instances:expr, $atlas_id:expr, $is_msdf:expr) => {
+                    if !$instances.is_empty() {
+                        if let Some(aid) = $atlas_id {
+                            if let Some(atlas) = self.atlas_map.get(&aid) {
+                                let instance_buffer = self.device.create_buffer_init(
+                                    &wgpu::util::BufferInitDescriptor {
+                                        label: Some("instance data (atlas)"),
+                                        contents: bytemuck::cast_slice(&$instances),
+                                        usage: wgpu::BufferUsages::STORAGE,
+                                    },
+                                );
+                                let instance_bg =
+                                    self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                                        layout: &self.instance_bind_group_layout,
+                                        entries: &[wgpu::BindGroupEntry {
+                                            binding: 0,
+                                            resource: instance_buffer.as_entire_binding(),
+                                        }],
+                                        label: Some("atlas-instance-bg"),
+                                    });
+                                let identity = TransformUniform {
+                                    transform: [
+                                        [1.0, 0.0, 0.0, 0.0],
+                                        [0.0, 1.0, 0.0, 0.0],
+                                        [0.0, 0.0, 1.0, 0.0],
+                                        [0.0, 0.0, 0.0, 1.0],
+                                    ],
+                                };
+                                let id_buf = self.device.create_buffer_init(
+                                    &wgpu::util::BufferInitDescriptor {
+                                        label: Some("id-ubo"),
+                                        contents: bytemuck::bytes_of(&identity),
+                                        usage: wgpu::BufferUsages::UNIFORM,
+                                    },
+                                );
+                                let id_bg =
+                                    self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                                        layout: &self.transform_bind_group_layout,
+                                        entries: &[wgpu::BindGroupEntry {
+                                            binding: 0,
+                                            resource: id_buf.as_entire_binding(),
+                                        }],
+                                        label: Some("id-bg"),
+                                    });
+                                if $is_msdf {
+                                    $rpass.set_pipeline(&self.msdf_render_pipeline);
+                                } else {
+                                    $rpass.set_pipeline(&self.render_pipeline);
+                                }
+                                $rpass.set_bind_group(0, &atlas.bind_group, &[]);
+                                $rpass.set_bind_group(1, &id_bg, &[]);
+                                $rpass.set_bind_group(2, atlas.default_uv_bind_group(), &[]);
+                                $rpass.set_bind_group(3, &instance_bg, &[]);
+                                $rpass.set_vertex_buffer(0, atlas.vertex_buffer.slice(..));
+                                $rpass.set_index_buffer(
+                                    atlas.index_buffer.slice(..),
+                                    wgpu::IndexFormat::Uint16,
+                                );
+                                $rpass.draw_indexed(
+                                    0..atlas.num_indices,
+                                    0,
+                                    0..($instances.len() as u32),
+                                );
+                            }
+                        }
+                        $instances.clear();
+                    }
+                };
+            }
+
+            for q in &self.render_queue {
+                let effective_item_clip = self.effective_item_clip_rect(q.clip_rect);
+                if !scissor_initialized || effective_item_clip != active_item_clip {
+                    flush_batch(&mut rpass, current_tex, &mut batch_indices);
+                    current_tex = None;
+                    flush_atlas_batch!(
+                        rpass,
+                        atlas_instances,
+                        current_atlas,
+                        current_atlas_is_msdf
+                    );
+                    flush_rect_batch!(rpass, rect_instances);
+                    flush_glow_batch!(rpass, glow_instances);
+                    self.apply_scissor_logical(&mut rpass, effective_item_clip);
+                    active_item_clip = effective_item_clip;
+                    scissor_initialized = true;
+                    rpass.set_pipeline(&self.render_pipeline);
+                }
+
+                match &q.item {
+                    RenderItem::Texture {
+                        texture_key,
+                        transform_index,
+                    } => {
+                        // Switching away from rects/glows; flush pending batches
+                        flush_rect_batch!(rpass, rect_instances);
+                        flush_glow_batch!(rpass, glow_instances);
+                        // Switch back to texture/atlas pipeline after rects
+                        rpass.set_pipeline(&self.render_pipeline);
+                        match current_tex {
+                            Some(tid) if tid == *texture_key => {
+                                batch_indices.push(*transform_index);
+                            }
+                            _ => {
+                                // different texture; flush previous
+                                flush_batch(&mut rpass, current_tex, &mut batch_indices);
+                                flush_atlas_batch!(
+                                    rpass,
+                                    atlas_instances,
+                                    current_atlas,
+                                    current_atlas_is_msdf
+                                );
+                                current_tex = Some(*texture_key);
+                                batch_indices.push(*transform_index);
+                            }
+                        }
+                    }
+                    RenderItem::AtlasTile {
+                        texture_key,
+                        transform_index,
+                        tile_index,
+                        tint,
+                    } => {
+                        // Switching away from rects/glows; flush pending batches
+                        flush_rect_batch!(rpass, rect_instances);
+                        flush_glow_batch!(rpass, glow_instances);
+                        // Switch back to texture/atlas pipeline after rects
+                        rpass.set_pipeline(&self.render_pipeline);
+                        // flush any sprite batch first
+                        flush_batch(&mut rpass, current_tex, &mut batch_indices);
+                        current_tex = None;
+                        // switch atlas batch if needed
+                        if current_atlas != Some(*texture_key) || current_atlas_is_msdf {
+                            flush_atlas_batch!(
+                                rpass,
+                                atlas_instances,
+                                current_atlas,
+                                current_atlas_is_msdf
+                            );
+                            current_atlas = Some(*texture_key);
+                            current_atlas_is_msdf = false;
+                        }
+                        if let Some(atlas) = self.atlas_map.get(texture_key) {
+                            let model = self.transform_pool.cpu_mats[*transform_index];
+                            if let Some(uv_rect) =
+                                crate::texture_atlas::TextureAtlas::tile_uv_coordinates(
+                                    *tile_index,
+                                    atlas.tile_size,
+                                    atlas.dimensions.size(),
+                                )
+                            {
+                                atlas_instances.push(crate::utils::InstanceRaw {
+                                    model,
+                                    uv_offset: [uv_rect.x, uv_rect.y],
+                                    uv_scale: [uv_rect.width, uv_rect.height],
+                                    tint: *tint,
+                                    msdf_px_range: 0.0,
+                                    _msdf_pad: [0.0, 0.0, 0.0],
+                                });
+                            }
+                        }
+                    }
+                    RenderItem::AtlasGlyph {
+                        texture_key,
+                        transform_index,
+                        uv_offset,
+                        uv_scale,
+                        tint,
+                        is_msdf,
+                        msdf_px_range,
+                    } => {
+                        flush_rect_batch!(rpass, rect_instances);
+                        flush_glow_batch!(rpass, glow_instances);
+                        flush_batch(&mut rpass, current_tex, &mut batch_indices);
+                        current_tex = None;
+
+                        if current_atlas != Some(*texture_key) || current_atlas_is_msdf != *is_msdf
+                        {
+                            flush_atlas_batch!(
+                                rpass,
+                                atlas_instances,
+                                current_atlas,
+                                current_atlas_is_msdf
+                            );
+                            current_atlas = Some(*texture_key);
+                            current_atlas_is_msdf = *is_msdf;
+                        }
+
+                        let model = self.transform_pool.cpu_mats[*transform_index];
+                        atlas_instances.push(crate::utils::InstanceRaw {
+                            model,
+                            uv_offset: *uv_offset,
+                            uv_scale: *uv_scale,
+                            tint: *tint,
+                            msdf_px_range: *msdf_px_range,
+                            _msdf_pad: [0.0, 0.0, 0.0],
+                        });
+                    }
+                    RenderItem::Rect(cmd) => {
+                        // Flush any pending sprite/atlas/glow batches before enqueueing rects
+                        flush_batch(&mut rpass, current_tex, &mut batch_indices);
+                        current_tex = None;
+                        flush_glow_batch!(rpass, glow_instances);
+                        flush_atlas_batch!(
+                            rpass,
+                            atlas_instances,
+                            current_atlas,
+                            current_atlas_is_msdf
+                        );
+
+                        // Enqueue rect instance for batching
+                        rect_instances.push(crate::utils::RectInstanceRaw {
+                            model: cmd.transform,
+                            color: cmd.color,
+                            corner_radius_px: cmd.corner_radius_px,
+                            border_thickness_px: cmd.border_thickness_px,
+                            _pad0: [0.0, 0.0],
+                            border_color: cmd.border_color,
+                            rect_size_px: [cmd.width_px, cmd.height_px],
+                            _pad1: [0.0, 0.0],
+                            _pad2: [0.0, 0.0, 0.0, 0.0],
+                        });
+                        // Metrics: track style diversity and counts (no reordering/grouping)
+                        self.rect_instances_count = self.rect_instances_count.saturating_add(1);
+                        let key = RectStyleKey {
+                            fill_rgba_u8: to_rgba_u8(cmd.color),
+                            border_rgba_u8: to_rgba_u8(cmd.border_color),
+                            corner_radius_10x: quant_10x(cmd.corner_radius_px),
+                            border_thickness_10x: quant_10x(cmd.border_thickness_px),
+                        };
+                        self.rect_style_keys.insert(key);
+                    }
+                    RenderItem::Glow(cmd) => {
+                        // Flush any pending sprite/atlas/rect batches
+                        flush_batch(&mut rpass, current_tex, &mut batch_indices);
+                        current_tex = None;
+                        flush_atlas_batch!(
+                            rpass,
+                            atlas_instances,
+                            current_atlas,
+                            current_atlas_is_msdf
+                        );
+                        flush_rect_batch!(rpass, rect_instances);
+
+                        glow_instances.push(crate::utils::GlowInstanceRaw {
+                            model: cmd.transform,
+                            color: cmd.color,
+                            rect_size_px: [cmd.width_px, cmd.height_px],
+                            corner_radius_px: cmd.corner_radius_px,
+                            glow_radius_px: cmd.glow_radius_px,
+                            sigma: cmd.sigma,
+                            max_alpha: cmd.max_alpha,
+                            mode: cmd.mode,
+                            border_width: cmd.border_width,
+                            _pad: [0.0, 0.0, 0.0, 0.0],
+                        });
+                    }
+                }
+            }
+            // flush any remaining sprite batch
+            flush_batch(&mut rpass, current_tex, &mut batch_indices);
+            // flush any remaining atlas batch
+            flush_atlas_batch!(rpass, atlas_instances, current_atlas, current_atlas_is_msdf);
+            // flush any remaining rects
+            flush_rect_batch!(rpass, rect_instances);
+            // flush any remaining glows
+            flush_glow_batch!(rpass, glow_instances);
+            self.rect_draw_calls_count = rect_draw_calls;
+        }
+        // End timestamp + resolve
+        if let (Some(qs), Some(buf)) = (qset, qbuf) {
+            let base = (((q0 as u64) * 8) / wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT)
+                * wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT;
+            encoder.resolve_query_set(qs, q0..(q1 + 1), buf, base);
+        }
+        self.queue.submit(Some(encoder.finish()));
+        frame.present();
+        // Read back timestamps (synchronously for simplicity)
+        if let (Some(src), Some(dst)) = (&self.timestamp_buf, &self.timestamp_staging) {
+            // Copy resolved results into MAP_READ staging
+            let mut enc = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("copy ts"),
+                });
+            let base = (((q0 as u64) * 8) / wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT)
+                * wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT;
+            enc.copy_buffer_to_buffer(src, base, dst, base, wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT);
+            self.queue.submit(Some(enc.finish()));
+            let start = base;
+            let end = start + 16;
+            let slice = dst.slice(start..end);
+            let (tx, rx) = std::sync::mpsc::channel();
+            slice.map_async(wgpu::MapMode::Read, move |res| {
+                let _ = tx.send(res.is_ok());
+            });
+            // Block until mapping completes
+            self.device.poll(wgpu::Maintain::Wait);
+            if rx.recv().unwrap_or(false) {
+                let data = slice.get_mapped_range();
+                if data.len() >= 16 {
+                    let t0 = u64::from_le_bytes(data[0..8].try_into().unwrap());
+                    let t1 = u64::from_le_bytes(data[8..16].try_into().unwrap());
+                    if t1 > t0 {
+                        let dt_ns = (t1 - t0) as f64 * (self.timestamp_period_ns as f64);
+                        let dt_s = (dt_ns / 1_000_000_000.0) as f32;
+                        self.gpu_metrics.record(dt_s);
+                        if let Some(line) = self.gpu_metrics.maybe_report() {
+                            println!("gpu_{}", line);
+                        }
+                    }
+                }
+                drop(data);
+                dst.unmap();
+            }
+        }
+        self.timestamp_frame_index = self.timestamp_frame_index.wrapping_add(1);
+        Ok(())
+    }
+
+    // Frame helpers for an immediate-mode style
+    pub fn begin_frame(&mut self) {
+        self.process_runtime_raster_warm_queue();
+        self.clear_render_queue();
+        self.transform_pool.reset();
+        self.rect_identity_bg = None;
+        self.rect_pool_cursor = 0;
+        self.frame_counter = self.frame_counter.wrapping_add(1);
+        for entry in &mut self.rect_instance_pool {
+            entry.used_this_frame = false;
+        }
+        self.current_scissor = None;
+        self.clip_stack.clear();
+        self.rect_style_keys.clear();
+        self.rect_instances_count = 0;
+        self.rect_draw_calls_count = 0;
+        self.slot_states.clear();
+    }
+
+exec
+/bin/zsh -lc "sed -n '1,90p' .github/workflows/ci.yml" in /Users/zeke/dev/plutonium_engine/.claude/worktrees/eager-tharp-b3022f
+ succeeded in 0ms:
+name: CI
+
+on:
+  push:
+    branches: [ dev, main ]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+      - name: fmt
+        run: cargo fmt --all -- --check
+      - name: clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings -A clippy::too_many_arguments -A clippy::type_complexity -A clippy::explicit_auto_deref -A clippy::manual_clamp -A clippy::collapsible_else_if -A clippy::derivable_impls
+      - name: test
+        run: cargo test --all --no-fail-fast
+      # rodio backend build is platform-specific; validate in local macOS dev. CI focuses on engine/core/ui.
+      - name: build snapshots
+        run: cargo build --bin snapshots
+      - name: run snapshots
+        run: cargo run --bin snapshots
+
+exec
+/bin/zsh -lc "sed -n '180,245p' src/lib.rs && sed -n '510,565p' src/lib.rs && sed -n '5400,5505p' src/lib.rs" in /Users/zeke/dev/plutonium_engine/.claude/worktrees/eager-tharp-b3022f
+ succeeded in 0ms:
+                f,
+                "http error while fetching '{}': {} {}",
+                url, status, status_text
+            ),
+            RasterTextureLoadError::BodyReadFailed(msg) => {
+                write!(f, "failed reading response body: {}", msg)
+            }
+            RasterTextureLoadError::ImageDecodeFailed(msg) => {
+                write!(f, "image decode failed: {}", msg)
+            }
+            RasterTextureLoadError::TextureCreateFailed(msg) => {
+                write!(f, "texture creation failed: {}", msg)
+            }
+        }
+    }
+}
+
+#[cfg(feature = "raster")]
+impl std::error::Error for RasterTextureLoadError {}
+
+#[cfg(all(feature = "raster", target_arch = "wasm32"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RasterTextureUrlLoadHandle(Uuid);
+
+#[cfg(all(feature = "raster", target_arch = "wasm32"))]
+#[derive(Clone)]
+struct PendingRasterTextureUrlLoad {
+    position: Position,
+    state: Rc<RefCell<Option<Result<Vec<u8>, RasterTextureLoadError>>>>,
+}
+
+#[derive(Debug, Clone)]
+struct RasterSizeEntry {
+    atlas_key: String,
+}
+
+#[derive(Debug)]
+struct RasterFontFamily {
+    font_data: &'static [u8],
+    default_size: f32,
+    hinting: RasterHintingMode,
+    runtime_budget_glyphs_per_frame: usize,
+    runtime_glyphs: Vec<char>,
+    loaded_sizes: HashMap<(u32, u32), RasterSizeEntry>,
+}
+
+#[derive(Debug, Clone)]
+struct PendingRasterWarmRequest {
+    family_key: String,
+    size_q: u32,
+    dpi_q: u32,
+}
+
+struct RasterAtlasBuild {
+    texture_data: Vec<u8>,
+    char_map: HashMap<char, CharacterInfo>,
+    atlas_width: u32,
+    atlas_height: u32,
+    max_tile_width: u32,
+    max_tile_height: u32,
+    ascent: f32,
+    descent: f32,
+    padding_pixels: u32,
+}
+
+/// Curve used to fade halo intensity as it radiates outward.
+    #[allow(dead_code)]
+    rect_pipeline: wgpu::RenderPipeline,
+    glow_pipeline: wgpu::RenderPipeline,
+    glow_instance_bgl: wgpu::BindGroupLayout,
+    #[allow(dead_code)]
+    rect_dummy_bgl: wgpu::BindGroupLayout,
+    rect_dummy_bg: wgpu::BindGroup,
+    texture_bind_group_layout: wgpu::BindGroupLayout,
+    transform_bind_group_layout: wgpu::BindGroupLayout,
+    instance_bind_group_layout: wgpu::BindGroupLayout,
+    texture_map: HashMap<Uuid, TextureSVG>,
+    atlas_map: HashMap<Uuid, TextureAtlas>,
+    pluto_objects: HashMap<Uuid, Rc<RefCell<dyn PlutoObject>>>,
+    update_queue: Vec<Uuid>,
+    render_queue: Vec<QueuedItem>,
+    viewport_size: Size,
+    camera: Camera,
+    text_renderer: TextRenderer,
+    loaded_fonts: HashMap<String, bool>,
+    raster_font_families: HashMap<String, RasterFontFamily>,
+    pending_raster_warm: VecDeque<PendingRasterWarmRequest>,
+    pending_raster_warm_dedupe: HashSet<(String, u32, u32)>,
+    #[cfg(all(feature = "raster", target_arch = "wasm32"))]
+    pending_raster_url_loads: HashMap<Uuid, PendingRasterTextureUrlLoad>,
+    transform_pool: TransformPool,
+    // Static geometry for rects
+    rect_vertex_buffer: wgpu::Buffer,
+    rect_index_buffer: wgpu::Buffer,
+    // Per-frame cached identity UBO bind group
+    rect_identity_bg: Option<wgpu::BindGroup>,
+    // Rect instance buffer pool
+    rect_instance_pool: Vec<RectInstanceBuffer>,
+    rect_pool_cursor: usize,
+    frame_counter: u64,
+    // GPU timing instrumentation (optional)
+    #[allow(dead_code)]
+    timestamp_query: Option<wgpu::QuerySet>,
+    #[allow(dead_code)]
+    timestamp_buf: Option<wgpu::Buffer>,
+    #[allow(dead_code)]
+    timestamp_staging: Option<wgpu::Buffer>,
+    #[allow(dead_code)]
+    timestamp_period_ns: f32,
+    #[allow(dead_code)]
+    timestamp_count: u32,
+    #[allow(dead_code)]
+    timestamp_frame_index: u32,
+    #[allow(dead_code)]
+    gpu_metrics: FrameTimeMetrics,
+    // Global UI clip rectangle (logical coords)
+    current_scissor: Option<Rectangle>,
+    // Nested clip stack (logical coords); top-most is applied. Each push intersects with previous.
+    clip_stack: Vec<Rectangle>,
+    // Rect batching metrics (style diversity and counts) — preserved-order strategy
+    rect_style_keys: HashSet<RectStyleKey>,
+    rect_instances_count: usize,
+        let pluto_objects = HashMap::new();
+        let viewport_size = Size {
+            width: config.width as f32,
+            height: config.height as f32,
+        };
+        let render_queue = Vec::new();
+        let update_queue = Vec::new();
+        let camera = Camera::new(Position { x: 0.0, y: 0.0 });
+
+        let text_renderer = TextRenderer::new();
+        let loaded_fonts = HashMap::new();
+        let raster_font_families = HashMap::new();
+        #[cfg(all(feature = "raster", target_arch = "wasm32"))]
+        let pending_raster_url_loads = HashMap::new();
+        let transform_pool = TransformPool::new();
+
+        // Optional GPU timestamp query setup
+        let mut timestamp_query: Option<wgpu::QuerySet> = None;
+        let mut timestamp_buf: Option<wgpu::Buffer> = None;
+        let mut timestamp_count: u32 = 0;
+        let timestamp_period_ns: f32 = queue.get_timestamp_period();
+        let mut timestamp_staging_buf: Option<wgpu::Buffer> = None;
+        if device.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
+            // 2 queries per frame across a small ring buffer
+            timestamp_count = 128;
+            timestamp_query = Some(device.create_query_set(&wgpu::QuerySetDescriptor {
+                label: Some("gpu-timestamps"),
+                ty: wgpu::QueryType::Timestamp,
+                count: timestamp_count,
+            }));
+            timestamp_buf = Some(device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("gpu-timestamps-buffer"),
+                size: (timestamp_count as u64) * 8,
+                usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC,
+                mapped_at_creation: false,
+            }));
+            // Staging buffer for CPU readback
+            let staging = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("gpu-timestamps-staging"),
+                size: (timestamp_count as u64) * 8,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                mapped_at_creation: false,
+            });
+            timestamp_staging_buf = Some(staging);
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(
+            "pluto new_with: finalizing engine struct",
+        ));
+        Self {
+            size,
+            surface,
+            device,
+            dpi_scale_factor,
+            queue,
+            config,
+            render_pipeline,
+            msdf_render_pipeline,
+            texture_bind_group_layout,
+            transform_bind_group_layout,
+            texture_map,
+            atlas_map,
+            pluto_objects,
+            render_queue,
+            update_queue,
+            viewport_size,
+            camera,
+            text_renderer,
+            loaded_fonts,
+            raster_font_families,
+            pending_raster_warm: VecDeque::new(),
+            pending_raster_warm_dedupe: HashSet::new(),
+            #[cfg(all(feature = "raster", target_arch = "wasm32"))]
+            pending_raster_url_loads,
+            transform_pool,
+            rect_pipeline,
+            glow_pipeline,
+            glow_instance_bgl,
+            rect_dummy_bgl,
+            rect_dummy_bg,
+            rect_vertex_buffer,
+            rect_index_buffer,
+            rect_identity_bg: None,
+            rect_instance_pool: Vec::new(),
+            rect_pool_cursor: 0,
+            frame_counter: 0,
+            instance_bind_group_layout,
+            timestamp_query,
+            timestamp_buf,
+            timestamp_staging: timestamp_staging_buf,
+            timestamp_period_ns,
+            timestamp_count,
+            timestamp_frame_index: 0,
+            gpu_metrics: FrameTimeMetrics::new(600, 5.0),
+            current_scissor: None,
+            clip_stack: Vec::new(),
+            rect_style_keys: HashSet::new(),
+            rect_instances_count: 0,
+            rect_draw_calls_count: 0,
+            slot_states: HashMap::new(),
+            popup_state: PopupRuntimeState::new(),
+            font_cache_version: 0,
+        }
+    }
+
+
+codex
+One concrete mismatch surfaced: the plan talks about moving `flush_batch!`, but the current code has `flush_batch` as a local closure and only three `macro_rules!` flush macros in `render()`. That affects both ordering and the exact extraction recipe.
+exec
+/bin/zsh -lc "rg -n \"pub fn|fn \" src/lib.rs | sed -n '1,140p'" in /Users/zeke/dev/plutonium_engine/.claude/worktrees/eager-tharp-b3022f
+exec
+/bin/zsh -lc "sed -n '560,1660p' src/lib.rs" in /Users/zeke/dev/plutonium_engine/.claude/worktrees/eager-tharp-b3022f
+ succeeded in 0ms:
+101:    fn default() -> Self {
+135:    fn default() -> Self {
+169:    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+262:    pub fn sample(self, distance_01: f32) -> f32 {
+288:    fn default() -> Self {
+338:    fn default() -> Self {
+360:    pub fn from_preset(preset: HaloPreset) -> Self {
+394:    pub fn alpha_at(self, distance_01: f32) -> f32 {
+471:fn to_rgba_u8(c: [f32; 4]) -> [u8; 4] {
+480:fn quant_10x(v: f32) -> u16 {
+485:    fn new() -> Self {
+493:    fn reset(&mut self) {
+576:    fn create_texture_raster_from_bytes_internal(
+616:    async fn fetch_raster_texture_bytes(url: &str) -> Result<Vec<u8>, RasterTextureLoadError> {
+648:    pub fn set_boundary(&mut self, boundary: Rectangle) {
+651:    pub fn clear_boundary(&mut self) {
+655:    pub fn activate_camera(&mut self) {
+659:    pub fn deactivate_camera(&mut self) {
+663:    pub fn set_camera_smoothing(&mut self, smoothing_strength: f32) {
+671:    pub fn set_msdf_switch_thresholds(&mut self, tiny_raster_max_px: f32, msdf_min_px: f32) {
+676:    fn sanitize_font_size(size: f32) -> f32 {
+680:    fn sanitize_dpi_scale_factor(scale_factor: f64) -> f32 {
+688:    fn quantize_font_size(size: f32) -> u32 {
+692:    fn dequantize_font_size(size_q: u32) -> f32 {
+696:    fn raster_variant_key(font_key: &str, size_q: u32, dpi_q: u32) -> String {
+700:    fn glyphs_from_set(glyph_set: &GlyphSet) -> Vec<char> {
+720:    fn choose_loaded_raster_entry(
+755:    fn resolve_font_key_for_measure(
+778:    pub fn measure_text(
+801:    pub fn debug_print_text_line_layout(
+852:    pub fn window_bounds(&self) -> Rectangle {
+863:    pub fn logical_window_size(&self) -> Size {
+871:    pub fn dpi_scale_factor(&self) -> f32 {
+875:    pub fn load_font(
+889:    pub fn load_font_with_options(
+905:    fn load_font_with_options_from_bytes_internal(
+976:    pub fn load_font_from_bytes(
+994:    pub fn warm_text_cache(
+1066:    fn load_raster_font_variant_from_data(
+1179:    fn queue_raster_warm_request(&mut self, font_key: &str, target_size: f32, target_dpi: f32) {
+1201:    fn resolve_font_key_for_render(
+1231:    fn process_runtime_raster_warm_queue(&mut self) {
+1302:    fn build_hinted_raster_atlas_from_font_data(
+1456:    fn build_hinted_raster_atlas_from_font_data(
+1469:    fn build_tiny_raster_fallback_from_font_data(
+1619:    fn build_tiny_raster_fallback_from_font_data(
+1629:    pub fn load_msdf_font(
+1714:    pub fn load_msdf_font_from_png_bytes(
+1766:    pub fn load_msdf_font_from_bytes(
+1822:    pub fn load_msdf_font_with_tiny_raster(
+1885:    pub fn load_msdf_font_from_ttf(
+2063:    pub fn debug_dump_font_atlas_png(
+2088:    pub fn set_texture_position(&mut self, key: &Uuid, position: Position) {
+2102:    pub fn set_dpi_scale_factor(&mut self, scale_factor: f64) {
+2121:    pub fn resize(&mut self, new_size: &PhysicalSize<u32>) {
+2136:    pub fn update(&mut self, mouse_info: Option<MouseInfo>, key: &Option<Key>, delta_time: f32) {
+2217:    pub fn show_popup(&mut self, config: PopupConfig) {
+2221:    pub fn show_popup_with_objects(
+2231:    pub fn close_popup(&mut self, popup_id: &str) -> bool {
+2235:    pub fn popup_is_open(&self) -> bool {
+2239:    pub fn drain_popup_events(&mut self) -> Vec<PopupEvent> {
+2243:    pub fn set_camera_target(&mut self, texture_key: Uuid) {
+2247:    pub fn queue_texture(&mut self, texture_key: &Uuid, position: Option<Position>) {
+2251:    pub fn queue_texture_with_layer(
+2279:    fn inset_rect_uniform(rect: Rectangle, inset: f32) -> Option<Rectangle> {
+2294:    fn queue_texture_stretched_internal(
+2372:    pub fn queue_texture_stretched(&mut self, texture_key: &Uuid, dst: Rectangle) {
+2382:    pub fn queue_texture_stretched_with_fit(
+2391:    pub fn queue_texture_stretched_with_layer(
+2406:    pub fn queue_texture_stretched_with_layer_and_fit(
+2429:    pub fn begin_slot(&mut self, slot_id: Uuid, rect: Rectangle, z_base: i32) {
+2448:    pub fn end_slot(&mut self, slot_id: &Uuid) {
+2455:    pub fn slot_hit_rect(&self, slot_id: &Uuid) -> Option<Rectangle> {
+2462:    pub fn set_slot_clip_radius(&mut self, slot_id: &Uuid, radius: Option<f32>) {
+2468:    pub fn queue_slot_layer_texture(
+2500:    fn queue_rect_internal(
+2545:    pub fn queue_slot_layer_rect(
+2574:    pub fn queue_tile(
+2584:    pub fn queue_tile_with_layer(
+2602:    pub fn queue_tile_with_tint(
+2634:    pub fn queue_atlas_uv_with_tint(
+2660:    fn queue_atlas_uv_with_tint_internal(
+2732:    pub fn queue_text(
+2752:    pub fn queue_text_with_spacing(
+2808:    pub fn clear_render_queue(&mut self) {
+2812:    pub fn debug_render_queue_len(&self) -> usize {
+2816:    pub fn debug_surface_size(&self) -> (u32, u32) {
+2820:    pub fn debug_viewport_size(&self) -> Size {
+2824:    pub fn unload_texture(&mut self, texture_key: &Uuid) -> bool {
+2828:    pub fn unload_atlas(&mut self, atlas_key: &Uuid) -> bool {
+2832:    pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+3504:    pub fn begin_frame(&mut self) {
+3522:    pub fn end_frame(&mut self) -> Result<(), wgpu::SurfaceError> {
+3540:    fn popup_font_key(&self) -> Option<String> {
+3552:    fn popup_button_colors(style: PopupActionStyle) -> ([f32; 4], [f32; 4]) {
+3560:    fn render_popup_overlay(&mut self) {
+3676:    fn wrap_popup_message_text(
+3748:    fn largest_fitting_prefix<F>(text: &str, max_width: f32, width_fn: F) -> String
+3770:    pub fn draw_texture(&mut self, texture_key: &Uuid, position: Position, params: DrawParams) {
+3792:    pub fn draw_texture_stretched(&mut self, texture_key: &Uuid, dst: Rectangle) {
+3796:    pub fn draw_texture_stretched_with_fit_and_inset(
+3807:    pub fn draw_tile(
+3823:    pub fn draw_atlas_tile_stretched(
+3872:    pub fn draw_rect(
+3891:    fn halo_world_rect_from_screen_rect(&self, rect: Rectangle) -> Rectangle {
+3905:    fn halo_screen_rect_from_world_rect(&self, rect: Rectangle) -> Rectangle {
+3919:    fn screen_space_viewport_rect(&self) -> Rectangle {
+3928:    fn rects_intersect(a: Rectangle, b: Rectangle) -> bool {
+3939:    fn rect_intersection(a: Rectangle, b: Rectangle) -> Option<Rectangle> {
+3952:    fn effective_item_clip_rect(&self, item_clip: Option<Rectangle>) -> Option<Rectangle> {
+3964:    fn apply_scissor_logical(
+3998:    fn draw_halo_world_rect(&mut self, world_rect: Rectangle, style: HaloStyle) {
+4086:    pub fn draw_halo(&mut self, target_rect: Rectangle, style: HaloStyle) {
+4095:    pub fn draw_rect_glow(
+4163:    fn allocate_transform_bind_group(&mut self, transform_uniform: TransformUniform) -> usize {
+4208:    pub fn create_texture_svg(
+4233:    pub fn create_texture_svg_from_data(
+4259:    pub fn create_texture_svg_from_str(
+4269:    pub fn create_texture_raster_from_path(
+4299:    pub async fn create_texture_raster_from_url(
+4309:    pub fn begin_texture_raster_from_url(
+4331:    pub fn poll_texture_raster_from_url(
+4350:    pub fn create_texture_atlas(
+4381:    pub fn create_font_texture_atlas(
+4405:    fn create_font_texture_atlas_with_options(
+4535:    pub fn remove_object(&mut self, id: Uuid) {
+4540:    pub fn object_bounds(&self, object_id: &Uuid) -> Option<Rectangle> {
+4554:    pub fn draw_halo_for_object(&mut self, object_id: &Uuid, style: HaloStyle) -> bool {
+4571:    pub fn create_texture_2d(
+4593:    pub fn create_text2d(
+4603:    pub fn create_text2d_with_z(
+4644:    pub fn create_texture_atlas_2d(
+4668:    pub fn create_button(
+4703:    pub fn create_text_input(
+4772:    pub fn create_rect(
+4809:    pub fn create_circle(
+4845:    pub fn create_polygon(
+4883:    pub fn new(
+4913:    pub fn new(
+4923:    pub async fn new_async(
+
+ succeeded in 0ms:
+    current_scissor: Option<Rectangle>,
+    // Nested clip stack (logical coords); top-most is applied. Each push intersects with previous.
+    clip_stack: Vec<Rectangle>,
+    // Rect batching metrics (style diversity and counts) — preserved-order strategy
+    rect_style_keys: HashSet<RectStyleKey>,
+    rect_instances_count: usize,
+    rect_draw_calls_count: usize,
+    // Frame-local slot definitions for deterministic layered UI composition.
+    slot_states: HashMap<Uuid, SlotState>,
+    popup_state: PopupRuntimeState,
+    // Incremented whenever the font cache is invalidated (e.g. DPI change)
+    font_cache_version: u32,
+}
+
+impl<'a> PlutoniumEngine<'a> {
+    #[cfg(all(feature = "raster", target_arch = "wasm32"))]
+    fn create_texture_raster_from_bytes_internal(
+        &mut self,
+        bytes: &[u8],
+        position: Position,
+    ) -> Result<(Uuid, Size), RasterTextureLoadError> {
+        let decoded = image::load_from_memory(bytes)
+            .map_err(|e| RasterTextureLoadError::ImageDecodeFailed(e.to_string()))?;
+        let rgba = decoded.to_rgba8();
+        let (width, height) = rgba.dimensions();
+
+        let texture_key = Uuid::new_v4();
+        let texture = TextureSVG::new_from_rgba(
+            texture_key,
+            &self.device,
+            &self.queue,
+            width,
+            height,
+            rgba.as_raw(),
+            &self.texture_bind_group_layout,
+            &self.transform_bind_group_layout,
+            position,
+        )
+        .ok_or_else(|| {
+            RasterTextureLoadError::TextureCreateFailed(
+                "failed to create texture from decoded image".to_string(),
+            )
+        })?;
+
+        let dimensions = texture.dimensions() / self.dpi_scale_factor;
+        self.texture_map.insert(texture_key, texture);
+        Ok((
+            texture_key,
+            Size {
+                width: dimensions.width,
+                height: dimensions.height,
+            },
+        ))
+    }
+
+    #[cfg(all(feature = "raster", target_arch = "wasm32"))]
+    async fn fetch_raster_texture_bytes(url: &str) -> Result<Vec<u8>, RasterTextureLoadError> {
+        let window = web_sys::window().ok_or_else(|| {
+            RasterTextureLoadError::FetchFailed("window is unavailable".to_string())
+        })?;
+
+        let response_value = JsFuture::from(window.fetch_with_str(url))
+            .await
+            .map_err(|e| RasterTextureLoadError::FetchFailed(format!("{:?}", e)))?;
+        let response: web_sys::Response = response_value
+            .dyn_into()
+            .map_err(|_| RasterTextureLoadError::InvalidResponse(url.to_string()))?;
+
+        if !response.ok() {
+            return Err(RasterTextureLoadError::HttpStatus {
+                status: response.status(),
+                status_text: response.status_text(),
+                url: url.to_string(),
+            });
+        }
+
+        let array_buffer = JsFuture::from(
+            response
+                .array_buffer()
+                .map_err(|e| RasterTextureLoadError::BodyReadFailed(format!("{:?}", e)))?,
+        )
+        .await
+        .map_err(|e| RasterTextureLoadError::BodyReadFailed(format!("{:?}", e)))?;
+
+        Ok(js_sys::Uint8Array::new(&array_buffer).to_vec())
+    }
+
+    /* CAMERA STUFF */
+    pub fn set_boundary(&mut self, boundary: Rectangle) {
+        self.camera.set_boundary(boundary);
+    }
+    pub fn clear_boundary(&mut self) {
+        self.camera.clear_boundary();
+    }
+
+    pub fn activate_camera(&mut self) {
+        self.camera.activate();
+    }
+
+    pub fn deactivate_camera(&mut self) {
+        self.camera.deactivate();
+    }
+
+    pub fn set_camera_smoothing(&mut self, smoothing_strength: f32) {
+        self.camera.set_smoothing_strength(smoothing_strength);
+    }
+
+    /// Configure hybrid text thresholds in logical pixels.
+    ///
+    /// - `tiny_raster_max_px`: use hinted tiny-raster path at or below this size.
+    /// - `msdf_min_px`: prefer MSDF at or above this size.
+    pub fn set_msdf_switch_thresholds(&mut self, tiny_raster_max_px: f32, msdf_min_px: f32) {
+        self.text_renderer
+            .set_quality_thresholds(tiny_raster_max_px, msdf_min_px);
+    }
+
+    fn sanitize_font_size(size: f32) -> f32 {
+        size.max(1.0)
+    }
+
+    fn sanitize_dpi_scale_factor(scale_factor: f64) -> f32 {
+        if scale_factor.is_finite() && scale_factor > 0.0 {
+            scale_factor as f32
+        } else {
+            1.0
+        }
+    }
+
+    fn quantize_font_size(size: f32) -> u32 {
+        (Self::sanitize_font_size(size) * FONT_SIZE_QUANTIZATION).round() as u32
+    }
+
+    fn dequantize_font_size(size_q: u32) -> f32 {
+        (size_q as f32) / FONT_SIZE_QUANTIZATION
+    }
+
+    fn raster_variant_key(font_key: &str, size_q: u32, dpi_q: u32) -> String {
+        format!("{font_key}::raster@{size_q}@{dpi_q}")
+    }
+
+    fn glyphs_from_set(glyph_set: &GlyphSet) -> Vec<char> {
+        let mut out = match glyph_set {
+            GlyphSet::AsciiCore => (32u8..=126u8).map(|c| c as char).collect(),
+            GlyphSet::Custom(chars) => chars
+                .iter()
+                .copied()
+                .filter(|c| !c.is_control())
+                .collect::<Vec<char>>(),
+        };
+        if !out.contains(&' ') {
+            out.push(' ');
+        }
+        if !out.contains(&'?') {
+            out.push('?');
+        }
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+
+    fn choose_loaded_raster_entry(
+        &self,
+        font_key: &str,
+        target_size: f32,
+        target_dpi: f32,
+    ) -> Option<(&RasterSizeEntry, bool)> {
+        let family = self.raster_font_families.get(font_key)?;
+        let requested_size_q = Self::quantize_font_size(target_size);
+        let requested_dpi_q = Self::quantize_font_size(target_dpi);
+        let target_key = (requested_size_q, requested_dpi_q);
+
+        if let Some(entry) = family.loaded_sizes.get(&target_key) {
+            return Some((entry, true));
+        }
+
+        // nearest size, prioritize same DPI if possible
+        let mut nearest: Option<(&RasterSizeEntry, u32, u32)> = None;
+        for (&(size_q, dpi_q), entry) in &family.loaded_sizes {
+            let size_delta = requested_size_q.abs_diff(size_q);
+            let dpi_delta = requested_dpi_q.abs_diff(dpi_q);
+
+            match nearest {
+                Some((_, best_size_delta, best_dpi_delta)) => {
+                    if size_delta < best_size_delta
+                        || (size_delta == best_size_delta && dpi_delta < best_dpi_delta)
+                    {
+                        nearest = Some((entry, size_delta, dpi_delta));
+                    }
+                }
+                _ => nearest = Some((entry, size_delta, dpi_delta)),
+            }
+        }
+        nearest.map(|(entry, _, _)| (entry, false))
+    }
+
+    fn resolve_font_key_for_measure(
+        &self,
+        font_key: &str,
+        font_size_override: Option<f32>,
+    ) -> (String, Option<f32>) {
+        let Some(family) = self.raster_font_families.get(font_key) else {
+            return (font_key.to_string(), font_size_override);
+        };
+        let target = Self::sanitize_font_size(font_size_override.unwrap_or(family.default_size));
+        match self.choose_loaded_raster_entry(font_key, target, self.dpi_scale_factor) {
+            Some((entry, _)) => {
+                let override_size = if font_size_override.is_some() {
+                    Some(target)
+                } else {
+                    None
+                };
+                (entry.atlas_key.clone(), override_size)
+            }
+            None => (font_key.to_string(), font_size_override),
+        }
+    }
+
+    /// Measure text width (logical px) and line count using the same layout math as rendering.
+    pub fn measure_text(
+        &self,
+        text: &str,
+        font_key: &str,
+        letter_spacing: f32,
+        word_spacing: f32,
+        font_size_override: Option<f32>,
+    ) -> (f32, usize) {
+        let (resolved_font_key, resolved_size_override) =
+            self.resolve_font_key_for_measure(font_key, font_size_override);
+        self.text_renderer.measure_text(
+            text,
+            &resolved_font_key,
+            letter_spacing,
+            word_spacing,
+            resolved_size_override,
+        )
+    }
+
+    /// Print per-glyph horizontal layout diagnostics for a single line.
+    ///
+    /// Useful for debugging pair overlap/spacing issues (`j/u`, etc.) by showing
+    /// pen position, kerning, glyph bounds, and advance for each glyph.
+    pub fn debug_print_text_line_layout(
+        &self,
+        line: &str,
+        font_key: &str,
+        font_size: f32,
+        letter_spacing: f32,
+        word_spacing: f32,
+    ) -> Result<(), String> {
+        let records = self.text_renderer.debug_line_layout_records(
+            line,
+            font_key,
+            font_size,
+            letter_spacing,
+            word_spacing,
+        )?;
+
+        println!(
+            "[TEXT LAYOUT DEBUG] font='{}' size={:.2}px text={:?}",
+            font_key, font_size, line
+        );
+        let mut prev_right: Option<f32> = None;
+        for rec in records {
+            let gap_from_prev = prev_right.map(|right| rec.glyph_left_px - right);
+            println!(
+                "  #{:02} {} '{}'->'{}' pen={:+7.2} kern={:+6.2} left={:+7.2} right={:+7.2} adv={:+6.2} ls={:+5.2} next_pen={:+7.2} gap_prev={}",
+                rec.index,
+                rec.mode,
+                rec.input_char,
+                rec.resolved_char,
+                rec.pen_x_before,
+                rec.kerning_px,
+                rec.glyph_left_px,
+                rec.glyph_right_px,
+                rec.advance_px,
+                rec.letter_spacing_px,
+                rec.pen_x_after,
+                match gap_from_prev {
+                    Some(v) => format!("{:+.2}", v),
+                    None => "-".to_string(),
+                }
+            );
+            prev_right = Some(rec.glyph_right_px);
+        }
+
+        Ok(())
+    }
+
+    /// Returns the window bounds as a Rectangle for use with layout.
+    /// This is a convenience method that returns a rectangle covering the entire window.
+    /// Returns logical pixel coordinates (not physical pixels).
+    #[cfg(feature = "layout")]
+    pub fn window_bounds(&self) -> Rectangle {
+        // Return logical pixels: physical size divided by DPI scale factor
+        Rectangle::new(
+            0.0,
+            0.0,
+            (self.size.width as f32) / self.dpi_scale_factor,
+            (self.size.height as f32) / self.dpi_scale_factor,
+        )
+    }
+
+    /// Returns the current logical window size (logical px, DPI-aware).
+    pub fn logical_window_size(&self) -> Size {
+        Size {
+            width: self.viewport_size.width / self.dpi_scale_factor,
+            height: self.viewport_size.height / self.dpi_scale_factor,
+        }
+    }
+
+    /// Returns the current DPI scale factor used by input/layout/render transforms.
+    pub fn dpi_scale_factor(&self) -> f32 {
+        self.dpi_scale_factor
+    }
+
+    pub fn load_font(
+        &mut self,
+        font_path: &str,
+        logical_font_size: f32,
+        font_key: &str,
+    ) -> Result<(), FontError> {
+        self.load_font_with_options(
+            font_path,
+            logical_font_size,
+            font_key,
+            FontLoadOptions::default(),
+        )
+    }
+
+    pub fn load_font_with_options(
+        &mut self,
+        font_path: &str,
+        logical_font_size: f32,
+        font_key: &str,
+        options: FontLoadOptions,
+    ) -> Result<(), FontError> {
+        let font_data = std::fs::read(font_path).map_err(FontError::IoError)?;
+        self.load_font_with_options_from_bytes_internal(
+            font_data,
+            logical_font_size,
+            font_key,
+            options,
+        )
+    }
+
+    fn load_font_with_options_from_bytes_internal(
+        &mut self,
+        font_data: Vec<u8>,
+        logical_font_size: f32,
+        font_key: &str,
+        options: FontLoadOptions,
+    ) -> Result<(), FontError> {
+        if self.loaded_fonts.contains_key(font_key) {
+            return Ok(());
+        }
+
+        let base_size = Self::sanitize_font_size(logical_font_size);
+        // SAFETY: cached for the engine lifetime to keep rusttype font slices valid.
+        let leaked: &'static [u8] = Box::leak(font_data.into_boxed_slice());
+        let mut prewarm_sizes = vec![base_size];
+        let mut runtime_glyphs = Self::glyphs_from_set(&GlyphSet::AsciiCore);
+        match &options.prewarm_policy {
+            PrewarmPolicy::None => {}
+            PrewarmPolicy::LightPreset => prewarm_sizes.extend(LIGHT_PREWARM_SIZES),
+            PrewarmPolicy::Custom(config) => {
+                prewarm_sizes.extend(config.sizes.iter().copied());
+                runtime_glyphs = Self::glyphs_from_set(&config.glyph_set);
+            }
+        }
+
+        let mut seen_sizes = HashSet::new();
+        let mut normalized_sizes = Vec::new();
+        for size in prewarm_sizes {
+            let size_q = Self::quantize_font_size(size);
+            if seen_sizes.insert(size_q) {
+                normalized_sizes.push(Self::dequantize_font_size(size_q));
+            }
+        }
+        normalized_sizes.sort_by(|a, b| a.total_cmp(b));
+
+        let base_q = Self::quantize_font_size(base_size);
+        let current_dpi_q = Self::quantize_font_size(self.dpi_scale_factor);
+        let mut loaded_sizes = HashMap::new();
+        for size in normalized_sizes {
+            let size_q = Self::quantize_font_size(size);
+            let atlas_key = if size_q == base_q && current_dpi_q == 10 {
+                font_key.to_string()
+            } else {
+                Self::raster_variant_key(font_key, size_q, current_dpi_q)
+            };
+            self.load_raster_font_variant_from_data(
+                leaked,
+                &runtime_glyphs,
+                size,
+                self.dpi_scale_factor,
+                &atlas_key,
+                options.hinting,
+            )?;
+            loaded_sizes.insert((size_q, current_dpi_q), RasterSizeEntry { atlas_key });
+        }
+
+        let family = RasterFontFamily {
+            font_data: leaked,
+            default_size: base_size,
+            hinting: options.hinting,
+            runtime_budget_glyphs_per_frame: options.runtime_budget_glyphs_per_frame,
+            runtime_glyphs,
+            loaded_sizes,
+        };
+        self.raster_font_families
+            .insert(font_key.to_string(), family);
+        self.loaded_fonts.insert(font_key.to_string(), true);
+        Ok(())
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn load_font_from_bytes(
+        &mut self,
+        font_bytes: &[u8],
+        logical_font_size: f32,
+        font_key: &str,
+    ) -> Result<(), FontError> {
+        let mut options = FontLoadOptions::default();
+        // Keep wasm startup responsive for byte-based loads used by browser paths.
+        options.prewarm_policy = PrewarmPolicy::None;
+        options.hinting = RasterHintingMode::None;
+        self.load_font_with_options_from_bytes_internal(
+            font_bytes.to_vec(),
+            logical_font_size,
+            font_key,
+            options,
+        )
+    }
+
+    pub fn warm_text_cache(
+        &mut self,
+        font_key: &str,
+        prewarm: PrewarmConfig,
+    ) -> Result<WarmStats, String> {
+        if !self.loaded_fonts.contains_key(font_key) {
+            return Err(format!("font '{font_key}' is not loaded"));
+        }
+        let Some(family) = self.raster_font_families.get(font_key) else {
+            return Err(format!(
+                "font '{font_key}' does not use raster cache warming"
+            ));
+        };
+
+        let glyphs = Self::glyphs_from_set(&prewarm.glyph_set);
+        let font_data = family.font_data;
+        let base_q = Self::quantize_font_size(family.default_size);
+        let current_dpi_q = Self::quantize_font_size(self.dpi_scale_factor);
+        let hinting = family.hinting;
+
+        let mut seen_sizes = HashSet::new();
+        let mut sizes = Vec::new();
+        for size in prewarm.sizes {
+            let size_q = Self::quantize_font_size(size);
+            if seen_sizes.insert(size_q) {
+                sizes.push(Self::dequantize_font_size(size_q));
+            }
+        }
+
+        let mut stats = WarmStats {
+            requested_sizes: sizes.len(),
+            ..WarmStats::default()
+        };
+
+        for size in sizes {
+            let size_q = Self::quantize_font_size(size);
+            if self
+                .raster_font_families
+                .get(font_key)
+                .is_some_and(|f| f.loaded_sizes.contains_key(&(size_q, current_dpi_q)))
+            {
+                stats.already_loaded_sizes += 1;
+                continue;
+            }
+
+            let atlas_key = if size_q == base_q && current_dpi_q == 10 {
+                font_key.to_string()
+            } else {
+                Self::raster_variant_key(font_key, size_q, current_dpi_q)
+            };
+            self.load_raster_font_variant_from_data(
+                font_data,
+                &glyphs,
+                size,
+                self.dpi_scale_factor,
+                &atlas_key,
+                hinting,
+            )
+            .map_err(|e| format!("failed to warm '{}': {:?}", font_key, e))?;
+            if let Some(family_mut) = self.raster_font_families.get_mut(font_key) {
+                family_mut
+                    .loaded_sizes
+                    .insert((size_q, current_dpi_q), RasterSizeEntry { atlas_key });
+            }
+            stats.warmed_sizes += 1;
+            stats.glyphs_rasterized += glyphs.len();
+            self.pending_raster_warm_dedupe
+                .remove(&(font_key.to_string(), size_q, current_dpi_q));
+        }
+        Ok(stats)
+    }
+
+    fn load_raster_font_variant_from_data(
+        &mut self,
+        font_data: &'static [u8],
+        glyphs: &[char],
+        logical_font_size: f32,
+        dpi_scale_factor: f32,
+        atlas_key: &str,
+        _hinting: RasterHintingMode,
+    ) -> Result<(), FontError> {
+        if self.text_renderer.font_atlases.contains_key(atlas_key) {
+            return Ok(());
+        }
+        let logical_font_size = Self::sanitize_font_size(logical_font_size);
+        // FreeType hinting is unavailable on wasm, so force rusttype atlas generation there.
+        #[cfg(target_arch = "wasm32")]
+        let use_hinted = false;
+        #[cfg(not(target_arch = "wasm32"))]
+        let use_hinted = match _hinting {
+            RasterHintingMode::None => false,
+            RasterHintingMode::Auto => logical_font_size <= AUTO_HINTED_RASTER_MAX_PX,
+        };
+
+        let atlas_build = if use_hinted {
+            self.build_hinted_raster_atlas_from_font_data(
+                font_data,
+                logical_font_size,
+                dpi_scale_factor,
+                glyphs,
+            )?
+        } else {
+            let physical_font_size = logical_font_size * self.dpi_scale_factor;
+            let font = Font::try_from_bytes(font_data).ok_or(FontError::InvalidFontData)?;
+            let scale = Scale::uniform(physical_font_size);
+            let padding = 2;
+
+            let (atlas_width, atlas_height, char_dimensions, max_tile_width, max_tile_height) =
+                TextRenderer::calculate_atlas_size_for_chars(&font, scale, padding, glyphs);
+            let (texture_data, physical_char_map) = TextRenderer::render_glyphs_to_atlas_for_chars(
+                &font,
+                scale,
+                (atlas_width, atlas_height),
+                &char_dimensions,
+                padding,
+                glyphs,
+            )
+            .ok_or(FontError::AtlasRenderError)?;
+
+            let mut logical_char_map = HashMap::new();
+            for (c, physical_info) in physical_char_map {
+                logical_char_map.insert(
+                    c,
+                    CharacterInfo {
+                        tile_index: physical_info.tile_index,
+                        advance_width: physical_info.advance_width / dpi_scale_factor,
+                        bearing: (
+                            physical_info.bearing.0 / dpi_scale_factor,
+                            physical_info.bearing.1 / dpi_scale_factor,
+                        ),
+                        size: physical_info.size,
+                    },
+                );
+            }
+
+            let ascent = font.v_metrics(scale).ascent / dpi_scale_factor;
+            let descent = font.v_metrics(scale).descent / dpi_scale_factor;
+            RasterAtlasBuild {
+                texture_data,
+                char_map: logical_char_map,
+                atlas_width,
+                atlas_height,
+                max_tile_width,
+                max_tile_height,
+                ascent,
+                descent,
+                padding_pixels: padding,
+            }
+        };
+
+        let atlas_id = Uuid::new_v4();
+        let atlas = self.create_font_texture_atlas(
+            atlas_id,
+            &atlas_build.texture_data,
+            atlas_build.atlas_width,
+            atlas_build.atlas_height,
+            Size {
+                width: atlas_build.max_tile_width as f32,
+                height: atlas_build.max_tile_height as f32,
+            },
+            &atlas_build.char_map,
+        );
+
+        let font_static = Font::try_from_bytes(font_data).ok_or(FontError::InvalidFontData)?;
+        self.text_renderer
+            .fonts
+            .insert(atlas_key.to_string(), font_static);
+
+        self.text_renderer.store_font_atlas(
+            atlas_key,
+            atlas,
+            atlas_build.char_map,
+            logical_font_size,
+            atlas_build.ascent,
+            atlas_build.descent,
+            Size {
+                width: atlas_build.max_tile_width as f32,
+                height: atlas_build.max_tile_height as f32,
+            },
+            dpi_scale_factor,
+            atlas_build.padding_pixels,
+        );
+        Ok(())
+    }
+
+    fn queue_raster_warm_request(&mut self, font_key: &str, target_size: f32, target_dpi: f32) {
+        let size_q = Self::quantize_font_size(target_size);
+        let dpi_q = Self::quantize_font_size(target_dpi);
+        if self
+            .raster_font_families
+            .get(font_key)
+            .map(|f| f.loaded_sizes.contains_key(&(size_q, dpi_q)))
+            .unwrap_or(true)
+        {
+            return;
+        }
+        let dedupe_key = (font_key.to_string(), size_q, dpi_q);
+        if self.pending_raster_warm_dedupe.insert(dedupe_key.clone()) {
+            self.pending_raster_warm
+                .push_back(PendingRasterWarmRequest {
+                    family_key: font_key.to_string(),
+                    size_q,
+                    dpi_q,
+                });
+        }
+    }
+
+    fn resolve_font_key_for_render(
+        &mut self,
+        font_key: &str,
+        font_size_override: Option<f32>,
+    ) -> (String, Option<f32>) {
+        let Some(family) = self.raster_font_families.get(font_key) else {
+            return (font_key.to_string(), font_size_override);
+        };
+        let target_size =
+            Self::sanitize_font_size(font_size_override.unwrap_or(family.default_size));
+        match self.choose_loaded_raster_entry(font_key, target_size, self.dpi_scale_factor) {
+            Some((entry, is_exact)) => {
+                let atlas_key = entry.atlas_key.clone();
+                if !is_exact {
+                    self.queue_raster_warm_request(font_key, target_size, self.dpi_scale_factor);
+                }
+                let override_size = if font_size_override.is_some() || !is_exact {
+                    Some(target_size)
+                } else {
+                    None
+                };
+                (atlas_key, override_size)
+            }
+            None => {
+                self.queue_raster_warm_request(font_key, target_size, self.dpi_scale_factor);
+                (font_key.to_string(), font_size_override)
+            }
+        }
+    }
+
+    fn process_runtime_raster_warm_queue(&mut self) {
+        if self.pending_raster_warm.is_empty() {
+            return;
+        }
+
+        let mut remaining_budget: HashMap<String, usize> = HashMap::new();
+        let mut deferred = VecDeque::new();
+
+        while let Some(req) = self.pending_raster_warm.pop_front() {
+            let dedupe_key = (req.family_key.clone(), req.size_q, req.dpi_q);
+            let Some(family) = self.raster_font_families.get(&req.family_key) else {
+                self.pending_raster_warm_dedupe.remove(&dedupe_key);
+                continue;
+            };
+            if family.loaded_sizes.contains_key(&(req.size_q, req.dpi_q)) {
+                self.pending_raster_warm_dedupe.remove(&dedupe_key);
+                continue;
+            }
+
+            let glyph_cost = family.runtime_glyphs.len().max(1);
+            let budget = remaining_budget
+                .entry(req.family_key.clone())
+                .or_insert(family.runtime_budget_glyphs_per_frame);
+            if *budget < glyph_cost {
+                deferred.push_back(req);
+                continue;
+            }
+
+            let logical_size = Self::dequantize_font_size(req.size_q);
+            let dpi_scale = Self::dequantize_font_size(req.dpi_q);
+            let default_q = Self::quantize_font_size(family.default_size);
+            let atlas_key = if req.size_q == default_q && req.dpi_q == 10 {
+                req.family_key.clone()
+            } else {
+                Self::raster_variant_key(&req.family_key, req.size_q, req.dpi_q)
+            };
+            let font_data = family.font_data;
+            let runtime_glyphs = family.runtime_glyphs.clone();
+            let hinting = family.hinting;
+            match self.load_raster_font_variant_from_data(
+                font_data,
+                &runtime_glyphs,
+                logical_size,
+                dpi_scale,
+                &atlas_key,
+                hinting,
+            ) {
+                Ok(()) => {
+                    if let Some(family_mut) = self.raster_font_families.get_mut(&req.family_key) {
+                        family_mut
+                            .loaded_sizes
+                            .insert((req.size_q, req.dpi_q), RasterSizeEntry { atlas_key });
+                    }
+                    *budget = budget.saturating_sub(glyph_cost);
+                    self.pending_raster_warm_dedupe.remove(&dedupe_key);
+                    self.font_cache_version = self.font_cache_version.wrapping_add(1);
+                }
+                Err(err) => {
+                    eprintln!(
+                        "[FONT CACHE] failed to warm '{}' @ {:.2}px: {:?}",
+                        req.family_key, logical_size, err
+                    );
+                    self.pending_raster_warm_dedupe.remove(&dedupe_key);
+                }
+            }
+        }
+
+        self.pending_raster_warm = deferred;
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn build_hinted_raster_atlas_from_font_data(
+        &mut self,
+        font_data: &[u8],
+        logical_font_size: f32,
+        dpi_scale_factor: f32,
+        glyphs: &[char],
+    ) -> Result<RasterAtlasBuild, FontError> {
+        #[derive(Clone)]
+        struct GlyphBitmap {
+            ch: char,
+            alpha: Vec<u8>,
+            width: u32,
+            height: u32,
+            advance_px: f32,
+            bearing_x_px: f32,
+            bearing_y_px: f32,
+        }
+
+        let logical_font_size = Self::sanitize_font_size(logical_font_size);
+        let physical_ppem = (logical_font_size * dpi_scale_factor).round().max(1.0) as u32;
+        let padding = 2u32;
+
+        let library = freetype::Library::init().map_err(|e| {
+            FontError::FreeTypeError(format!("failed to initialize freetype: {}", e))
+        })?;
+        let face = library
+            .new_memory_face(font_data.to_vec(), 0)
+            .map_err(|e| FontError::FreeTypeError(format!("failed to load face: {}", e)))?;
+        face.set_pixel_sizes(0, physical_ppem)
+            .map_err(|e| FontError::FreeTypeError(format!("failed to set pixel size: {}", e)))?;
+
+        let load_flags = freetype::face::LoadFlag::RENDER
+            | freetype::face::LoadFlag::TARGET_LIGHT
+            | freetype::face::LoadFlag::FORCE_AUTOHINT;
+
+        let mut rendered = Vec::new();
+        let mut max_tile_width = 0u32;
+        let mut max_tile_height = 0u32;
+        let mut missing = Vec::new();
+
+        for ch in glyphs.iter().copied() {
+            if let Err(err) = face.load_char(ch as usize, load_flags) {
+                missing.push((ch, err));
+                continue;
+            }
+            let slot = face.glyph();
+            let bm = slot.bitmap();
+            let width = bm.width().max(0) as u32;
+            let rows = bm.rows().max(0) as u32;
+            let pitch = bm.pitch().unsigned_abs() as usize;
+            let src = bm.buffer();
+            let mut alpha = vec![0u8; (width * rows) as usize];
+
+            for y in 0..rows {
+                let src_row = if bm.pitch() >= 0 {
+                    y as usize
+                } else {
+                    (rows - 1 - y) as usize
+                };
+                for x in 0..width {
+                    let src_idx = src_row * pitch + x as usize;
+                    let dst_idx = (y * width + x) as usize;
+                    alpha[dst_idx] = src.get(src_idx).copied().unwrap_or(0);
+                }
+            }
+
+            let tile_w = width + padding * 2;
+            let tile_h = rows + padding * 2;
+            max_tile_width = max_tile_width.max(tile_w.max(padding * 2));
+            max_tile_height = max_tile_height.max(tile_h.max(padding * 2));
+
+            rendered.push(GlyphBitmap {
+                ch,
+                alpha,
+                width,
+                height: rows,
+                advance_px: (slot.advance().x as f32) / 64.0,
+                bearing_x_px: slot.bitmap_left() as f32,
+                bearing_y_px: slot.bitmap_top() as f32,
+            });
+        }
+
+        if rendered.is_empty() {
+            return Err(FontError::AtlasRenderError);
+        }
+        if !missing.is_empty() {
+            eprintln!(
+                "[FONT CACHE] skipped {} missing glyphs while hint-rasterizing",
+                missing.len()
+            );
+        }
+
+        let glyph_count = rendered.len().max(1) as u32;
+        let requested_cols = 8u32;
+        let atlas_width = (max_tile_width.max(1) * requested_cols).next_power_of_two();
+        let cols = (atlas_width / max_tile_width.max(1)).max(1);
+        let rows = glyph_count.div_ceil(cols).max(1);
+        let atlas_height = (max_tile_height.max(1) * rows).next_power_of_two();
+        let mut texture_data = vec![0u8; (atlas_width * atlas_height * 4) as usize];
+        let mut char_map = HashMap::new();
+
+        for (tile_index, glyph) in rendered.iter().enumerate() {
+            let col = (tile_index as u32) % cols;
+            let row = (tile_index as u32) / cols;
+            let tile_left = col * max_tile_width;
+            let tile_top = row * max_tile_height;
+
+            for y in 0..glyph.height {
+                for x in 0..glyph.width {
+                    let alpha = glyph.alpha[(y * glyph.width + x) as usize];
+                    let dst_x = tile_left + padding + x;
+                    let dst_y = tile_top + padding + y;
+                    let dst = ((dst_y * atlas_width + dst_x) * 4) as usize;
+                    texture_data[dst] = 255;
+                    texture_data[dst + 1] = 255;
+                    texture_data[dst + 2] = 255;
+                    texture_data[dst + 3] = alpha;
+                }
+            }
+
+            char_map.insert(
+                glyph.ch,
+                CharacterInfo {
+                    tile_index,
+                    advance_width: glyph.advance_px / dpi_scale_factor,
+                    bearing: (
+                        glyph.bearing_x_px / dpi_scale_factor,
+                        glyph.bearing_y_px / dpi_scale_factor,
+                    ),
+                    size: (max_tile_width, max_tile_height),
+                },
+            );
+        }
+
+        let size_metrics = face
+            .size_metrics()
+            .ok_or_else(|| FontError::FreeTypeError("missing freetype size metrics".to_string()))?;
+        let ascent = (size_metrics.ascender as f32 / 64.0) / dpi_scale_factor;
+        let descent = (size_metrics.descender as f32 / 64.0) / dpi_scale_factor;
+
+        Ok(RasterAtlasBuild {
+            texture_data,
+            char_map,
+            atlas_width,
+            atlas_height,
+            max_tile_width,
+            max_tile_height,
+            ascent,
+            descent,
+            padding_pixels: padding,
+        })
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn build_hinted_raster_atlas_from_font_data(
+        &mut self,
+        _font_data: &[u8],
+        _logical_font_size: f32,
+        _dpi_scale_factor: f32,
+        _glyphs: &[char],
+    ) -> Result<RasterAtlasBuild, FontError> {
+        Err(FontError::FreeTypeError(
+            "hinted raster atlas generation is not available on wasm32".to_string(),
+        ))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn build_tiny_raster_fallback_from_font_data(
+        &mut self,
+        font_data: &[u8],
+        dpi_scale_factor: f32,
+    ) -> Result<TinyRasterFallbackSpec, FontError> {
+        #[derive(Clone)]
+        struct GlyphBitmap {
+            ch: char,
+            alpha: Vec<u8>,
+            width: u32,
+            height: u32,
+            advance_px: f32,
+            bearing_x_px: f32,
+            bearing_y_px: f32,
+        }
+
+        let tiny_size = self.text_renderer.quality.tiny_raster_max_px.max(1.0);
+        let physical_ppem = (tiny_size * dpi_scale_factor).round().max(1.0) as u32;
+        let padding = 1u32;
+
+        let library = freetype::Library::init().map_err(|e| {
+            FontError::FreeTypeError(format!("failed to initialize freetype: {}", e))
+        })?;
+        let face = library
+            .new_memory_face(font_data.to_vec(), 0)
+            .map_err(|e| FontError::FreeTypeError(format!("failed to load face: {}", e)))?;
+        face.set_pixel_sizes(0, physical_ppem)
+            .map_err(|e| FontError::FreeTypeError(format!("failed to set pixel size: {}", e)))?;
+
+        // Light auto-hinting keeps tiny ASCII text stable and readable.
+        let load_flags = freetype::face::LoadFlag::RENDER
+            | freetype::face::LoadFlag::TARGET_LIGHT
+            | freetype::face::LoadFlag::FORCE_AUTOHINT;
+
+        let mut glyphs = Vec::new();
+        let mut max_tile_width = 0u32;
+        let mut max_tile_height = 0u32;
+
+        for ch in (32u8..=126u8).map(|c| c as char) {
+            face.load_char(ch as usize, load_flags).map_err(|e| {
+                FontError::FreeTypeError(format!("failed to load glyph '{}': {}", ch, e))
+            })?;
+            let slot = face.glyph();
+            let bm = slot.bitmap();
+            let width = bm.width().max(0) as u32;
+            let rows = bm.rows().max(0) as u32;
+            let pitch = bm.pitch().unsigned_abs() as usize;
+            let src = bm.buffer();
+            let mut alpha = vec![0u8; (width * rows) as usize];
+
+            for y in 0..rows {
+                let src_row = if bm.pitch() >= 0 {
+                    y as usize
+                } else {
+                    (rows - 1 - y) as usize
+                };
+                for x in 0..width {
+                    let src_idx = src_row * pitch + x as usize;
+                    let dst_idx = (y * width + x) as usize;
+                    alpha[dst_idx] = src.get(src_idx).copied().unwrap_or(0);
+                }
+            }
+
+            let tile_w = width + padding * 2;
+            let tile_h = rows + padding * 2;
+            max_tile_width = max_tile_width.max(tile_w.max(padding * 2));
+            max_tile_height = max_tile_height.max(tile_h.max(padding * 2));
+            glyphs.push(GlyphBitmap {
+                ch,
+                alpha,
+                width,
+                height: rows,
+                advance_px: (slot.advance().x as f32) / 64.0,
+                bearing_x_px: slot.bitmap_left() as f32,
+                bearing_y_px: slot.bitmap_top() as f32,
+            });
+        }
+
+        let chars_count = glyphs.len().max(1) as u32;
+        let requested_cols = 8u32;
+        let atlas_width = (max_tile_width.max(1) * requested_cols).next_power_of_two();
+        // UV lookup computes columns as atlas_width / tile_width, so placement must match.
+        let cols = (atlas_width / max_tile_width.max(1)).max(1);
+        let rows = chars_count.div_ceil(cols).max(1);
+        let atlas_height = (max_tile_height.max(1) * rows).next_power_of_two();
+        let mut texture_data = vec![0u8; (atlas_width * atlas_height * 4) as usize];
+        let mut char_map = HashMap::new();
+
+        for (tile_index, glyph) in glyphs.iter().enumerate() {
+            let col = (tile_index as u32) % cols;
+            let row = (tile_index as u32) / cols;
+            let tile_left = col * max_tile_width;
+            let tile_top = row * max_tile_height;
+
+            for y in 0..glyph.height {
+                for x in 0..glyph.width {
+                    let alpha = glyph.alpha[(y * glyph.width + x) as usize];
+                    let dst_x = tile_left + padding + x;
+                    let dst_y = tile_top + padding + y;
+                    let dst = ((dst_y * atlas_width + dst_x) * 4) as usize;
+                    texture_data[dst] = alpha;
+                    texture_data[dst + 1] = alpha;
+                    texture_data[dst + 2] = alpha;
+                    texture_data[dst + 3] = alpha;
+                }
+            }
+
+            char_map.insert(
+                glyph.ch,
+                CharacterInfo {
+                    tile_index,
+                    advance_width: glyph.advance_px / dpi_scale_factor,
+                    bearing: (
+                        glyph.bearing_x_px / dpi_scale_factor,
+                        glyph.bearing_y_px / dpi_scale_factor,
+                    ),
+                    size: (max_tile_width, max_tile_height),
+                },
+            );
+        }
+
+        let size_metrics = face
+            .size_metrics()
+            .ok_or_else(|| FontError::FreeTypeError("missing freetype size metrics".to_string()))?;
+        let ascent = (size_metrics.ascender as f32 / 64.0) / dpi_scale_factor;
+        let descent = (size_metrics.descender as f32 / 64.0) / dpi_scale_factor;
+
+        let atlas_id = Uuid::new_v4();
+        let atlas = self.create_font_texture_atlas(
+            atlas_id,
+            &texture_data,
+            atlas_width,
+            atlas_height,
+            Size {
+                width: max_tile_width as f32,
+                height: max_tile_height as f32,
+            },
+            &char_map,
+        );
+        Ok(TinyRasterFallbackSpec {
+            atlas,
+            char_map,
+            font_size: tiny_size,
+            ascent,
+            descent,
+            padding: padding as f32 / dpi_scale_factor,
+        })
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn build_tiny_raster_fallback_from_font_data(
+        &mut self,
+        _font_data: &[u8],
+        _dpi_scale_factor: f32,
+    ) -> Result<TinyRasterFallbackSpec, FontError> {
+        Err(FontError::FreeTypeError(
+            "tiny raster fallback generation is not available on wasm32".to_string(),
+        ))
+    }
+
+    pub fn load_msdf_font(
+        &mut self,
+        atlas_image_path: &str,
+        metadata_json_path: &str,
+        font_key: &str,
+    ) -> Result<(), FontError> {
+        if self.loaded_fonts.contains_key(font_key) {
+            return Ok(());
+        }
+
+        let bake_help = format!(
+            "MSDF assets are missing or invalid.\n\
+             Bake them first with:\n\
+               cargo run --bin msdf_bake -- --font /path/to/font.ttf --out-dir /path/to/output --name {font_key}\n\
+             Then load:\n\
+               atlas: {atlas_image_path}\n\
+               meta : {metadata_json_path}\n\
+               key  : {font_key}\n\
+             Note: current bake pipeline targets ASCII charset (32..=126)."
+        );
+
+        let metadata_text = std::fs::read_to_string(metadata_json_path).map_err(|err| {
+            FontError::MetadataParseError(format!(
+                "failed to read MSDF metadata '{}': {}\n{}",
+                metadata_json_path, err, bake_help
+            ))
+        })?;
+        let metadata = TextRenderer::parse_msdf_metadata(&metadata_text).map_err(|err| {
+            let detail = match err {
+                FontError::MetadataParseError(msg) => msg,
+                _ => format!("{:?}", err),
+            };
+
+exec
+/bin/zsh -lc "sed -n '1660,1905p' src/lib.rs" in /Users/zeke/dev/plutonium_engine/.claude/worktrees/eager-tharp-b3022f
+ succeeded in 0ms:
+            };
+            FontError::MetadataParseError(format!(
+                "failed to parse MSDF metadata '{}': {}\n{}",
+                metadata_json_path, detail, bake_help
+            ))
+        })?;
+
+        let decoded = image::open(atlas_image_path).map_err(|e| {
+            FontError::ImageDecodeError(format!(
+                "failed to open MSDF atlas '{}': {}\n{}",
+                atlas_image_path, e, bake_help
+            ))
+        })?;
+        let rgba = decoded.to_rgba8();
+        let (width, height) = rgba.dimensions();
+
+        let expected_w = metadata.atlas.width.round().max(0.0) as u32;
+        let expected_h = metadata.atlas.height.round().max(0.0) as u32;
+        if expected_w != width || expected_h != height {
+            return Err(FontError::MetadataParseError(format!(
+                "atlas size mismatch: image={}x{}, metadata={}x{}",
+                width, height, expected_w, expected_h
+            )));
+        }
+
+        let atlas_id = Uuid::new_v4();
+        let empty_char_positions: HashMap<char, CharacterInfo> = HashMap::new();
+        let atlas = self.create_font_texture_atlas_with_options(
+            atlas_id,
+            rgba.as_raw(),
+            width,
+            height,
+            Size {
+                width: width as f32,
+                height: height as f32,
+            },
+            &empty_char_positions,
+            wgpu::TextureFormat::Rgba8Unorm,
+            wgpu::FilterMode::Linear,
+            wgpu::FilterMode::Linear,
+            true,
+        );
+
+        self.text_renderer
+            .store_msdf_font_atlas(font_key, atlas, metadata, None)?;
+        self.loaded_fonts.insert(font_key.to_string(), true);
+        Ok(())
+    }
+
+    /// Load an MSDF font from in-memory PNG bytes and a JSON metadata string.
+    ///
+    /// This is the portable equivalent of [`load_msdf_font`] for embedded or downloaded assets.
+    /// Works on both native and WASM targets. Use `include_bytes!` / `include_str!` to embed
+    /// pre-baked MSDF assets, avoiding runtime rasterization (critical for WASM performance).
+    pub fn load_msdf_font_from_png_bytes(
+        &mut self,
+        png_bytes: &[u8],
+        metadata_json: &str,
+        font_key: &str,
+    ) -> Result<(), FontError> {
+        if self.loaded_fonts.contains_key(font_key) {
+            return Ok(());
+        }
+
+        let metadata = TextRenderer::parse_msdf_metadata(metadata_json)?;
+
+        let decoded = image::load_from_memory(png_bytes).map_err(|e| {
+            FontError::ImageDecodeError(format!("failed to decode MSDF atlas PNG: {}", e))
+        })?;
+        let rgba = decoded.to_rgba8();
+        let (width, height) = rgba.dimensions();
+
+        let expected_w = metadata.atlas.width.round().max(0.0) as u32;
+        let expected_h = metadata.atlas.height.round().max(0.0) as u32;
+        if expected_w != width || expected_h != height {
+            return Err(FontError::MetadataParseError(format!(
+                "atlas size mismatch: image={}x{}, metadata={}x{}",
+                width, height, expected_w, expected_h
+            )));
+        }
+
+        let atlas_id = Uuid::new_v4();
+        let empty_char_positions: HashMap<char, CharacterInfo> = HashMap::new();
+        let atlas = self.create_font_texture_atlas_with_options(
+            atlas_id,
+            rgba.as_raw(),
+            width,
+            height,
+            Size {
+                width: width as f32,
+                height: height as f32,
+            },
+            &empty_char_positions,
+            wgpu::TextureFormat::Rgba8Unorm,
+            wgpu::FilterMode::Linear,
+            wgpu::FilterMode::Linear,
+            true,
+        );
+
+        self.text_renderer
+            .store_msdf_font_atlas(font_key, atlas, metadata, None)?;
+        self.loaded_fonts.insert(font_key.to_string(), true);
+        Ok(())
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn load_msdf_font_from_bytes(
+        &mut self,
+        atlas_rgba: &[u8],
+        width: u32,
+        height: u32,
+        metadata_json: &str,
+        font_key: &str,
+    ) -> Result<(), FontError> {
+        if self.loaded_fonts.contains_key(font_key) {
+            return Ok(());
+        }
+
+        let metadata = TextRenderer::parse_msdf_metadata(metadata_json)?;
+        let expected_w = metadata.atlas.width.round().max(0.0) as u32;
+        let expected_h = metadata.atlas.height.round().max(0.0) as u32;
+        if expected_w != width || expected_h != height {
+            return Err(FontError::MetadataParseError(format!(
+                "atlas size mismatch: image={}x{}, metadata={}x{}",
+                width, height, expected_w, expected_h
+            )));
+        }
+        let expected_len = (width as usize)
+            .saturating_mul(height as usize)
+            .saturating_mul(4);
+        if atlas_rgba.len() != expected_len {
+            return Err(FontError::ImageDecodeError(format!(
+                "rgba buffer size mismatch: got {} bytes, expected {}",
+                atlas_rgba.len(),
+                expected_len
+            )));
+        }
+
+        let atlas_id = Uuid::new_v4();
+        let empty_char_positions: HashMap<char, CharacterInfo> = HashMap::new();
+        let atlas = self.create_font_texture_atlas_with_options(
+            atlas_id,
+            atlas_rgba,
+            width,
+            height,
+            Size {
+                width: width as f32,
+                height: height as f32,
+            },
+            &empty_char_positions,
+            wgpu::TextureFormat::Rgba8Unorm,
+            wgpu::FilterMode::Linear,
+            wgpu::FilterMode::Linear,
+            true,
+        );
+
+        self.text_renderer
+            .store_msdf_font_atlas(font_key, atlas, metadata, None)?;
+        self.loaded_fonts.insert(font_key.to_string(), true);
+        Ok(())
+    }
+
+    pub fn load_msdf_font_with_tiny_raster(
+        &mut self,
+        font_path: &str,
+        atlas_image_path: &str,
+        metadata_json_path: &str,
+        font_key: &str,
+    ) -> Result<(), FontError> {
+        if self.loaded_fonts.contains_key(font_key) {
+            return Ok(());
+        }
+
+        let metadata_text = std::fs::read_to_string(metadata_json_path).map_err(|err| {
+            FontError::MetadataParseError(format!(
+                "failed to read MSDF metadata '{}': {}",
+                metadata_json_path, err
+            ))
+        })?;
+        let metadata = TextRenderer::parse_msdf_metadata(&metadata_text)?;
+        let decoded = image::open(atlas_image_path).map_err(|e| {
+            FontError::ImageDecodeError(format!("failed to open MSDF atlas: {}", e))
+        })?;
+        let rgba = decoded.to_rgba8();
+        let (width, height) = rgba.dimensions();
+        let expected_w = metadata.atlas.width.round().max(0.0) as u32;
+        let expected_h = metadata.atlas.height.round().max(0.0) as u32;
+        if expected_w != width || expected_h != height {
+            return Err(FontError::MetadataParseError(format!(
+                "atlas size mismatch: image={}x{}, metadata={}x{}",
+                width, height, expected_w, expected_h
+            )));
+        }
+
+        let font_data = std::fs::read(font_path).map_err(FontError::IoError)?;
+        let tiny_raster =
+            self.build_tiny_raster_fallback_from_font_data(&font_data, self.dpi_scale_factor)?;
+
+        let atlas_id = Uuid::new_v4();
+        let empty_char_positions: HashMap<char, CharacterInfo> = HashMap::new();
+        let atlas = self.create_font_texture_atlas_with_options(
+            atlas_id,
+            rgba.as_raw(),
+            width,
+            height,
+            Size {
+                width: width as f32,
+                height: height as f32,
+            },
+            &empty_char_positions,
+            wgpu::TextureFormat::Rgba8Unorm,
+            wgpu::FilterMode::Linear,
+            wgpu::FilterMode::Linear,
+            true,
+        );
+        self.text_renderer
+            .store_msdf_font_atlas(font_key, atlas, metadata, Some(tiny_raster))?;
+        self.loaded_fonts.insert(font_key.to_string(), true);
+        Ok(())
+    }
+
+    /// Build an MSDF-compatible runtime atlas from a TTF and register it under `font_key`.
+    ///
+    /// Conversion is performed once at load time and cached in the engine under `font_key`.
+    /// Phase 1 coverage matches current text behavior (ASCII 32..=126).
+    pub fn load_msdf_font_from_ttf(
+        &mut self,
+        font_path: &str,
+        logical_font_size: f32,
+        font_key: &str,
+    ) -> Result<(), FontError> {
+        if self.loaded_fonts.contains_key(font_key) {
+            return Ok(());
+        }
+
+        const RUNTIME_MSDF_GENERATION_SCALE: f32 = 2.0;
+        const RUNTIME_MSDF_PX_RANGE: f32 = 8.0;
+
+        let physical_font_size = logical_font_size * self.dpi_scale_factor;
+        let generation_font_size =
+            (physical_font_size * RUNTIME_MSDF_GENERATION_SCALE).max(physical_font_size);
+        let font_data = std::fs::read(font_path).map_err(FontError::IoError)?;
+        let font = Font::try_from_vec(font_data.clone()).ok_or(FontError::InvalidFontData)?;
+        let scale = Scale::uniform(generation_font_size);
+        let padding = 10u32;
+
+
+codex
+The other issue is with the harness wording: several VERIFY lines only run host checks even though the standing gate requires host and wasm. I’m doing one last pass for public/private movement contradictions before giving the terse critique.
+exec
+/bin/zsh -lc 'rg -n "macro_rules! flush_batch|macro_rules! flush_" src/lib.rs' in /Users/zeke/dev/plutonium_engine/.claude/worktrees/eager-tharp-b3022f
+exec
+/bin/zsh -lc 'rg -n "panic!|assert|golden|actual|UPDATE_SNAPSHOTS|exit|diff" src/bin/snapshots.rs | tail -80' in /Users/zeke/dev/plutonium_engine/.claude/worktrees/eager-tharp-b3022f
+exec
+/bin/zsh -lc 'rg -n "pub fn draw_|pub fn queue_|pub fn render|pub fn begin_frame|pub fn end_frame|pub fn load_msdf|pub fn load_font|pub fn warm_text_cache|pub fn measure_text" src/lib.rs' in /Users/zeke/dev/plutonium_engine/.claude/worktrees/eager-tharp-b3022f
+ succeeded in 0ms:
+778:    pub fn measure_text(
+875:    pub fn load_font(
+889:    pub fn load_font_with_options(
+976:    pub fn load_font_from_bytes(
+994:    pub fn warm_text_cache(
+1629:    pub fn load_msdf_font(
+1714:    pub fn load_msdf_font_from_png_bytes(
+1766:    pub fn load_msdf_font_from_bytes(
+1822:    pub fn load_msdf_font_with_tiny_raster(
+1885:    pub fn load_msdf_font_from_ttf(
+2247:    pub fn queue_texture(&mut self, texture_key: &Uuid, position: Option<Position>) {
+2251:    pub fn queue_texture_with_layer(
+2372:    pub fn queue_texture_stretched(&mut self, texture_key: &Uuid, dst: Rectangle) {
+2382:    pub fn queue_texture_stretched_with_fit(
+2391:    pub fn queue_texture_stretched_with_layer(
+2406:    pub fn queue_texture_stretched_with_layer_and_fit(
+2468:    pub fn queue_slot_layer_texture(
+2545:    pub fn queue_slot_layer_rect(
+2574:    pub fn queue_tile(
+2584:    pub fn queue_tile_with_layer(
+2602:    pub fn queue_tile_with_tint(
+2634:    pub fn queue_atlas_uv_with_tint(
+2732:    pub fn queue_text(
+2752:    pub fn queue_text_with_spacing(
+2832:    pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+3504:    pub fn begin_frame(&mut self) {
+3522:    pub fn end_frame(&mut self) -> Result<(), wgpu::SurfaceError> {
+3770:    pub fn draw_texture(&mut self, texture_key: &Uuid, position: Position, params: DrawParams) {
+3792:    pub fn draw_texture_stretched(&mut self, texture_key: &Uuid, dst: Rectangle) {
+3796:    pub fn draw_texture_stretched_with_fit_and_inset(
+3807:    pub fn draw_tile(
+3823:    pub fn draw_atlas_tile_stretched(
+3872:    pub fn draw_rect(
+4086:    pub fn draw_halo(&mut self, target_rect: Rectangle, style: HaloStyle) {
+4095:    pub fn draw_rect_glow(
+4554:    pub fn draw_halo_for_object(&mut self, object_id: &Uuid, style: HaloStyle) -> bool {
+
+ succeeded in 0ms:
+3004:            macro_rules! flush_rect_batch {
+3122:            macro_rules! flush_glow_batch {
+3182:            macro_rules! flush_atlas_batch {
+
+ succeeded in 0ms:
+2938:    let ok = compare_with_tolerance(out_actual, out_golden, 5);
+2940:        if !maybe_update_golden(out_actual, out_golden, "slider_states") {
+3184:    std::fs::create_dir_all("snapshots/actual").ok();
+3185:    std::fs::create_dir_all("snapshots/golden").ok();
+3186:    let out_actual = std::path::Path::new("snapshots/actual/button_states.png");
+3187:    let out_golden = std::path::Path::new("snapshots/golden/button_states.png");
+3188:    save_texture_png(&device, &queue, &target, out_actual)?;
+3189:    if !out_golden.exists() {
+3190:        std::fs::copy(out_actual, out_golden)?;
+3192:    let ok = compare_with_tolerance(out_actual, out_golden, 4);
+3194:        if !maybe_update_golden(out_actual, out_golden, "button_states") {
+3228:    assert!(!script.frames.is_empty());
+3270:    // Foreground overlay: square.svg tinted via separate pass by drawing two sprites with different alpha
+3410:    std::fs::create_dir_all("snapshots/actual").ok();
+3411:    std::fs::create_dir_all("snapshots/golden").ok();
+3412:    let out_actual = std::path::Path::new("snapshots/actual/transitions.png");
+3413:    let out_golden = std::path::Path::new("snapshots/golden/transitions.png");
+3414:    save_texture_png(&device, &queue, &target, out_actual)?;
+3415:    if !out_golden.exists() {
+3416:        std::fs::copy(out_actual, out_golden)?;
+3418:    let ok = compare_with_tolerance(out_actual, out_golden, 3);
+3420:        if !maybe_update_golden(out_actual, out_golden, "transitions") {
+3598:    std::fs::create_dir_all("snapshots/actual").ok();
+3599:    std::fs::create_dir_all("snapshots/golden").ok();
+3600:    let out_actual = std::path::Path::new("snapshots/actual/transitions_frame2.png");
+3601:    let out_golden = std::path::Path::new("snapshots/golden/transitions_frame2.png");
+3602:    save_texture_png(&device, &queue, &target, out_actual)?;
+3603:    if !out_golden.exists() {
+3604:        std::fs::copy(out_actual, out_golden)?;
+3606:    let ok = compare_with_tolerance(out_actual, out_golden, 3);
+3608:        if !maybe_update_golden(out_actual, out_golden, "transitions_frame2") {
+3753:    std::fs::create_dir_all("snapshots/actual").ok();
+3754:    std::fs::create_dir_all("snapshots/golden").ok();
+3755:    let out_actual = std::path::Path::new("snapshots/actual/deal_grid.png");
+3756:    let out_golden = std::path::Path::new("snapshots/golden/deal_grid.png");
+3757:    save_texture_png(&device, &queue, &target, out_actual)?;
+3758:    if !out_golden.exists() {
+3759:        std::fs::copy(out_actual, out_golden)?;
+3761:    let ok = compare_with_tolerance(out_actual, out_golden, 3);
+3763:        if !maybe_update_golden(out_actual, out_golden, "deal_grid") {
+3911:    fs::create_dir_all("snapshots/actual").ok();
+3912:    fs::create_dir_all("snapshots/golden").ok();
+3913:    let out_actual = Path::new("snapshots/actual/timeline_frame.png");
+3914:    let out_golden = Path::new("snapshots/golden/timeline_frame.png");
+3915:    save_texture_png(&device, &queue, &target, out_actual)?;
+3916:    if !out_golden.exists() {
+3917:        fs::copy(out_actual, out_golden)?;
+3919:    let ok = compare_with_tolerance(out_actual, out_golden, 3);
+3921:        if !maybe_update_golden(out_actual, out_golden, "timeline_frame") {
+4071:        fs::create_dir_all("snapshots/actual").ok();
+4072:        fs::create_dir_all("snapshots/golden").ok();
+4073:        let actual_str = format!("snapshots/actual/timeline_frame{}.png", i);
+4074:        let golden_str = format!("snapshots/golden/timeline_frame{}.png", i);
+4075:        let out_actual_path = Path::new(&actual_str);
+4076:        let out_golden_path = Path::new(&golden_str);
+4077:        save_texture_png(&device, &queue, &target, out_actual_path)?;
+4078:        if !out_golden_path.exists() {
+4079:            fs::copy(out_actual_path, out_golden_path)?;
+4081:        let ok = compare_with_tolerance(out_actual_path, out_golden_path, 3);
+4084:            if !maybe_update_golden(out_actual_path, out_golden_path, &label) {
+4224:    fs::create_dir_all("snapshots/actual").ok();
+4225:    fs::create_dir_all("snapshots/golden").ok();
+4226:    let out_actual = Path::new("snapshots/actual/rng_pattern.png");
+4227:    let out_golden = Path::new("snapshots/golden/rng_pattern.png");
+4228:    save_texture_png(&device, &queue, &target, out_actual)?;
+4229:    if !out_golden.exists() {
+4230:        fs::copy(out_actual, out_golden)?;
+4232:    let ok = compare_with_tolerance(out_actual, out_golden, 3);
+4234:        if !maybe_update_golden(out_actual, out_golden, "rng_pattern") {
+4427:        fs::create_dir_all("snapshots/actual").ok();
+4428:        fs::create_dir_all("snapshots/golden").ok();
+4429:        let actual_str = format!("snapshots/actual/deal_grid_anim{}.png", fi);
+4430:        let golden_str = format!("snapshots/golden/deal_grid_anim{}.png", fi);
+4431:        let out_actual_path = Path::new(&actual_str);
+4432:        let out_golden_path = Path::new(&golden_str);
+4433:        save_texture_png(&device, &queue, &target, out_actual_path)?;
+4434:        if !out_golden_path.exists() {
+4435:            fs::copy(out_actual_path, out_golden_path)?;
+4437:        let ok = compare_with_tolerance(out_actual_path, out_golden_path, 4);
+4440:            if !maybe_update_golden(out_actual_path, out_golden_path, &label) {
+
+codex
+Blockers/majors:
+
+- **T002 will not compile as written.** Current code has no `flush_batch!`; `flush_batch` is a closure. The three actual macros reference unpassed invocation-context names like `self`, `rect_draw_calls`, `RectInstanceBuffer`, `TransformUniform`. Moving them to `render_macros.rs` before parameterizing those names, or before moving `render()`, breaks hygiene/name resolution.
+
+- **Private extracted inherent methods are not callable from parent/sibling modules.** Child modules can access crate-root private fields, but `fn` methods defined in `src/foo.rs` without `pub(crate)` are private to that module. Any moved helper still called from `lib.rs` or another sibling will fail. This affects T003, T005, T006, likely T008 cross-calls.
+
+- **T003 is under-scoped / mis-ordered.** The raster helpers around `sanitize_*`, `quantize_*`, `glyphs_from_set`, `choose_loaded_raster_entry`, etc. are used by public methods that the task does not say to move. Either move the whole font API cluster together or make shared associated helpers `pub(crate)`.
+
+- **T004 depends on T003 more strongly than stated.** `load_msdf_font_with_tiny_raster` calls `build_tiny_raster_fallback_from_font_data`, which sits in the raster-ish cluster. If that helper moves to `font_raster.rs` as private, T004 fails unless it is `pub(crate)` or co-located.
+
+- **T006 will fail if only private glow methods move.** Existing public `draw_halo` / `draw_rect_glow` in `lib.rs` call private glow helpers. Move those public methods too, or mark the helpers `pub(crate)`.
+
+- **Spec contradiction:** “Only private items relocate” conflicts with T004/T008 moving public inherent methods (`load_msdf_*`, `render`, `draw_*`, `queue_*`). Public API path is unchanged for inherent methods, but the spec wording is false.
+
+- **Snapshot acceptance is not byte-identical as verified.** `cargo run --bin snapshots` uses tolerance comparisons, not strict byte equality. Add hash/byte compare if byte-identical is required.
+
+- **API gate VERIFY lines are incomplete.** Most commands do not regenerate + `diff` against baseline, and omit the wasm target. T001 should pin exact host/wasm commands, including `rustup target add wasm32-unknown-unknown` and feature flags.
+tokens used
+85,585

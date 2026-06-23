@@ -1,0 +1,15 @@
+**BLOCKERS**
+
+- **T005**: Acceptance may regress soundness if implemented as “Drop-cleanup newtype” around leaked `'static` font bytes without proving all font consumers are dropped first. Freeing bytes still referenced through `'static` handles would create UAF. Require drop-order/ownership proof, or restrict acceptance to a design where font objects own/share the bytes safely.
+
+- **T011**: Severity inflation. Per-frame GPU allocation is a perf/release-quality issue, not **CRITICAL** unless REPORT P1/P2/P11/P12 prove correctness failure or unbounded leak. As written it could distort queue priority.
+
+**MAJORS**
+
+- **T004**: Scope creep risk. It combines error trait impls, many public API `Result` conversions, examples, snapshots, and multiple panic classes into one “mechanical” task. That is larger than a single safe implementable unit and likely to cause broad API churn.
+
+- **T015**: Acceptance is too vague/unsafe: “after confirming no intra-z order dependency” is not verifiable by the task itself. `sort_unstable_by` can regress draw order for equal z if order currently defines layering. Needs explicit invariant/test before allowing unstable sort.
+
+- **T018**: Acceptance conflicts with examples if `examples/media/**` is excluded but examples still depend on those assets during packaged builds. `cargo package` may succeed while published examples are broken. Needs criterion for packaged examples/assets behavior.
+
+- **T022**: Acceptance is not verifiable: “each sub-item either fixed or has a tracking doc comment” allows replacing real findings with comments, and the task bundles unrelated behavior/API/doc issues.

@@ -1,0 +1,2 @@
+{"ts":"2026-06-03T04:56:50Z","run":"20260603T045500Z-prod-readiness-audit","kind":"scope_probe_skipped_fast_path","command":"z-audit","mode":"MEDIUM","note":"whole-crate prod-readiness; manual MEDIUM, 4 dims"}
+{"ts":"2026-06-03T05:21:25Z","run":"20260603T045500Z-prod-readiness-audit","kind":"audit_run_end","status":"complete_auto_bail_with_curated_tasks","findings":59,"tasks":24,"dimensions":"correctness,perf,cleanliness,design"}

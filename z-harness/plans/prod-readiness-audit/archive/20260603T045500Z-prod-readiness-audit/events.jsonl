@@ -1,0 +1,1 @@
+{"ts":"2026-06-03T04:55:00Z","run":"20260603T045500Z-prod-readiness-audit","kind":"audit_run_start","slug":"prod-readiness-audit","z_harness_version":"non-git","z_harness_dirty":false,"z_harness_branch":"none","target":"production-readiness / open-source audit"}

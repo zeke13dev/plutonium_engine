@@ -1,0 +1,133 @@
+Critique this finalized refactor plan for decomposing a 5531-line Rust lib.rs (wgpu 2D engine) into modules with ZERO public-API change. The decisions/risks were already vetted (impl-block split is safe: child modules CAN access crate-root struct private fields, compile-verified; macros move first; render/draw last; GpuTimer behavior-preserving; cargo-public-api gate on host+wasm; public type defs stay in lib.rs). Below are the FINAL SPEC + TASKS. Tell me ONLY: any task that is mis-ordered, any acceptance criterion that is not actually verifiable, any extraction that will NOT compile as ordered, or any gap. Terse. If sound, say 'No blockers/majors'.
+===== SPEC =====
+# SPEC — decompose-lib
+
+## Overview
+
+Split `src/lib.rs` (5531 lines: ~30 type defs + one `impl<'a> PlutoniumEngine<'a>` with 133 methods) into topic modules. **Hard invariant: zero public-API change.** Mechanism: move PRIVATE method clusters into `impl<'a> PlutoniumEngine<'a>` blocks in child modules (child modules can read the crate-root struct's private fields — verified). The `PlutoniumEngine` struct, all its fields, and every PUBLIC type definition stay in `lib.rs`. Only private items relocate.
+
+## Planning Inputs
+
+| Artifact | Path | generated_at |
+|----------|------|--------------|
+| (none) | — | none — fresh /z-plan run (seeded by prod-readiness-audit REPORT.md, not a precontext artifact) |
+
+## Invariants (apply to every task)
+
+1. **Public surface unchanged.** `cargo-public-api` diff vs the T001 baseline is EMPTY, on BOTH `host` and `wasm32-unknown-unknown`. Public type DEFINITIONS never move (no re-export canonical-path drift).
+2. **Behavior unchanged.** `cargo test --all` green; `cargo run --bin snapshots` produces byte-identical goldens (no `UPDATE_SNAPSHOTS=1` unless a change is explicitly intended — only T007 may, and only if proven equivalent).
+3. **cfg/feature gates preserved verbatim.** Every moved method keeps its `#[cfg(...)]` / `#[cfg(feature=...)]` attributes; wasm/native branches do not drift.
+4. **Attributes preserved.** `#[inline]`, `#[must_use]`, `#[track_caller]`, doc-comments move with their method (cargo-public-api can false-pass on these — manual check per task).
+5. **Docs clean.** `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features` builds (catches broken intra-doc links from moved methods).
+6. **No new allocation in hot paths.** Especially T007 (GpuTimer) and T008 (render/draw).
+
+## Modules to create (private items only)
+
+| File | Contents (private methods + private helpers moved from lib.rs) |
+|------|----------------------------------------------------------------|
+| `src/render_macros.rs` | `flush_batch!`, `flush_atlas_batch!`, `flush_rect_batch!`, `flush_glow_batch!` as `macro_rules!` + `pub(crate) use`. |
+| `src/font_raster.rs` | raster-font load/atlas/warm-queue methods (~lib.rs:1066-1630 cluster) + helper structs `RasterFontFamily`, `PendingRasterWarmRequest`, `RasterAtlasBuild`, `RasterSizeEntry`, `PendingRasterTextureUrlLoad` (→ `pub(crate)`). |
+| `src/font_msdf.rs` | MSDF font methods (`load_msdf_font`, MSDF atlas build). |
+| `src/popup_render.rs` | `render_popup_overlay` + popup-render private methods (~3560-3748). |
+| `src/glow.rs` | private halo/glow methods (`draw_halo_world_rect`, etc., ~3998-4163). Public `HaloStyle/HaloMode/HaloPreset/HaloFalloff/HaloPreset` definitions STAY in lib.rs. |
+| `src/gpu_timer.rs` | `GpuTimer` struct owning `timestamp_query/buf/staging/period_ns/count/frame_index` + `gpu_metrics`; methods `new`, `begin(&Device,&mut Encoder)`, `resolve_and_record(...)`, `maybe_report()`. Behavior-identical to inline code at ~3440-3501. |
+| `src/render.rs` | core `render()` + batch helpers `TransformPool`, `RectInstanceBuffer`, `RectStyleKey`, free fns `to_rgba_u8`/`quant_10x`. |
+| `src/draw.rs` | `draw_*` / `queue_*` immediate-mode methods. |
+
+`src/lib.rs` after the pass: `PlutoniumEngine` struct + fields, `new`/`new_async`, all PUBLIC type defs, `mod` declarations + `pub use` (only where a public type was ALREADY re-exported), top-level small impls. Target < ~1500 lines.
+
+## Verification harness (T001)
+
+- `cargo install cargo-public-api` (document in CONTRIBUTING / CI).
+- Baseline: `cargo public-api --simplified > $PLAN_DIR/api-baseline-host.txt` and the wasm32 equivalent.
+- Per task: regenerate and `diff` against baseline; non-empty diff = task fails.
+- Static auto-trait guard in a test: assert the engine and public wrapper types retain their current `Send`/`Sync` status (engine is `!Send` via `Rc`; a compile-fail test or `static_assertions`-style check pins it).
+- CI job added (pairs with audit RE2/T017).
+
+## Edge cases / risks (from consult)
+
+- **Macros:** render/draw methods use the flush macros → macros must move FIRST (T002) with `pub(crate) use`, else textual scope breaks.
+- **Extension-trait `use`:** each module re-imports the exact wgpu/bytemuck/font `use` set its moved methods need; a dropped extension-trait import silently changes method resolution → caught by `cargo build`.
+- **GpuTimer borrow:** pass `&Device`/`&mut Encoder` as params, never `&PlutoniumApp`/`self`, to avoid split-borrow walls.
+- **Trait impls** (`impl Drop/Debug for PlutoniumEngine`): keep in lib.rs or render.rs — do not scatter.
+===== TASKS =====
+# TASKS — decompose-lib
+
+Status legend: `[ ]` pending · `[~]` in_progress · `[x]` done.
+
+Every task's acceptance includes the standing invariant gate (SPEC "Invariants"): empty `cargo-public-api` diff vs the T001 baseline on host **and** wasm32, `cargo test --all` green, byte-identical snapshots, `cargo doc -D warnings` clean. Listed acceptance lines below are IN ADDITION to that gate.
+
+### [ ] T001 — Stand up the zero-API-change verification harness
+- Install/pin `cargo-public-api`; capture baseline public-surface snapshots BEFORE any code moves, for host and `wasm32-unknown-unknown`; add a static auto-trait guard test pinning the engine + public wrapper types' current `Send`/`Sync` status; add a CI job that fails on a non-empty diff.
+- **Files:** new `z-harness/plans/decompose-lib/api-baseline-host.txt`, `api-baseline-wasm.txt`; new `tests/api_autotraits.rs`; `.github/workflows/ci.yml`; `CONTRIBUTING.md` (note the tool) if present.
+- **Depends on:** none.
+- **Acceptance:** baseline snapshots committed; `cargo public-api` runs clean on host + wasm; auto-trait test compiles and encodes the CURRENT (pre-refactor) trait status; CI job present and green on the untouched tree.
+- **VERIFY:** `cargo public-api --simplified && cargo test --test api_autotraits`
+- **Complexity:** medium
+
+### [ ] T002 — Relocate the flush macros to `src/render_macros.rs`
+- Move `flush_batch!`, `flush_atlas_batch!`, `flush_rect_batch!`, `flush_glow_batch!` out of lib.rs into `src/render_macros.rs` as `macro_rules!` + `pub(crate) use <name>;`; add `mod render_macros;` and `use crate::render_macros::*;` (or per-macro) so existing call sites in lib.rs still resolve. No method moves yet.
+- **Files:** new `src/render_macros.rs`; `src/lib.rs`.
+- **Depends on:** T001.
+- **Acceptance:** macros defined once in the new module and imported; lib.rs render path compiles using them unchanged; zero behavior/API change.
+- **VERIFY:** `cargo build --all-features && cargo run --bin snapshots`
+- **Complexity:** medium
+
+### [ ] T003 — Extract `src/font_raster.rs`
+- Move the raster-font cluster (load/atlas/warm-queue methods, ~lib.rs:1066-1630) into an `impl<'a> PlutoniumEngine<'a>` block in `src/font_raster.rs`; move private helpers `RasterFontFamily`, `PendingRasterWarmRequest`, `RasterAtlasBuild`, `RasterSizeEntry`, `PendingRasterTextureUrlLoad` there too, bumping them to `pub(crate)`; re-import their names in lib.rs (struct fields reference them). Preserve all `#[cfg]`/attributes/doc-comments verbatim.
+- **Files:** new `src/font_raster.rs`; `src/lib.rs`.
+- **Depends on:** T001, T002.
+- **Acceptance:** raster-font methods live in the new module; lib.rs no longer defines them; private helper types are `pub(crate)` and referenced by the engine fields; behavior + API unchanged.
+- **VERIFY:** `cargo build --all-features && cargo test --all && cargo run --bin snapshots`
+- **Complexity:** high
+
+### [ ] T004 — Extract `src/font_msdf.rs`
+- Move MSDF font methods (`load_msdf_font`, MSDF atlas build + related private helpers) into `src/font_msdf.rs`. Preserve cfg/attributes/docs.
+- **Files:** new `src/font_msdf.rs`; `src/lib.rs`.
+- **Depends on:** T001, T002 (and T003 if any shared raster helper is referenced — co-sequence with T003).
+- **Acceptance:** MSDF methods relocated; lib.rs free of them; behavior + API unchanged.
+- **VERIFY:** `cargo build --all-features && cargo test --all && cargo run --bin snapshots`
+- **Complexity:** medium
+
+### [ ] T005 — Extract `src/popup_render.rs`
+- Move `render_popup_overlay` + popup-render private methods (~3560-3748) into `src/popup_render.rs`. `PopupRuntimeState` / public popup types stay where they are (popup.rs / lib.rs). Preserve cfg/attributes/docs.
+- **Files:** new `src/popup_render.rs`; `src/lib.rs`.
+- **Depends on:** T001, T002.
+- **Acceptance:** popup-render methods relocated; behavior + API unchanged; popup snapshots/tests green.
+- **VERIFY:** `cargo build --all-features && cargo test --all && cargo run --bin snapshots`
+- **Complexity:** medium
+
+### [ ] T006 — Extract `src/glow.rs`
+- Move PRIVATE halo/glow methods (`draw_halo_world_rect`, etc., ~3998-4163) into `src/glow.rs`. **Keep** the public `HaloStyle/HaloMode/HaloPreset/HaloFalloff` enum/struct definitions + their impls in lib.rs (D5) so `plutonium_engine::HaloStyle` path is unchanged. Preserve cfg/attributes/docs.
+- **Files:** new `src/glow.rs`; `src/lib.rs`.
+- **Depends on:** T001, T002.
+- **Acceptance:** private glow methods relocated; public Halo* types unmoved; halo snapshots/tests green; API diff empty.
+- **VERIFY:** `cargo build --all-features && cargo test --all && cargo run --bin snapshots`
+- **Complexity:** medium
+
+### [ ] T007 — Extract `GpuTimer` into `src/gpu_timer.rs` (behavior-preserving)
+- Create a `pub(crate) struct GpuTimer` owning `timestamp_query/buf/staging/period_ns/count/frame_index` + `gpu_metrics`. Methods take `&Device`/`&mut Encoder`/`&Queue` as params (never `self`). `render()` calls `self.gpu_timer.begin(...)` / `resolve_and_record(...)` / `maybe_report()`. EXACT behavior: same timestamp-feature gating, same buffer map/unmap lifecycle, same drop/encoder ordering, NO new per-frame allocation, identical `gpu_metrics` output. Does NOT fix the P4 `poll(Wait)` stall.
+- **Files:** new `src/gpu_timer.rs`; `src/lib.rs` (remove the 7 fields, add `gpu_timer: GpuTimer`, update `new`/`render`).
+- **Depends on:** T001, T002.
+- **Acceptance:** 7 timestamp fields replaced by one `gpu_timer` field; render snapshots byte-identical; gpu-metrics report output identical for a fixed seed/frame count; no new per-frame `create_buffer*`/alloc introduced (diff-reviewed); API diff empty (these are private fields).
+- **VERIFY:** `cargo test --all && cargo run --bin snapshots`
+- **Complexity:** high
+
+### [ ] T008 — Extract core render/draw into `src/render.rs` + `src/draw.rs`
+- Move `render()` + batch helpers (`TransformPool`, `RectInstanceBuffer`, `RectStyleKey`, free fns `to_rgba_u8`/`quant_10x`) into `src/render.rs`; move `draw_*`/`queue_*` immediate-mode methods into `src/draw.rs`. Keep any `impl Trait for PlutoniumEngine` (Drop/Debug) in lib.rs or render.rs (do not scatter). This task is LAST among extractions — it depends on macros (T002) and the leaf modules already being out so the moved code references stable internals.
+- **Files:** new `src/render.rs`, `src/draw.rs`; `src/lib.rs`.
+- **Depends on:** T002, T003, T004, T005, T006, T007.
+- **Acceptance:** render + draw/queue methods relocated; flush macros imported from `render_macros`; all snapshots byte-identical; API diff empty.
+- **VERIFY:** `cargo build --all-features && cargo test --all && cargo run --bin snapshots`
+- **Complexity:** high
+
+### [ ] T009 — Final cleanup + full gate
+- Relocate any remaining stray private helper structs/free-fns to their owning module; trim lib.rs to the engine struct + fields + `new`/`new_async` + public type defs + `mod`/`pub use` declarations; confirm lib.rs < ~1500 lines; run the complete gate on host AND wasm32.
+- **Files:** `src/lib.rs` + any module needing a stray item.
+- **Depends on:** T008.
+- **Acceptance:** `wc -l src/lib.rs` < ~1500; `cargo public-api` diff EMPTY on host + wasm32; `cargo test --all` green; `cargo run --bin snapshots` byte-identical; `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features` clean; auto-trait guard test still passes (engine still `!Send`).
+- **VERIFY:** `cargo public-api --simplified && cargo test --all && cargo run --bin snapshots && RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features`
+- **Complexity:** medium
+
+---
+**Ordering summary:** T001 → T002 → (T003, T004, T005, T006, T007 in any order, each independently gated) → T008 → T009. 9 tasks, within the 10-20 target.

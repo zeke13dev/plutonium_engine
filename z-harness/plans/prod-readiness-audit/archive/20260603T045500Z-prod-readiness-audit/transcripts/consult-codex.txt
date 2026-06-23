@@ -1,0 +1,45 @@
+**Q1. Significant Missing Issues**
+
+- **Surface/device-loss recovery:** No finding covers `wgpu::SurfaceError::{Lost, Outdated, Timeout, OutOfMemory}` handling, swapchain reconfiguration, or device loss recovery. In a `wgpu` engine this is core production behavior around `render/frame acquire/present`.
+
+- **HiDPI / logical vs physical coordinates:** The click-region finding touches padding, but there is no broader audit item for `winit` scale factor changes, resize math, cursor position conversion, text/layout scaling, and framebuffer size consistency.
+
+- **sRGB / color-space correctness:** Missing coverage for texture formats, surface format selection, linear-vs-sRGB blending, atlas/font sampling, clear colors, and PNG/image upload assumptions. This commonly causes wrong colors in 2D engines.
+
+- **Send/Sync/thread-affinity contract:** Public types wrapping `wgpu`, `winit`, callbacks, resources, or replay state should clearly be `Send`/`Sync` or not. This matters if users move engine state across threads or integrate with async/task systems.
+
+- **Drop/shutdown behavior:** C1 covers UB around callbacks, but there is no explicit review of `Drop` paths for panics, GPU resource cleanup, leaked callbacks/resources, or order-sensitive teardown.
+
+- **Asset licensing:** C3 mentions leaked font bytes, but not whether bundled fonts, examples, shaders, textures, or media under `examples/media` have redistributable licenses documented for crates.io/open source.
+
+- **docs.rs/package metadata completeness:** D3 notes crate docs mismatch, but missing expected metadata checks: `repository`, `license`/`license-file`, `readme`, `categories`, `keywords`, docs.rs feature config, and whether docs build on docs.rs targets.
+
+- **Semver/public API stability:** Several findings mention public internals, but there is no explicit semver risk item: exposing `wgpu`, `winit`, `Uuid`, GPU structs, replay types, and internal structs can force breaking releases whenever dependencies or internals change.
+
+- **Feature/target correctness beyond wasm:** RE2 covers wasm CI, but missing target-gating audit for native-only APIs, `cfg` combinations, docs.rs builds, and whether default features produce a coherent library across Linux/macOS/Windows/wasm.
+
+**Q2. Findings To Drop Or Demote**
+
+- **C7 transform tests too weak:** Valid test-quality concern, but too vague as a fix-queue item unless tied to a concrete failing invariant.
+
+- **C8 Rectangle::pad asymmetric unused:** If unused and not public-contract-critical, this is low-priority cleanup, not readiness-critical.
+
+- **P5/P6/P9 text allocation/static text perf:** Likely real but speculative without profiling or hot-path evidence. Demote unless benchmarks show impact.
+
+- **P8 stable sort render queue every frame:** Speculative without queue sizes or benchmark data; stable sort may be acceptable or intentional.
+
+- **P10 HashMap budget alloc per begin_frame:** Probably micro-perf unless measured.
+
+- **P13 svg raster load-time only no-op:** If it is load-time only and not misleading users, not a production-readiness issue.
+
+- **CL8 README junk line:** Cosmetic. Fix opportunistically, but drop from promoted queue.
+
+- **CL12 Internal/Wrapper boilerplate x4:** Style concern. Drop unless it creates public API confusion or bugs.
+
+- **CL14-19 misc stray println/wasm logs:** Merge into one logging/noisy-output finding with CL2/CL3/CL10/CL11; do not keep many separate queue items.
+
+- **RE1 missing CODE_OF_CONDUCT/CONTRIBUTING/SECURITY:** Nice for mature projects, but not significant crates.io readiness. Keep `SECURITY.md` as optional; drop as a blocker.
+
+- **RE4 README no badges:** Badges are cosmetic. Missing install/API quickstart is useful; badges should be dropped.
+
+- **RE6 plutonium_game demo in repo:** Not an issue by itself. Only matters if it bloats package, breaks workspace CI, or confuses crate packaging.

@@ -1,0 +1,22 @@
+### 1. Rust-Specific Split Pitfalls (D1)
+*   **FATAL: Private Field Access:** Child modules *cannot* access a parent's private fields. You MUST change `PlutoniumEngine`'s 50 private fields to `pub(crate)`. If the goal was "zero struct definition changes", this breaks it.
+*   **Macro Hygiene & Ordering:** `macro_rules!` defined in `lib.rs` must physically precede the `mod child;` declarations, or be explicitly exported (`#[macro_export]` or `pub(crate) use`).
+*   **CFG Permutations:** Moving `#[cfg(target_arch = "wasm32")]` methods risks silent breakage if the child module isn't gated correctly, or if CI doesn't run the `cargo-public-api` snapshot on the `wasm32` target specifically.
+*   **Trait Coherence Confusion:** While valid, scattering trait impls (e.g., `impl Drop`, `impl Debug`) across multiple child modules makes them extremely difficult to locate and maintain. 
+
+### 2. `cargo-public-api` False-Pass / False-Fail Risks (D2)
+*   **False-Pass (Auto-traits):** If `GpuTimer` extraction accidentally alters `Send`, `Sync`, or `Unpin` boundaries for `PlutoniumEngine`, the tool often misses this unless explicitly configured with `--manifest-path` and auto-trait tracking.
+*   **False-Pass (Attributes):** Dropping `#[inline]`, `#[track_caller]`, or `#[must_use]` during the move is not always flagged as an API break but heavily impacts performance and downstream UX.
+*   **False-Fail (Canonical Paths):** If `HaloStyle` moves to `src/glow/mod.rs` and is re-exported via `pub use crate::glow::HaloStyle`, the tool may report the underlying structural path change as an API break depending on how `rustdoc` JSON emits the item IDs.
+
+### 3. `GpuTimer` Extraction Risks (D4)
+*   **Split-Borrow Deadlocks:** If `GpuTimer` takes `&mut self` (meaning the timer itself) but *also* needs access to WGPU queues/devices held by `PlutoniumEngine`, `render()` will hit borrow-checker walls (e.g., `self.gpu_timer.record(&self.device, &mut encoder)` is fine, but `self.gpu_timer.record(self)` fails).
+*   **WGPU Buffer Mapping:** Extracting timestamp resolution logic risks altering the async mapping lifecycle. If the `GpuTimer` drops or remaps buffers out-of-order compared to the original god-module, it will cause silent WGPU validation errors or deadlocks on the hot path.
+
+### 4. Task Ordering Risks
+*   **Visibility Must Be Task 1:** Upgrading 50 fields to `pub(crate)` must happen in the very first commit.
+*   **Bottom-Up Dependency:** `render`/`draw` MUST be extracted last. If extracted first, it will fail to compile because it depends on internal state/methods from `font_raster`, `glow`, and `popup_render` which haven't been modularized yet.
+
+### 5. Docs & Re-exports
+*   **Intra-Doc Link Breakage:** Links like ``[`Self::internal_method`]`` or ``[`crate::HaloStyle`]`` will break when moved into child modules due to relative path resolution changes in `rustdoc`.
+*   **Loss of Module-Level Docs:** Moving methods into sub-modules means any `//!` top-level documentation describing those specific methods in `lib.rs` will be detached. `rustdoc` merges `impl` blocks, but it does *not* merge module-level commentary.

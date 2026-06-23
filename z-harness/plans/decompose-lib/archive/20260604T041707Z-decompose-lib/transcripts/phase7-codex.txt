@@ -1,0 +1,17 @@
+Blockers/majors:
+
+- **T002 will not compile as written.** Current code has no `flush_batch!`; `flush_batch` is a closure. The three actual macros reference unpassed invocation-context names like `self`, `rect_draw_calls`, `RectInstanceBuffer`, `TransformUniform`. Moving them to `render_macros.rs` before parameterizing those names, or before moving `render()`, breaks hygiene/name resolution.
+
+- **Private extracted inherent methods are not callable from parent/sibling modules.** Child modules can access crate-root private fields, but `fn` methods defined in `src/foo.rs` without `pub(crate)` are private to that module. Any moved helper still called from `lib.rs` or another sibling will fail. This affects T003, T005, T006, likely T008 cross-calls.
+
+- **T003 is under-scoped / mis-ordered.** The raster helpers around `sanitize_*`, `quantize_*`, `glyphs_from_set`, `choose_loaded_raster_entry`, etc. are used by public methods that the task does not say to move. Either move the whole font API cluster together or make shared associated helpers `pub(crate)`.
+
+- **T004 depends on T003 more strongly than stated.** `load_msdf_font_with_tiny_raster` calls `build_tiny_raster_fallback_from_font_data`, which sits in the raster-ish cluster. If that helper moves to `font_raster.rs` as private, T004 fails unless it is `pub(crate)` or co-located.
+
+- **T006 will fail if only private glow methods move.** Existing public `draw_halo` / `draw_rect_glow` in `lib.rs` call private glow helpers. Move those public methods too, or mark the helpers `pub(crate)`.
+
+- **Spec contradiction:** “Only private items relocate” conflicts with T004/T008 moving public inherent methods (`load_msdf_*`, `render`, `draw_*`, `queue_*`). Public API path is unchanged for inherent methods, but the spec wording is false.
+
+- **Snapshot acceptance is not byte-identical as verified.** `cargo run --bin snapshots` uses tolerance comparisons, not strict byte equality. Add hash/byte compare if byte-identical is required.
+
+- **API gate VERIFY lines are incomplete.** Most commands do not regenerate + `diff` against baseline, and omit the wasm target. T001 should pin exact host/wasm commands, including `rustup target add wasm32-unknown-unknown` and feature flags.

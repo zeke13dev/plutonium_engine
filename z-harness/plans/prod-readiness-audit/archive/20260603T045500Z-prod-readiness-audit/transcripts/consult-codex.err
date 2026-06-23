@@ -1,0 +1,78 @@
+2026-06-03T05:15:56.255803Z ERROR codex_core::session::session: failed to load skill /Users/zeke/.codex/skills/z-maintain-docs/SKILL.md: invalid YAML: did not find expected key at line 3 column 41, while parsing a block mapping
+2026-06-03T05:15:56.256424Z ERROR codex_core::session::session: failed to load skill /Users/zeke/.codex/skills/z-stats/SKILL.md: invalid YAML: did not find expected key at line 3 column 32, while parsing a block mapping
+2026-06-03T05:15:56.256428Z ERROR codex_core::session::session: failed to load skill /Users/zeke/.codex/skills/z-review-all/SKILL.md: invalid YAML: did not find expected key at line 3 column 32, while parsing a block mapping
+2026-06-03T05:15:56.256431Z ERROR codex_core::session::session: failed to load skill /Users/zeke/.codex/plugins/cache/personal/z-harness/0.1.0/skills/z-suggest-memory/SKILL.md: invalid YAML: did not find expected key at line 3 column 35, while parsing a block mapping
+2026-06-03T05:15:56.256434Z ERROR codex_core::session::session: failed to load skill /Users/zeke/.codex/plugins/cache/personal/z-harness/0.1.0/skills/z-maintain-docs/SKILL.md: invalid YAML: did not find expected key at line 3 column 41, while parsing a block mapping
+2026-06-03T05:15:56.256437Z ERROR codex_core::session::session: failed to load skill /Users/zeke/.codex/plugins/cache/personal/z-harness/0.1.0/skills/z-stats/SKILL.md: invalid YAML: did not find expected key at line 3 column 32, while parsing a block mapping
+2026-06-03T05:15:56.256439Z ERROR codex_core::session::session: failed to load skill /Users/zeke/.codex/plugins/cache/personal/z-harness/0.1.0/skills/z-review-all/SKILL.md: invalid YAML: did not find expected key at line 3 column 32, while parsing a block mapping
+OpenAI Codex v0.133.0
+--------
+workdir: /Users/zeke/dev/plutonium_engine/.claude/worktrees/eager-tharp-b3022f
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 019e8be8-e38c-7f02-a371-bbb90cb257f9
+--------
+user
+You are a senior Rust library reviewer. A pure-Rust wgpu 2D graphics/game engine (plutonium_engine v0.8.0) was audited for crates.io / open-source readiness. Below are the finding TITLES grouped by dimension. Answer TWO questions concisely (bullet points, cite a concrete area):
+Q1. What SIGNIFICANT production/open-source-readiness issues are MISSING from this list that a Rust graphics-library reviewer would expect? (e.g. things about Send/Sync, panics in Drop, surface-loss recovery, color-space/sRGB correctness, HiDPI edge cases, no-std, docs.rs metadata, semver/CI, licensing of bundled font assets, etc.) Only list ones likely to actually apply.
+Q2. Which listed findings are TRIVIAL or speculative and should be DROPPED before promotion to a fix queue?
+
+FINDINGS:
+[CORRECTNESS] C1 unsafe ptr::read of frame callback -> double-drop+aliasing UB; C2 padded_contains inverts padding (click region); C3 Box::leak font bytes on error/unbounded; C4 uv_bind_groups.len()-1 underflow; C5 public API panics on missing file/font; C6 [FONT DEBUG] println always on; C7 transform tests too weak; C8 Rectangle::pad asymmetric (unused); C9 replay drops keyboard input.
+[PERF] P1 per-flush create_buffer_init+bind_group sprite batch; P2 same for atlas/glyph batch; P3 per-frame vertex buffer recreation of constants for every texture/atlas; P4 synchronous device.poll(Wait) stall per frame; P5 per-frame Vec<char> alloc in text layout; P6 String alloc per text draw; P7 O(atlas) pixel scan in debug print; P8 stable sort render queue every frame; P9 measure_text every frame for static text; P10 HashMap budget alloc per begin_frame; P11 rect identity bind group rebuilt each frame; P12 glow batch no pool; P13 svg raster load-time only (no-op).
+[CLEANLINESS] CL1 5531-line god module lib.rs; CL2/CL3 always-on debug println (font, gpu every 5s); CL4 hollow features backend-wgpu/replay; CL5 orphan src/button.rs never compiles; CL6 snapshots/actual committed; CL7 50 per-field allow(dead_code); CL8 README junk line; CL9 draw_* thin wrappers undocumented; CL10 frame metrics println; CL11 public debug_print prints; CL12 Internal/Wrapper boilerplate x4; CL13 env_logger in deps not dev-deps; CL14-19 misc stray println/wasm logs; CL20 button label silently dropped.
+[DESIGN] D1 FontError no Display/Error; D2 resource creation panics not Result; D3 zero crate docs but documentation=docs.rs; D4 god object; D5 backend-wgpu empty feature; D6 inconsistent (Uuid,Rectangle) vs wrapper return; D7 *Internal structs pub; D8 GPU-wire structs pub via use utils::*; D9 wgpu/winit types in public signatures; D10 no MSRV; D11 stringly-typed error; D12 wasm new() panics at runtime; D13 split wasm/native API incoherent; D14 CharacterInfo/MsdfGlyphInfo pub; D15 record/replay types pub; D16 resize/update pub lock in winit types.
+[RELEASE-ENG] RE1 missing CONTRIBUTING/CODE_OF_CONDUCT/SECURITY; RE2 CI lacks wasm build, cargo doc, MSRV, feature matrix, package dry-run, masks 6 clippy lints; RE3 examples/media 992KB ships in package; RE4 README no crates.io install/badges; RE5 Cargo.lock tracked+gitignored; RE6 plutonium_game demo in repo; RE7 unsafe undocumented policy.
+
+codex
+**Q1. Significant Missing Issues**
+
+- **Surface/device-loss recovery:** No finding covers `wgpu::SurfaceError::{Lost, Outdated, Timeout, OutOfMemory}` handling, swapchain reconfiguration, or device loss recovery. In a `wgpu` engine this is core production behavior around `render/frame acquire/present`.
+
+- **HiDPI / logical vs physical coordinates:** The click-region finding touches padding, but there is no broader audit item for `winit` scale factor changes, resize math, cursor position conversion, text/layout scaling, and framebuffer size consistency.
+
+- **sRGB / color-space correctness:** Missing coverage for texture formats, surface format selection, linear-vs-sRGB blending, atlas/font sampling, clear colors, and PNG/image upload assumptions. This commonly causes wrong colors in 2D engines.
+
+- **Send/Sync/thread-affinity contract:** Public types wrapping `wgpu`, `winit`, callbacks, resources, or replay state should clearly be `Send`/`Sync` or not. This matters if users move engine state across threads or integrate with async/task systems.
+
+- **Drop/shutdown behavior:** C1 covers UB around callbacks, but there is no explicit review of `Drop` paths for panics, GPU resource cleanup, leaked callbacks/resources, or order-sensitive teardown.
+
+- **Asset licensing:** C3 mentions leaked font bytes, but not whether bundled fonts, examples, shaders, textures, or media under `examples/media` have redistributable licenses documented for crates.io/open source.
+
+- **docs.rs/package metadata completeness:** D3 notes crate docs mismatch, but missing expected metadata checks: `repository`, `license`/`license-file`, `readme`, `categories`, `keywords`, docs.rs feature config, and whether docs build on docs.rs targets.
+
+- **Semver/public API stability:** Several findings mention public internals, but there is no explicit semver risk item: exposing `wgpu`, `winit`, `Uuid`, GPU structs, replay types, and internal structs can force breaking releases whenever dependencies or internals change.
+
+- **Feature/target correctness beyond wasm:** RE2 covers wasm CI, but missing target-gating audit for native-only APIs, `cfg` combinations, docs.rs builds, and whether default features produce a coherent library across Linux/macOS/Windows/wasm.
+
+**Q2. Findings To Drop Or Demote**
+
+- **C7 transform tests too weak:** Valid test-quality concern, but too vague as a fix-queue item unless tied to a concrete failing invariant.
+
+- **C8 Rectangle::pad asymmetric unused:** If unused and not public-contract-critical, this is low-priority cleanup, not readiness-critical.
+
+- **P5/P6/P9 text allocation/static text perf:** Likely real but speculative without profiling or hot-path evidence. Demote unless benchmarks show impact.
+
+- **P8 stable sort render queue every frame:** Speculative without queue sizes or benchmark data; stable sort may be acceptable or intentional.
+
+- **P10 HashMap budget alloc per begin_frame:** Probably micro-perf unless measured.
+
+- **P13 svg raster load-time only no-op:** If it is load-time only and not misleading users, not a production-readiness issue.
+
+- **CL8 README junk line:** Cosmetic. Fix opportunistically, but drop from promoted queue.
+
+- **CL12 Internal/Wrapper boilerplate x4:** Style concern. Drop unless it creates public API confusion or bugs.
+
+- **CL14-19 misc stray println/wasm logs:** Merge into one logging/noisy-output finding with CL2/CL3/CL10/CL11; do not keep many separate queue items.
+
+- **RE1 missing CODE_OF_CONDUCT/CONTRIBUTING/SECURITY:** Nice for mature projects, but not significant crates.io readiness. Keep `SECURITY.md` as optional; drop as a blocker.
+
+- **RE4 README no badges:** Badges are cosmetic. Missing install/API quickstart is useful; badges should be dropped.
+
+- **RE6 plutonium_game demo in repo:** Not an issue by itself. Only matters if it bloats package, breaks workspace CI, or confuses crate packaging.
+tokens used
+42,219

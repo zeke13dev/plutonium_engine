@@ -1,0 +1,231 @@
+2026-06-03T05:18:42.945893Z ERROR codex_core::session::session: failed to load skill /Users/zeke/.codex/skills/z-maintain-docs/SKILL.md: invalid YAML: did not find expected key at line 3 column 41, while parsing a block mapping
+2026-06-03T05:18:42.946569Z ERROR codex_core::session::session: failed to load skill /Users/zeke/.codex/skills/z-stats/SKILL.md: invalid YAML: did not find expected key at line 3 column 32, while parsing a block mapping
+2026-06-03T05:18:42.946576Z ERROR codex_core::session::session: failed to load skill /Users/zeke/.codex/skills/z-review-all/SKILL.md: invalid YAML: did not find expected key at line 3 column 32, while parsing a block mapping
+2026-06-03T05:18:42.946580Z ERROR codex_core::session::session: failed to load skill /Users/zeke/.codex/plugins/cache/personal/z-harness/0.1.0/skills/z-suggest-memory/SKILL.md: invalid YAML: did not find expected key at line 3 column 35, while parsing a block mapping
+2026-06-03T05:18:42.946584Z ERROR codex_core::session::session: failed to load skill /Users/zeke/.codex/plugins/cache/personal/z-harness/0.1.0/skills/z-maintain-docs/SKILL.md: invalid YAML: did not find expected key at line 3 column 41, while parsing a block mapping
+2026-06-03T05:18:42.946587Z ERROR codex_core::session::session: failed to load skill /Users/zeke/.codex/plugins/cache/personal/z-harness/0.1.0/skills/z-stats/SKILL.md: invalid YAML: did not find expected key at line 3 column 32, while parsing a block mapping
+2026-06-03T05:18:42.946590Z ERROR codex_core::session::session: failed to load skill /Users/zeke/.codex/plugins/cache/personal/z-harness/0.1.0/skills/z-review-all/SKILL.md: invalid YAML: did not find expected key at line 3 column 32, while parsing a block mapping
+OpenAI Codex v0.133.0
+--------
+workdir: /Users/zeke/dev/plutonium_engine/.claude/worktrees/eager-tharp-b3022f
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 019e8beb-6eb3-7940-b1df-7459ce8a4d80
+--------
+user
+You are a release-safety reviewer. Below is an audit-produced TASKS.md for a Rust wgpu 2D engine being prepped for crates.io/open-source. Each task cites a finding. Review for SOUNDNESS only: (a) any task that would REGRESS a real invariant or break behavior if implemented as written; (b) acceptance criteria too vague to verify; (c) severity inflation; (d) scope creep beyond the cited finding. Be terse. Output: BLOCKERS (must fix before queue is safe), MAJORS (fix in place), or 'No blockers/majors'. Do not rewrite the file.
+---- TASKS.md ----
+# Audit TASKS — prod-readiness (plutonium_engine v0.8.0)
+
+Status legend: `[ ]` pending · `[~]` in_progress · `[x]` done.
+
+Curated subset of `REPORT.md` (55 findings). Findings are clustered into systemic tasks where one change resolves many. Each task cites its REPORT finding IDs. Phases A-C are the release blockers; D is perf; E is release-engineering; F is deferred/structural (do NOT blind-run T021 via /z-implement-all — it is `/z-plan`-scale).
+
+## Phase A — Release blockers: soundness + error contract
+
+### [ ] T001 — [CRITICAL] Remove unsafe ptr::read of the frame callback
+- Fixes the only soundness bug: bitwise-duplicating `Box<dyn FnMut>` (double-drop on panic + `&FrameContext`/`&mut PlutoniumApp` aliasing UB). See REPORT C1.
+- **Files:** `src/app.rs:779-790`.
+- **Depends on:** none.
+- **Acceptance:** no `unsafe`/`ptr::read`/`ptr::write` around the callback (e.g. `Option<FrameCallback>` take/restore); `cargo +nightly miri test` (or a targeted callback test) shows no UB; existing app/example behavior unchanged; `cargo test --all` green.
+- **VERIFY:** `cargo test --all --no-fail-fast`
+
+### [ ] T002 — [HIGH] Fix `padded_contains` inverted padding polarity
+- Buttons currently register clicks left/above their visible bounds. See REPORT C2.
+- **Files:** `src/utils.rs:333-338` (and confirm `src/button.rs:76` / `pluto_objects/button.rs` call site).
+- **Depends on:** none.
+- **Acceptance:** hit region shrinks uniformly (`x >= self.x + padding && x <= self.x + self.width - padding`, same for y); add a unit test asserting a point at `self.x` with `padding>0` is NOT contained and the visual center IS.
+- **VERIFY:** `cargo test --all`
+
+### [ ] T003 — [HIGH] Fix `uv_bind_groups.len() - 1` usize underflow
+- Empty slice → `usize::MAX`/panic. See REPORT C4.
+- **Files:** `src/texture_atlas.rs:606`.
+- **Depends on:** none.
+- **Acceptance:** uses `saturating_sub(1)` or an explicit empty guard; no debug-mode overflow panic when `uv_bind_groups` is empty.
+- **VERIFY:** `cargo test --all`
+
+### [ ] T004 — [CRITICAL] Coherent public error model; resource creation returns Result
+- `FontError` gets `Display` + `std::error::Error`; `create_texture_svg/atlas/atlas_2d`, `create_text2d`, `create_texture_raster_from_path` (and the font/file `panic!`/`expect` sites) return `Result<…, EngineError>` instead of panicking. `warm_text_cache` returns `Result<_, FontError>` not `String`. See REPORT C5, D1, D2, D11.
+- **Files:** `src/text.rs:69-79`; `src/lib.rs:4226,4251,4274,4291,4377,4532,4614,994-998`; `src/texture_atlas.rs:832`; `src/texture_svg.rs:800`.
+- **Depends on:** none. **Note:** touches many call sites incl. examples/snapshots — sizeable but mechanical.
+- **Acceptance:** `grep -rn 'panic!\|\.expect(\|\.unwrap()' src/lib.rs src/texture_atlas.rs src/texture_svg.rs` shows no panics on IO/font/asset failure paths; `FontError`/`EngineError` impl `Display`+`Error`; examples updated to handle `Result`; `cargo build --all-targets --all-features` green.
+- **VERIFY:** `cargo build --all-targets --all-features && cargo test --all`
+
+### [ ] T005 — [HIGH] Reclaim leaked font bytes / bound font-load memory
+- `Box::leak` loses bytes on error and accumulates across engine instances. See REPORT C3.
+- **Files:** `src/lib.rs:918,950-957`.
+- **Depends on:** T004 (shares the font-load error path).
+- **Acceptance:** font bytes owned by the engine (e.g. `Arc<[u8]>` or a `Drop`-cleanup newtype), freed on `PlutoniumEngine` drop and on load error; a test creating+dropping N engines does not grow RSS unboundedly (or at least no `'static` leak remains).
+- **VERIFY:** `cargo test --all`
+
+## Phase B — Library hygiene
+
+### [ ] T006 — [HIGH] Adopt `log` facade; remove/gate every `println!`/`eprintln!` in `src/`
+- A library must not own stdout. Resolves the stdout-pollution cluster. See REPORT C6, P7, CL2, CL3, CL10, CL11, CL14-CL19, CL15 (and the O(atlas) pixel scan).
+- **Files:** `src/text.rs:514-522,999-1100,1425,2439-2443`; `src/lib.rs:801-848,817-824,1289,1388,3491,4511-4512,4929-5447`; `src/app.rs:817-819`; `src/texture_atlas.rs:603`; `src/pluto_objects/text2d.rs:961`; add `log` to `[dependencies]`.
+- **Depends on:** none.
+- **Acceptance:** `grep -rnI 'println!\|eprintln!\|dbg!' src` returns 0 in non-test, non-`#[cfg(debug_assertions)]`-gated code; debug instrumentation routed through `log::{debug,info,warn}` or removed; the O(atlas) pixel-scan (`src/text.rs:1096`) is gone from release builds; `save_debug_png` call (`lib.rs:4511`) removed/gated.
+- **VERIFY:** `cargo build --release && cargo clippy --all-targets --all-features`
+
+### [ ] T007 — [MED] Public-API visibility hygiene pass
+- Stop leaking implementation types into the crate's contract/docs. See REPORT D7, D8, D14, D15, D16, CL7.
+- **Files:** `src/pluto_objects/*.rs` (`*Internal`→`pub(crate)`); `src/utils.rs:31-132` (GPU-wire structs `pub(crate)` or `#[doc(hidden)]`; collapse per-field `#[allow(dead_code)]`); `src/lib.rs:60` (drop `use utils::*`); `src/text.rs:17-31` (`CharacterInfo`/`MsdfGlyphInfo` + `create_font_texture_atlas` → `pub(crate)`); `src/app.rs:27-39` (record/replay types `#[doc(hidden)]`); `src/lib.rs:2121,2136` (`resize`/`update` → `pub(crate)` unless documented).
+- **Depends on:** none.
+- **Acceptance:** `cargo doc --no-deps` public-item list no longer shows `*Internal`, `Vertex`, `RectInstanceRaw`, `DrawingContext`, `CharacterInfo`, etc.; crate still builds and examples still compile.
+- **VERIFY:** `cargo doc --no-deps --all-features && cargo build --all-targets`
+
+### [ ] T008 — [HIGH] Remove dead code and hollow features
+- See REPORT CL4, CL5, CL13, CL16, D5.
+- **Files:** delete `src/button.rs` (orphan); `Cargo.toml:57-62` (remove `backend-wgpu` + `replay`, OR add `#[cfg(feature="replay")]` gates in `src/app.rs:268-845`); `Cargo.toml:18` (drop stale `NEXTREADMENEXT.md` exclude); `Cargo.toml:28` (move `env_logger` to `[dev-dependencies]`).
+- **Depends on:** none.
+- **Acceptance:** `src/button.rs` gone; no feature in `Cargo.toml` gates zero code (`grep -rn 'feature = "replay"\|feature = "backend-wgpu"' src` either non-empty or the feature removed); `env_logger` not in `[dependencies]`; `cargo build --all-features` and `--no-default-features` both green.
+- **VERIFY:** `cargo build --no-default-features && cargo build --all-features`
+
+## Phase C — Documentation + API stability
+
+### [ ] T009 — [CRITICAL] Crate-level + public-API documentation
+- `documentation = docs.rs/...` currently points at a near-empty page. See REPORT D3.
+- **Files:** `src/lib.rs:1` (add `//!` overview + quick-start + feature-flag list + coordinate-system note); add `#![warn(missing_docs)]`; add `///` to every `pub fn`/`pub struct` on the public surface (start with `PlutoniumEngine`, `DrawParams`, `WindowConfig`, `FrameContext`, the wrapper objects).
+- **Depends on:** T007 (so missing_docs only fires on the genuinely-public surface).
+- **Also:** document the `Send`/`Sync` thread-affinity contract (objects use `Rc<RefCell<…>>` → `!Send`; single-thread affinity) in the crate docs (REPORT CS4).
+- **Acceptance:** `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features` builds clean (no missing_docs warnings on public items); crate-level docs render a usable quick-start on docs.rs and state the thread-affinity contract.
+- **VERIFY:** `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features`
+
+### [ ] T010 — [MED] Decide + document dependency-type leakage in public signatures
+- `wgpu::SurfaceError`, `winit::keyboard::Key`, `winit::dpi::PhysicalSize` in public signatures = breakage on every wgpu/winit major. See REPORT D9, D13.
+- **Files:** `src/lib.rs:500,2121,2136,2832,3522`; `src/app.rs` (`FrameContext::pressed_keys`).
+- **Depends on:** T004 (`EngineError` exists), T007.
+- **Acceptance:** either crate-owned newtypes wrap the wgpu/winit types in public signatures, OR a documented, deliberate `#[doc(hidden)]` re-export + a CHANGELOG stability note explaining the coupling. Decision recorded in a doc comment.
+- **VERIFY:** `cargo build --all-targets --all-features`
+
+## Phase D — Perf: GPU hot path + per-frame allocations
+
+### [ ] T011 — [CRITICAL] Pool per-flush GPU buffers + bind groups
+- Sprite/atlas/glyph flushes allocate GPU resources every flush every frame; rect-identity + glow rebuilt each frame. See REPORT P1, P2, P11, P12.
+- **Files:** `src/lib.rs:2946-2961,3077-3102,3125-3139,3187-3226,3508`.
+- **Depends on:** none.
+- **Acceptance:** no `create_buffer_init`/`create_bind_group` inside the per-flush render loop for sprite/atlas/glyph paths (reuse a pool like `rect_instance_pool`); rect-identity bind group persists across frames (removed from `begin_frame` reset); a many-sprites snapshot/bench shows no per-frame GPU allocation growth.
+- **VERIFY:** `cargo run --bin snapshots`
+
+### [ ] T012 — [CRITICAL] Stop per-frame vertex-buffer recreation of constants
+- Every loaded texture/atlas recreates a vertex buffer of constant vertices every frame. See REPORT P3.
+- **Files:** `src/texture_svg.rs:638-646`; `src/texture_atlas.rs:515-523`; call site `src/lib.rs:2199-2214`.
+- **Depends on:** none.
+- **Acceptance:** vertex buffer created once at construction; `update_vertex_buffer` no longer called per-frame from `update_transform_uniform`; transforms still flow through `queue.write_buffer`; snapshots unchanged.
+- **VERIFY:** `cargo run --bin snapshots`
+
+### [ ] T013 — [HIGH] Remove synchronous per-frame GPU stall
+- `device.poll(Wait)` after `present()` blocks the CPU every frame. See REPORT P4.
+- **Files:** `src/lib.rs:3460-3498`.
+- **Depends on:** none.
+- **Acceptance:** no `poll(Wait)` on the render thread between `present()` and next `begin_frame`; timestamp readback double-buffered (read N-2) or moved to a callback; frame loop no longer CPU-blocks on GPU drain.
+- **VERIFY:** `cargo run --bin snapshots`
+
+### [ ] T014 — [HIGH] Eliminate per-frame text-path allocations; cache static text
+- See REPORT P5, P6, P9.
+- **Files:** `src/text.rs:843,909,1430-1953` (Vec<char>); `src/lib.rs:1201-1229` (String); `src/pluto_objects/text2d.rs:740-750` (measure_text every frame).
+- **Depends on:** none.
+- **Acceptance:** text layout iterates `chars()` without per-line `Vec<char>` collection (or hoists one buffer); `resolve_font_key_for_render` avoids a `String` alloc on the exact-match path (`Cow`/`&str`); static `Text2D` objects skip `measure_text` when content/DPI/font unchanged.
+- **VERIFY:** `cargo test --all && cargo run --bin snapshots`
+
+### [ ] T015 — [MED] Render-queue sort + warm-queue allocation
+- See REPORT P8, P10.
+- **Files:** `src/lib.rs:2882` (sort), `src/lib.rs:1236,1289-1293` (HashMap per begin_frame).
+- **Depends on:** none.
+- **Acceptance:** `sort_unstable_by` (after confirming no intra-z order dependency, else bucket by z); warm-queue budget tracker is not a fresh `HashMap` per `begin_frame`.
+- **VERIFY:** `cargo run --bin snapshots`
+
+## Phase E — Release engineering
+
+### [ ] T016 — [MED] Add open-source community files
+- See REPORT RE1 (consult-demoted from HIGH: expected for open-sourcing, not a crates.io blocker).
+- **Files:** new `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`; optionally `.github/ISSUE_TEMPLATE/`, `.github/PULL_REQUEST_TEMPLATE.md`.
+- **Depends on:** none.
+- **Acceptance:** all three files present; CONTRIBUTING documents build/test/snapshot/wasm workflow + PR expectations; SECURITY has a disclosure contact; CoC is a recognized standard (e.g. Contributor Covenant).
+- **VERIFY:** `ls CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md`
+
+### [ ] T017 — [HIGH] Harden CI to cover advertised surfaces
+- See REPORT RE2, D10.
+- **Files:** `.github/workflows/ci.yml`; `Cargo.toml` (`rust-version`).
+- **Depends on:** T009 (doc job will fail until docs exist — sequence accordingly).
+- **Also:** add `[package.metadata.docs.rs]` to `Cargo.toml` so the docs.rs build succeeds for a wgpu crate (REPORT CS3) — pairs with the doc job.
+- **Acceptance:** CI adds jobs for `cargo check --target wasm32-unknown-unknown --features wasm`, `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features`, an MSRV build matching `rust-version`, a feature matrix (`--no-default-features`, each feature alone, `--all-features`), and `cargo package` dry-run; `[package.metadata.docs.rs]` present; blanket `-A` clippy allows reduced where the underlying lint is now clean.
+- **VERIFY:** `cargo check --target wasm32-unknown-unknown --features wasm` (locally if target installed)
+
+### [ ] T018 — [MED] Trim the published package + bundle asset licenses
+- `examples/media/` (992 KB) ships in `cargo package` (REPORT RE3); bundled `roboto.ttf`/media ship without their licenses (REPORT CS2).
+- **Files:** `Cargo.toml` (`exclude`/`include`); add asset license files (e.g. `examples/media/Roboto-LICENSE.txt`) + README credits.
+- **Depends on:** none.
+- **Acceptance:** `cargo package --list` excludes `examples/media/**` (or an `include` allowlist ships only `src/`, `shaders/`, `README.md`, `LICENSE`); every bundled font/media asset that remains in the repo has its license carried alongside it and credited in README; crate still builds from the packaged form (`cargo package` succeeds).
+- **VERIFY:** `cargo package --list --allow-dirty`
+
+### [ ] T019 — [MED] README + repo housekeeping
+- See REPORT CL8, RE4, RE5, RE6.
+- **Files:** `README.md` (remove final `# CI Test Comment`; add `cargo add plutonium_engine` install + crates.io/docs.rs/CI badges); `.gitignore` + `git rm --cached` for `snapshots/actual/` (CL6); resolve `Cargo.lock` tracked-vs-ignored contradiction; decide `plutonium_game/` placement (document or relocate).
+- **Depends on:** none.
+- **Acceptance:** README has no junk line and shows a crates.io install path; `snapshots/actual/` untracked + gitignored; `Cargo.lock` policy consistent; a note in README explains `plutonium_game/`'s relationship (or it is removed).
+- **VERIFY:** `git status --porcelain && tail -1 README.md`
+
+### [ ] T020 — [MED] Strengthen transform/NDC regression tests
+- Current tests only assert the scale diagonal is non-zero — they pass through the exact bug class the 0.8.0 CHANGELOG fixed. See REPORT C7.
+- **Files:** `tests/transform_tests.rs` (and `tests/uv_tests.rs`, `tests/camera_tests.rs`).
+- **Depends on:** none.
+- **Acceptance:** value-exact assertions added (e.g. tile==viewport → `transform[0][0] == 2.0`; known centering offset; polarity of `+y` down); tests fail if a sign/double-scaling regression is reintroduced.
+- **VERIFY:** `cargo test --all`
+
+### [ ] T023 — [MED] Resolve sRGB / color-space inconsistency
+- Sprite/SVG/atlas textures are `Rgba8Unorm` (linear) while the font atlas is `Rgba8UnormSrgb` and the surface prefers sRGB — sprites and text can be color-space-inconsistent. See REPORT CS1.
+- **Files:** `src/lib.rs:1697,1753,1810,1870,2044,4397,5019-5028`.
+- **Depends on:** none.
+- **Acceptance:** one consistent color-space convention across sprite textures, atlas, and surface; a snapshot of a sprite and text of the same RGBA shows matching on-screen color; golden snapshots updated intentionally (not silently) if output changes.
+- **VERIFY:** `cargo run --bin snapshots`
+
+## Phase F — Deferred / structural (do not blind-run via /z-implement-all)
+
+### [ ] T021 — [HIGH] Decompose the 5531-line `src/lib.rs` god module
+- The one genuinely structural item; `/z-plan`-scale. See REPORT CL1, D4.
+- **Files:** `src/lib.rs` → new `src/font_raster.rs`, `src/gpu_timer.rs`, `src/popup_render.rs`, `src/glow.rs` (+ optional `FontCache`/`TextureRegistry`/`PopupController`/`ClipStack` sub-structs).
+- **Depends on:** ideally after T004/T006/T007 land (fewer moving call sites).
+- **Acceptance:** `src/lib.rs` < ~1500 lines; each extracted module compiles and is `pub(crate)` where appropriate; public API surface unchanged (`cargo public-api` diff empty); `cargo test --all` green. **Recommend running this as its own `/z-plan` rather than a single implement-all task.**
+- **VERIFY:** `cargo test --all && cargo build --all-features`
+
+### [ ] T022 — [LOW] Miscellaneous polish
+- See REPORT C8, C9, CL9, CL12, CL20, D12, D13.
+- **Files:** `src/utils.rs:366-373` (Rectangle::pad semantics); `src/app.rs:737` (replay key reconstruction or doc the limit); `src/lib.rs:3770-3870` (doc/collapse `draw_*` vs `queue_*`); `src/pluto_objects/*` (Internal/Wrapper boilerplate macro); `pluto_objects/button.rs:167-173` (render label or document); `src/lib.rs:4912-4920` (`compile_error!` for WASM `new`).
+- **Depends on:** none.
+- **Acceptance:** each sub-item either fixed or has a tracking doc comment; no behavioral regressions; `cargo test --all` green.
+- **VERIFY:** `cargo test --all`
+
+2026-06-03T05:18:44.366571Z ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket: HTTP error: 403 Forbidden, url: wss://chatgpt.com/backend-api/codex/responses
+2026-06-03T05:18:45.450714Z ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket: HTTP error: 403 Forbidden, url: wss://chatgpt.com/backend-api/codex/responses
+2026-06-03T05:18:46.616475Z ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket: HTTP error: 403 Forbidden, url: wss://chatgpt.com/backend-api/codex/responses
+ERROR: Reconnecting... 2/5
+2026-06-03T05:18:47.954088Z ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket: HTTP error: 403 Forbidden, url: wss://chatgpt.com/backend-api/codex/responses
+ERROR: Reconnecting... 3/5
+2026-06-03T05:18:49.837882Z ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket: HTTP error: 403 Forbidden, url: wss://chatgpt.com/backend-api/codex/responses
+ERROR: Reconnecting... 4/5
+2026-06-03T05:18:52.472490Z ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket: HTTP error: 403 Forbidden, url: wss://chatgpt.com/backend-api/codex/responses
+ERROR: Reconnecting... 5/5
+2026-06-03T05:18:56.696488Z ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket: HTTP error: 403 Forbidden, url: wss://chatgpt.com/backend-api/codex/responses
+codex
+**BLOCKERS**
+
+- **T005**: Acceptance may regress soundness if implemented as “Drop-cleanup newtype” around leaked `'static` font bytes without proving all font consumers are dropped first. Freeing bytes still referenced through `'static` handles would create UAF. Require drop-order/ownership proof, or restrict acceptance to a design where font objects own/share the bytes safely.
+
+- **T011**: Severity inflation. Per-frame GPU allocation is a perf/release-quality issue, not **CRITICAL** unless REPORT P1/P2/P11/P12 prove correctness failure or unbounded leak. As written it could distort queue priority.
+
+**MAJORS**
+
+- **T004**: Scope creep risk. It combines error trait impls, many public API `Result` conversions, examples, snapshots, and multiple panic classes into one “mechanical” task. That is larger than a single safe implementable unit and likely to cause broad API churn.
+
+- **T015**: Acceptance is too vague/unsafe: “after confirming no intra-z order dependency” is not verifiable by the task itself. `sort_unstable_by` can regress draw order for equal z if order currently defines layering. Needs explicit invariant/test before allowing unstable sort.
+
+- **T018**: Acceptance conflicts with examples if `examples/media/**` is excluded but examples still depend on those assets during packaged builds. `cargo package` may succeed while published examples are broken. Needs criterion for packaged examples/assets behavior.
+
+- **T022**: Acceptance is not verifiable: “each sub-item either fixed or has a tracking doc comment” allows replacing real findings with comments, and the task bundles unrelated behavior/API/doc issues.
+tokens used
+47,189

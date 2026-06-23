@@ -1,0 +1,60 @@
+OpenAI Codex v0.133.0
+--------
+workdir: /Users/zeke/dev/plutonium_engine/.claude/worktrees/eager-tharp-b3022f
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 019e90de-c0ba-7d30-bde8-f1e9d79ef208
+--------
+user
+You are a senior Rust reviewer. A planned refactor decomposes a 5531-line src/lib.rs god module (one giant impl<'a> PlutoniumEngine<'a> with 133 methods; 50 private fields) of a wgpu 2D engine into topic modules (font_raster, font_msdf, gpu_timer, popup_render, glow, render/draw), with a HARD constraint of ZERO public-API change and all tests+snapshots green. Decisions already made: D1=impl-block split (move method clusters into impl blocks in child modules; child modules can access the struct's private fields), NOT owning sub-structs. D2=verify with cargo-public-api snapshot diff (empty diff required per task) in CI. D4=extract one GpuTimer struct owning timestamp_* fields used only in render(). D6=full split targeting lib.rs <~1500 lines, ~9 tasks, one module per task. Re-exports (pub use module::Type) preserve public paths for moved public types (e.g. HaloStyle).
+
+Give a TERSE critique focused ONLY on what is WRONG, MISSING, or FRAGILE in this plan. Specifically: (1) Rust-specific pitfalls of splitting one impl across child modules with private-field access (orphan rules, trait coherence, cfg(feature/target) attributes on moved methods, macro_rules visibility, #[cfg(wasm32)] method bodies). (2) Any way cargo-public-api could give a FALSE-PASS (miss a real break) or FALSE-FAIL. (3) Whether GpuTimer extraction risks behavior change in the render hot path. (4) Task ORDERING risks (what must move first). (5) Anything about doc-comments / #[doc] / re-export visibility that breaks docs.rs. Bullet points, cite the concrete risk.
+
+codex
+- **Private-field access premise is wrong as stated.** Child modules cannot access parent module private fields unless the struct fields are visible to that child module under Rust privacy rules. Items are private to the defining module and descendants can access parent private items, but only if the `impl PlutoniumEngine` in the child module can name the type and the fields remain defined in an ancestor module. Moving the struct into a sibling module would break this. Keep `PlutoniumEngine` defined in `lib.rs` or a common ancestor, or use `pub(super)`/`pub(crate)` deliberately.
+
+- **Split impls do not trigger orphan-rule issues for inherent impls**, but trait impls do. If any cluster includes `impl Trait for PlutoniumEngine`, moving it is fine only because the local type is still local; moving trait impls for foreign types or generated macro impls can hit coherence/orphan constraints.
+
+- **`cfg` drift is a major risk.** Method-level `#[cfg(...)]`, module-level `#[cfg(...)]`, and body-level `cfg!(...)` are not equivalent. Moving wasm/native branches into modules can accidentally remove methods from one target or compile native-only `wgpu`/timer code on `wasm32`.
+
+- **Feature-gated public API can silently change per feature set.** If `cargo-public-api` runs only default features on one target, it can miss breakage under `--no-default-features`, `--all-features`, or target-specific APIs.
+
+- **`macro_rules!` visibility/order can break after extraction.** Local macros used later in the old file may no longer be in scope in child modules. `macro_rules!` scoping is textual/module-sensitive unless exported/imported explicitly.
+
+- **Imports can change trait method resolution.** Moving methods may drop extension-trait imports, causing different methods to resolve or requiring fully qualified calls. This is especially fragile with `wgpu`, `bytemuck`, image/font crates, and custom helper traits.
+
+- **False pass: `cargo-public-api` may miss semver-relevant behavior.** It checks exported API shape, not runtime behavior, panic behavior, snapshot rendering output, default values, timing side effects, layout assumptions unless public, or docs semantics.
+
+- **False pass: public paths may be preserved while docs/visibility degrade.** `pub use module::HaloStyle` keeps the name usable, but docs may now show the type as defined in an internal module unless `#[doc(inline)]`, module visibility, and doc cfgs are handled.
+
+- **False pass: target-specific public API.** A snapshot generated for host macOS/Linux can miss wasm-only exported methods, doc cfgs, or APIs behind `target_arch = "wasm32"`.
+
+- **False fail: reordered impls/re-exports/docs can change snapshot text.** `cargo-public-api` may report ordering, import path, or doc-associated differences that are not real API breaks depending on how the snapshot is generated and normalized.
+
+- **False fail: moved public types may appear under new canonical module paths.** Even with `pub use`, rustdoc/public-api tooling may expose both `crate::HaloStyle` and `crate::glow::HaloStyle`, or prefer the defining path.
+
+- **`GpuTimer` extraction is hot-path risky.** Timestamp query setup, resolve buffer lifetime, map/unmap state, polling, encoder ordering, and pending-frame accounting are timing-sensitive. Bundling fields into a struct can change drop order, borrow scopes, reset timing, or when queries are written/resolved.
+
+- **`GpuTimer` must not allocate or map differently in `render()`.** Any new per-frame allocation, buffer creation, vector churn, or changed async map callback path can alter performance or introduce stalls.
+
+- **Preserve exact timestamp enablement semantics.** If timestamp support is conditional on adapter features, backend, wasm target, or debug flags, moving it into `GpuTimer::new/render` can accidentally issue unsupported queries.
+
+- **Task ordering risk: move pure public/private types first.** Re-exported structs/enums like `HaloStyle` should move before methods that depend on their new module paths, otherwise later diffs mix API preservation with behavior changes.
+
+- **Task ordering risk: move macros/constants/helpers before impl clusters.** Otherwise each method move may require local workaround imports, increasing drift.
+
+- **Task ordering risk: do `GpuTimer` before broad render split or after full render isolation, not midstream.** It is a behavior refactor, unlike impl relocation, so it should be isolated with render snapshots/perf-sensitive tests.
+
+- **Task ordering risk: `render/draw` should be last or carefully staged.** It likely touches the widest set of fields, helpers, cfgs, and rendering snapshots; doing it early makes every later task harder to review.
+
+- **Docs.rs can break from private modules holding public items.** `pub use private_mod::Type` is legal, but rustdoc presentation can be poor or warnings can surface. Hidden/private modules plus public re-exports need deliberate `#[doc(inline)]` / `#[doc(hidden)]`.
+
+- **Doc cfgs can be lost.** Moving `#[cfg_attr(docsrs, doc(cfg(...)))]`, `#[doc = ...]`, or feature docs from item to module level can change docs.rs output or make docs.rs fail under its feature set.
+
+- **Module-level docs/lints may change compilation.** Existing crate-level `#![allow(...)]`, `#![deny(...)]`, or doc comments near items may not apply the same way after moving code unless lints/docs are preserved.
+tokens used
+42,771
