@@ -22,7 +22,7 @@ Status legend: `[ ]` pending · `[~]` in_progress · `[x]` done.
 - **VERIFY:** `cargo build --all-features && cargo test --all && cargo run --bin snapshots`
 - **Complexity:** high
 
-### [ ] T003 — Extract `src/font_msdf.rs`
+### [x] T003 — Extract `src/font_msdf.rs`
 - Move the MSDF font cluster (`load_msdf_font*`, MSDF atlas build, MSDF-only helpers) into `src/font_msdf.rs`. NOTE: `load_msdf_font_with_tiny_raster` calls `build_tiny_raster_fallback_from_font_data` which lives in the raster cluster — that helper must be `pub(crate)` (ensured by T002). Preserve cfg/attributes/docs.
 - **Files:** new `src/font_msdf.rs`; `src/lib.rs`.
 - **Depends on:** T001, **T002** (shares the tiny-raster fallback helper).
