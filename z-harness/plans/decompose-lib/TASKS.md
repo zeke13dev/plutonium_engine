@@ -38,7 +38,7 @@ Status legend: `[ ]` pending · `[~]` in_progress · `[x]` done.
 - **VERIFY:** `cargo build --all-features && cargo test --all && cargo run --bin snapshots`
 - **Complexity:** medium
 
-### [ ] T005 — Extract `src/glow.rs`
+### [x] T005 — Extract `src/glow.rs`
 - Move the glow/halo method cluster — the PUBLIC entry methods (`draw_halo`, `draw_halo_for_object`, `draw_rect_glow`, …) AND their private helpers (`draw_halo_world_rect`, ~3998-4163) — into `src/glow.rs` (public methods keep their `PlutoniumEngine::` path; private helpers → `pub(crate)` only if still called from lib.rs). **Keep the public `HaloStyle/HaloMode/HaloPreset/HaloFalloff` TYPE definitions + their inherent impls in lib.rs** (D5). Move the cluster together so no public glow method is left in lib.rs calling a relocated private helper.
 - **Files:** new `src/glow.rs`; `src/lib.rs`.
 - **Depends on:** T001.

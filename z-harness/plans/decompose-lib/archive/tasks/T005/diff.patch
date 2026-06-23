@@ -1,0 +1,422 @@
+diff --git a/src/glow.rs b/src/glow.rs
+new file mode 100644
+index 0000000..0da751c
+--- /dev/null
++++ b/src/glow.rs
+@@ -0,0 +1,201 @@
++//! Glow/halo rendering methods for `PlutoniumEngine`.
++//!
++//! Public Halo* type definitions (`HaloStyle`, `HaloMode`, `HaloPreset`, `HaloFalloff`)
++//! remain in `lib.rs` (decision D5 — public canonical path). This module contains only
++//! the rendering methods that operate on those types.
++
++use crate::renderer::GlowCommand;
++use crate::{HaloMode, HaloStyle, QueuedItem, RenderItem};
++use crate::{PlutoniumEngine, Rectangle};
++use uuid::Uuid;
++
++impl<'a> PlutoniumEngine<'a> {
++    fn draw_halo_world_rect(&mut self, world_rect: Rectangle, style: HaloStyle) {
++        let radius = style.radius.max(0.0);
++        if radius <= f32::EPSILON {
++            return;
++        }
++
++        let glow_radius = radius + style.inner_padding.max(0.0);
++
++        // Compute sigma
++        let (mode_f, sigma) = match style.mode {
++            HaloMode::Glow => (0.0_f32, glow_radius / 2.5),
++            HaloMode::Border => (1.0_f32, style.border_width / 2.0),
++        };
++
++        // Effective alpha incorporating pulse
++        let effective_alpha = style.alpha_at(0.0);
++        if effective_alpha <= 0.0 {
++            return;
++        }
++
++        // Build oversized quad: inner rect expanded by glow_radius on each side
++        let oversized_bounds = Rectangle::new(
++            world_rect.x - glow_radius,
++            world_rect.y - glow_radius,
++            world_rect.width + glow_radius * 2.0,
++            world_rect.height + glow_radius * 2.0,
++        );
++
++        // Same coordinate math as draw_rect
++        let pos = crate::utils::Position {
++            x: oversized_bounds.x,
++            y: oversized_bounds.y,
++        } * self.dpi_scale_factor;
++        let size = oversized_bounds.size() * self.dpi_scale_factor;
++        let width_ndc = size.width / self.viewport_size.width;
++        let height_ndc = size.height / self.viewport_size.height;
++        let ndc_dx = (2.0 * (pos.x - self.camera.get_pos(self.dpi_scale_factor).x))
++            / self.viewport_size.width
++            - 1.0;
++        let ndc_dy = 1.0
++            - (2.0 * (pos.y - self.camera.get_pos(self.dpi_scale_factor).y))
++                / self.viewport_size.height;
++        let ndc_x = ndc_dx + width_ndc;
++        let ndc_y = ndc_dy - height_ndc;
++        let model = [
++            [width_ndc, 0.0, 0.0, 0.0],
++            [0.0, height_ndc, 0.0, 0.0],
++            [0.0, 0.0, 1.0, 0.0],
++            [ndc_x, ndc_y, 0.0, 1.0],
++        ];
++
++        // Inner rect size in physical pixels
++        let inner_size = world_rect.size() * self.dpi_scale_factor;
++
++        let rgb = [
++            style.color[0].clamp(0.0, 1.0),
++            style.color[1].clamp(0.0, 1.0),
++            style.color[2].clamp(0.0, 1.0),
++        ];
++
++        let cmd = GlowCommand {
++            transform: model,
++            color: [rgb[0], rgb[1], rgb[2], effective_alpha],
++            width_px: inner_size.width,
++            height_px: inner_size.height,
++            corner_radius_px: style.corner_radius * self.dpi_scale_factor,
++            glow_radius_px: glow_radius * self.dpi_scale_factor,
++            sigma: sigma * self.dpi_scale_factor,
++            max_alpha: style.max_alpha.clamp(0.0, 1.0),
++            mode: mode_f,
++            border_width: style.border_width * self.dpi_scale_factor,
++        };
++        self.render_queue.push(QueuedItem {
++            z: style.z,
++            clip_rect: None,
++            item: RenderItem::Glow(cmd),
++        });
++    }
++
++    /// Draw a configurable outward-radiating halo around a screen-space rectangle.
++    ///
++    /// `target_rect` is in logical screen-space coordinates (origin at top-left of viewport).
++    ///
++    /// Safety/clamp rules:
++    /// - `radius <= 0` results in no draw
++    /// - `ring_count` is clamped to at least `1`
++    /// - `inner_padding < 0` is clamped to `0`
++    /// - alpha behavior follows [`HaloStyle::alpha_at`]
++    pub fn draw_halo(&mut self, target_rect: Rectangle, style: HaloStyle) {
++        let world_rect = self.halo_world_rect_from_screen_rect(target_rect);
++        self.draw_halo_world_rect(world_rect, style);
++    }
++
++    /// Draw a neon-style perimeter glow around a rectangle.
++    ///
++    /// This follows the SDF of a rounded rectangle, extending both inward and outward.
++    /// `rect` is in logical screen-space coordinates.
++    pub fn draw_rect_glow(
++        &mut self,
++        rect: Rectangle,
++        color: [f32; 4],
++        thickness: f32,     // Width of the core "sharp" line (0.0 for pure soft glow)
++        glow_radius: f32,   // How far the soft glow extends from the edge
++        corner_radius: f32, // Corner rounding radius
++        intensity: f32,     // Alpha/brightness multiplier
++        z: i32,
++    ) {
++        let world_rect = self.halo_world_rect_from_screen_rect(rect);
++        let glow_radius_capped = glow_radius.max(0.0);
++        let thickness_capped = thickness.max(0.0);
++
++        // Quad must cover the rect plus the glow radius on each side.
++        // The shader uses local_pos_ndc [-1, 1] mapped to this quad.
++        let oversized_bounds = Rectangle::new(
++            world_rect.x - glow_radius_capped,
++            world_rect.y - glow_radius_capped,
++            world_rect.width + glow_radius_capped * 2.0,
++            world_rect.height + glow_radius_capped * 2.0,
++        );
++
++        // Compute NDC transform for the quad
++        let pos = crate::utils::Position {
++            x: oversized_bounds.x,
++            y: oversized_bounds.y,
++        } * self.dpi_scale_factor;
++        let size = oversized_bounds.size() * self.dpi_scale_factor;
++        let width_ndc = size.width / self.viewport_size.width;
++        let height_ndc = size.height / self.viewport_size.height;
++        let ndc_dx = (2.0 * (pos.x - self.camera.get_pos(self.dpi_scale_factor).x))
++            / self.viewport_size.width
++            - 1.0;
++        let ndc_dy = 1.0
++            - (2.0 * (pos.y - self.camera.get_pos(self.dpi_scale_factor).y))
++                / self.viewport_size.height;
++        let ndc_x = ndc_dx + width_ndc;
++        let ndc_y = ndc_dy - height_ndc;
++        let model = [
++            [width_ndc, 0.0, 0.0, 0.0],
++            [0.0, height_ndc, 0.0, 0.0],
++            [0.0, 0.0, 1.0, 0.0],
++            [ndc_x, ndc_y, 0.0, 1.0],
++        ];
++
++        // Inner rect size in physical pixels
++        let inner_size = world_rect.size() * self.dpi_scale_factor;
++
++        let cmd = GlowCommand {
++            transform: model,
++            color: [color[0], color[1], color[2], color[3] * intensity],
++            width_px: inner_size.width,
++            height_px: inner_size.height,
++            corner_radius_px: corner_radius * self.dpi_scale_factor,
++            glow_radius_px: glow_radius_capped * self.dpi_scale_factor, // This field is for quad sizing in shader, but we use it for falloff (sigma) too
++            sigma: glow_radius_capped * self.dpi_scale_factor,
++            max_alpha: (color[3] * intensity).clamp(0.0, 1.0),
++            mode: 2.0, // Use the new mode
++            border_width: thickness_capped * self.dpi_scale_factor,
++        };
++        self.render_queue.push(QueuedItem {
++            z,
++            clip_rect: None,
++            item: RenderItem::Glow(cmd),
++        });
++    }
++
++    /// Draw halo for a retained Pluto object.
++    ///
++    /// Returns `false` and draws nothing when:
++    /// - object id was not found
++    /// - object bounds are non-positive (`width <= 0` or `height <= 0`)
++    /// - object is fully offscreen
++    ///
++    /// Returns `true` when halo is submitted.
++    pub fn draw_halo_for_object(&mut self, object_id: &Uuid, style: HaloStyle) -> bool {
++        let bounds = match self.pluto_objects.get(object_id) {
++            Some(obj) => obj.borrow().dimensions(),
++            None => return false,
++        };
++        if bounds.width <= 0.0 || bounds.height <= 0.0 {
++            return false;
++        }
++        let screen_bounds = self.halo_screen_rect_from_world_rect(bounds);
++        if !Self::rects_intersect(screen_bounds, self.screen_space_viewport_rect()) {
++            return false;
++        }
++        self.draw_halo(screen_bounds, style);
++        true
++    }
++}
+diff --git a/src/lib.rs b/src/lib.rs
+index 7e1be3c..1e3c600 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -19,6 +19,7 @@ pub mod input;
+ #[cfg(feature = "layout")]
+ pub mod layout;
+ pub mod popup;
++mod glow;
+ mod popup_render;
+ pub mod renderer;
+ pub mod rng;
+@@ -2357,171 +2358,6 @@ impl<'a> PlutoniumEngine<'a> {
+         }
+     }
+ 
+-    fn draw_halo_world_rect(&mut self, world_rect: Rectangle, style: HaloStyle) {
+-        let radius = style.radius.max(0.0);
+-        if radius <= f32::EPSILON {
+-            return;
+-        }
+-
+-        let glow_radius = radius + style.inner_padding.max(0.0);
+-
+-        // Compute sigma
+-        let (mode_f, sigma) = match style.mode {
+-            HaloMode::Glow => (0.0_f32, glow_radius / 2.5),
+-            HaloMode::Border => (1.0_f32, style.border_width / 2.0),
+-        };
+-
+-        // Effective alpha incorporating pulse
+-        let effective_alpha = style.alpha_at(0.0);
+-        if effective_alpha <= 0.0 {
+-            return;
+-        }
+-
+-        // Build oversized quad: inner rect expanded by glow_radius on each side
+-        let oversized_bounds = Rectangle::new(
+-            world_rect.x - glow_radius,
+-            world_rect.y - glow_radius,
+-            world_rect.width + glow_radius * 2.0,
+-            world_rect.height + glow_radius * 2.0,
+-        );
+-
+-        // Same coordinate math as draw_rect
+-        let pos = Position {
+-            x: oversized_bounds.x,
+-            y: oversized_bounds.y,
+-        } * self.dpi_scale_factor;
+-        let size = oversized_bounds.size() * self.dpi_scale_factor;
+-        let width_ndc = size.width / self.viewport_size.width;
+-        let height_ndc = size.height / self.viewport_size.height;
+-        let ndc_dx = (2.0 * (pos.x - self.camera.get_pos(self.dpi_scale_factor).x))
+-            / self.viewport_size.width
+-            - 1.0;
+-        let ndc_dy = 1.0
+-            - (2.0 * (pos.y - self.camera.get_pos(self.dpi_scale_factor).y))
+-                / self.viewport_size.height;
+-        let ndc_x = ndc_dx + width_ndc;
+-        let ndc_y = ndc_dy - height_ndc;
+-        let model = [
+-            [width_ndc, 0.0, 0.0, 0.0],
+-            [0.0, height_ndc, 0.0, 0.0],
+-            [0.0, 0.0, 1.0, 0.0],
+-            [ndc_x, ndc_y, 0.0, 1.0],
+-        ];
+-
+-        // Inner rect size in physical pixels
+-        let inner_size = world_rect.size() * self.dpi_scale_factor;
+-
+-        let rgb = [
+-            style.color[0].clamp(0.0, 1.0),
+-            style.color[1].clamp(0.0, 1.0),
+-            style.color[2].clamp(0.0, 1.0),
+-        ];
+-
+-        let cmd = GlowCommand {
+-            transform: model,
+-            color: [rgb[0], rgb[1], rgb[2], effective_alpha],
+-            width_px: inner_size.width,
+-            height_px: inner_size.height,
+-            corner_radius_px: style.corner_radius * self.dpi_scale_factor,
+-            glow_radius_px: glow_radius * self.dpi_scale_factor,
+-            sigma: sigma * self.dpi_scale_factor,
+-            max_alpha: style.max_alpha.clamp(0.0, 1.0),
+-            mode: mode_f,
+-            border_width: style.border_width * self.dpi_scale_factor,
+-        };
+-        self.render_queue.push(QueuedItem {
+-            z: style.z,
+-            clip_rect: None,
+-            item: RenderItem::Glow(cmd),
+-        });
+-    }
+-
+-    /// Draw a configurable outward-radiating halo around a screen-space rectangle.
+-    ///
+-    /// `target_rect` is in logical screen-space coordinates (origin at top-left of viewport).
+-    ///
+-    /// Safety/clamp rules:
+-    /// - `radius <= 0` results in no draw
+-    /// - `ring_count` is clamped to at least `1`
+-    /// - `inner_padding < 0` is clamped to `0`
+-    /// - alpha behavior follows [`HaloStyle::alpha_at`]
+-    pub fn draw_halo(&mut self, target_rect: Rectangle, style: HaloStyle) {
+-        let world_rect = self.halo_world_rect_from_screen_rect(target_rect);
+-        self.draw_halo_world_rect(world_rect, style);
+-    }
+-
+-    /// Draw a neon-style perimeter glow around a rectangle.
+-    ///
+-    /// This follows the SDF of a rounded rectangle, extending both inward and outward.
+-    /// `rect` is in logical screen-space coordinates.
+-    pub fn draw_rect_glow(
+-        &mut self,
+-        rect: Rectangle,
+-        color: [f32; 4],
+-        thickness: f32,     // Width of the core "sharp" line (0.0 for pure soft glow)
+-        glow_radius: f32,   // How far the soft glow extends from the edge
+-        corner_radius: f32, // Corner rounding radius
+-        intensity: f32,     // Alpha/brightness multiplier
+-        z: i32,
+-    ) {
+-        let world_rect = self.halo_world_rect_from_screen_rect(rect);
+-        let glow_radius_capped = glow_radius.max(0.0);
+-        let thickness_capped = thickness.max(0.0);
+-
+-        // Quad must cover the rect plus the glow radius on each side.
+-        // The shader uses local_pos_ndc [-1, 1] mapped to this quad.
+-        let oversized_bounds = Rectangle::new(
+-            world_rect.x - glow_radius_capped,
+-            world_rect.y - glow_radius_capped,
+-            world_rect.width + glow_radius_capped * 2.0,
+-            world_rect.height + glow_radius_capped * 2.0,
+-        );
+-
+-        // Compute NDC transform for the quad
+-        let pos = Position {
+-            x: oversized_bounds.x,
+-            y: oversized_bounds.y,
+-        } * self.dpi_scale_factor;
+-        let size = oversized_bounds.size() * self.dpi_scale_factor;
+-        let width_ndc = size.width / self.viewport_size.width;
+-        let height_ndc = size.height / self.viewport_size.height;
+-        let ndc_dx = (2.0 * (pos.x - self.camera.get_pos(self.dpi_scale_factor).x))
+-            / self.viewport_size.width
+-            - 1.0;
+-        let ndc_dy = 1.0
+-            - (2.0 * (pos.y - self.camera.get_pos(self.dpi_scale_factor).y))
+-                / self.viewport_size.height;
+-        let ndc_x = ndc_dx + width_ndc;
+-        let ndc_y = ndc_dy - height_ndc;
+-        let model = [
+-            [width_ndc, 0.0, 0.0, 0.0],
+-            [0.0, height_ndc, 0.0, 0.0],
+-            [0.0, 0.0, 1.0, 0.0],
+-            [ndc_x, ndc_y, 0.0, 1.0],
+-        ];
+-
+-        // Inner rect size in physical pixels
+-        let inner_size = world_rect.size() * self.dpi_scale_factor;
+-
+-        let cmd = GlowCommand {
+-            transform: model,
+-            color: [color[0], color[1], color[2], color[3] * intensity],
+-            width_px: inner_size.width,
+-            height_px: inner_size.height,
+-            corner_radius_px: corner_radius * self.dpi_scale_factor,
+-            glow_radius_px: glow_radius_capped * self.dpi_scale_factor, // This field is for quad sizing in shader, but we use it for falloff (sigma) too
+-            sigma: glow_radius_capped * self.dpi_scale_factor,
+-            max_alpha: (color[3] * intensity).clamp(0.0, 1.0),
+-            mode: 2.0, // Use the new mode
+-            border_width: thickness_capped * self.dpi_scale_factor,
+-        };
+-        self.render_queue.push(QueuedItem {
+-            z,
+-            clip_rect: None,
+-            item: RenderItem::Glow(cmd),
+-        });
+-    }
+-
+     fn allocate_transform_bind_group(&mut self, transform_uniform: TransformUniform) -> usize {
+         // Reuse existing entry if available, else create new
+         if self.transform_pool.cursor < self.transform_pool.buffers.len() {
+@@ -2853,30 +2689,6 @@ impl<'a> PlutoniumEngine<'a> {
+             .map(|obj| obj.borrow().dimensions())
+     }
+ 
+-    /// Draw halo for a retained Pluto object.
+-    ///
+-    /// Returns `false` and draws nothing when:
+-    /// - object id was not found
+-    /// - object bounds are non-positive (`width <= 0` or `height <= 0`)
+-    /// - object is fully offscreen
+-    ///
+-    /// Returns `true` when halo is submitted.
+-    pub fn draw_halo_for_object(&mut self, object_id: &Uuid, style: HaloStyle) -> bool {
+-        let bounds = match self.pluto_objects.get(object_id) {
+-            Some(obj) => obj.borrow().dimensions(),
+-            None => return false,
+-        };
+-        if bounds.width <= 0.0 || bounds.height <= 0.0 {
+-            return false;
+-        }
+-        let screen_bounds = self.halo_screen_rect_from_world_rect(bounds);
+-        if !Self::rects_intersect(screen_bounds, self.screen_space_viewport_rect()) {
+-            return false;
+-        }
+-        self.draw_halo(screen_bounds, style);
+-        true
+-    }
+-
+     /* OBJECT CREATION FUNCTIONS */
+     pub fn create_texture_2d(
+         &mut self,
