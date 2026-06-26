@@ -36,9 +36,21 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
         if let Ok(window) = event_loop.create_window(window_attributes) {
             let window_arc = Arc::new(window);
             let size = window_arc.as_ref().inner_size();
-            let surface = instance.create_surface(window_arc.clone()).unwrap();
+            let surface = match instance.create_surface(window_arc.clone()) {
+                Ok(surface) => surface,
+                Err(err) => {
+                    eprintln!("failed to create surface: {err}");
+                    return;
+                }
+            };
             let scale_factor = window_arc.scale_factor() as f32;
-            let mut engine = PlutoniumEngine::new(surface, instance, size, scale_factor);
+            let mut engine = match PlutoniumEngine::new(surface, instance, size, scale_factor) {
+                Ok(engine) => engine,
+                Err(err) => {
+                    eprintln!("failed to create engine: {err}");
+                    return;
+                }
+            };
 
             // Create textures for each position
             let square_size = 100.0;
@@ -61,13 +73,21 @@ impl<'a> ApplicationHandler<()> for TextureSvgExample<'a> {
             ];
 
             // Create a texture for each position
-            let tiles: Vec<(Texture2D, Position)> = positions
+            let tiles: Vec<(Texture2D, Position)> = match positions
                 .into_iter()
                 .map(|pos| {
-                    let texture = engine.create_texture_2d("examples/media/square.svg", pos, 1.0);
-                    (texture, pos)
+                    engine
+                        .create_texture_2d("examples/media/square.svg", pos, 1.0)
+                        .map(|texture| (texture, pos))
                 })
-                .collect();
+                .collect::<Result<_, _>>()
+            {
+                Ok(tiles) => tiles,
+                Err(err) => {
+                    eprintln!("failed to create grid textures: {err}");
+                    return;
+                }
+            };
 
             window_arc.request_redraw();
 

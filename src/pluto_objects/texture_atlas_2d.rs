@@ -6,7 +6,7 @@ use std::rc::Rc;
 use uuid::Uuid;
 
 // Internal Representation
-pub struct TextureAtlas2DInternal {
+pub(crate) struct TextureAtlas2DInternal {
     id: Uuid,
     texture_key: Uuid,
     scale_factor: f32,
@@ -71,10 +71,6 @@ impl TextureAtlas2DInternal {
     pub fn get_z(&self) -> i32 {
         self.z
     }
-
-    pub fn scale_factor(&self) -> f32 {
-        self.scale_factor
-    }
 }
 
 impl PlutoObject for TextureAtlas2DInternal {
@@ -109,7 +105,7 @@ pub struct TextureAtlas2D {
 }
 
 impl TextureAtlas2D {
-    pub fn new(internal: Rc<RefCell<TextureAtlas2DInternal>>) -> Self {
+    pub(crate) fn new(internal: Rc<RefCell<TextureAtlas2DInternal>>) -> Self {
         Self { internal }
     }
 

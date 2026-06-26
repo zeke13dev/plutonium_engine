@@ -24,6 +24,7 @@ use winit::{
 
 type FrameCallback = Box<dyn FnMut(&mut PlutoniumEngine, &FrameContext, &mut PlutoniumApp)>;
 
+#[doc(hidden)]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
 #[serde(default)]
 pub struct FrameInputRecordLocal {
@@ -71,6 +72,7 @@ impl Default for WasmAppConfig {
     }
 }
 
+#[derive(Clone)]
 pub struct FrameContext {
     pub pressed_keys: Vec<winit::keyboard::Key>,
     pub mouse_info: MouseInfo,
@@ -83,7 +85,7 @@ pub struct PlutoniumApp {
     engine: Option<super::PlutoniumEngine<'static>>,
     window: Option<Arc<Window>>,
     last_frame_secs: f64,
-    frame_callback: FrameCallback,
+    frame_callback: Option<FrameCallback>,
     frame_context: FrameContext,
     config: WindowConfig,
     metrics: FrameTimeMetrics,
@@ -186,7 +188,7 @@ impl PlutoniumApp {
             engine: None,
             window: None,
             last_frame_secs: monotonic_now_seconds(),
-            frame_callback: Box::new(frame_callback),
+            frame_callback: Some(Box::new(frame_callback)),
             frame_context: FrameContext {
                 pressed_keys: Vec::new(),
                 mouse_info: MouseInfo {
@@ -436,7 +438,7 @@ impl ApplicationHandler<()> for PlutoniumApp {
             let surface = match instance.create_surface(window.clone()) {
                 Ok(surface) => surface,
                 Err(err) => {
-                    eprintln!("failed to create wgpu surface: {err}");
+                    log::warn!("failed to create wgpu surface: {err}");
                     #[cfg(target_arch = "wasm32")]
                     set_wasm_debug_status(&format!("create_surface failed: {err}"));
                     return;
@@ -449,10 +451,16 @@ impl ApplicationHandler<()> for PlutoniumApp {
             self.sync_wasm_canvas_backing_store(Some(scale));
             #[cfg(not(target_arch = "wasm32"))]
             {
-                let mut engine =
-                    super::PlutoniumEngine::new(surface, instance, size, self.dpi_scale_factor);
-                engine.set_dpi_scale_factor(scale);
-                self.engine = Some(engine);
+                match super::PlutoniumEngine::new(surface, instance, size, self.dpi_scale_factor) {
+                    Ok(mut engine) => {
+                        engine.set_dpi_scale_factor(scale);
+                        self.engine = Some(engine);
+                    }
+                    Err(err) => {
+                        log::warn!("failed to initialize PlutoniumEngine: {err}");
+                        return;
+                    }
+                }
             }
             #[cfg(target_arch = "wasm32")]
             {
@@ -488,13 +496,13 @@ impl ApplicationHandler<()> for PlutoniumApp {
             // Apply startup record/replay if requested
             if let Some(path) = self.startup_record_path.take() {
                 self.start_recording(path);
-                println!("recording started (cli)");
+                log::info!("recording started (cli)");
             }
             if let Some(path) = self.startup_replay_path.take() {
                 if let Err(e) = self.start_replay(&path) {
-                    eprintln!("failed to start replay: {}", e);
+                    log::warn!("failed to start replay: {}", e);
                 } else {
-                    println!("replay started (cli)");
+                    log::info!("replay started (cli)");
                 }
             }
         } else {
@@ -526,14 +534,16 @@ impl ApplicationHandler<()> for PlutoniumApp {
                         if ch.eq_ignore_ascii_case("r") {
                             if self.record_log.is_some() {
                                 let _ = self.stop_recording();
-                                println!("recording stopped");
+                                log::info!("recording stopped");
                             } else {
                                 self.start_recording("snapshots/replays/app_session.json");
-                                println!("recording started -> snapshots/replays/app_session.json");
+                                log::info!(
+                                    "recording started -> snapshots/replays/app_session.json"
+                                );
                             }
                         } else if ch.eq_ignore_ascii_case("p") {
                             let _ = self.start_replay("snapshots/replays/app_session.json");
-                            println!("replay started from snapshots/replays/app_session.json");
+                            log::info!("replay started from snapshots/replays/app_session.json");
                         }
                     }
                     // Record immediate press
@@ -654,7 +664,7 @@ impl ApplicationHandler<()> for PlutoniumApp {
                                         "pluto app: init channel yielded engine error: {}",
                                         err
                                     ));
-                                    eprintln!(
+                                    log::warn!(
                                         "failed to initialize plutonium engine (wasm): {err}"
                                     );
                                     self.engine_init_rx = None;
@@ -665,7 +675,7 @@ impl ApplicationHandler<()> for PlutoniumApp {
                                 }
                                 Err(TryRecvError::Disconnected) => {
                                     wasm_console_log("pluto app: init channel disconnected");
-                                    eprintln!("engine initialization channel disconnected");
+                                    log::warn!("engine initialization channel disconnected");
                                     self.engine_init_rx = None;
                                     set_wasm_debug_status("engine init channel disconnected");
                                 }
@@ -776,15 +786,17 @@ impl ApplicationHandler<()> for PlutoniumApp {
                         });
                     }
 
-                    // Run user's frame callback - use unsafe to split borrows
-                    // We need to borrow frame_context and self separately
-                    let frame_context_ptr = &self.frame_context as *const FrameContext;
-                    let mut callback = unsafe { std::ptr::read(&self.frame_callback) };
-                    let frame_context = unsafe { &*frame_context_ptr };
-                    callback(engine, frame_context, self);
-                    unsafe {
-                        std::ptr::write(&mut self.frame_callback, callback);
-                    }
+                    // Temporarily take the callback out of `self` so it can be called with
+                    // `&mut self` without aliasing the callback field. Pass a cloned frame
+                    // context snapshot to avoid borrowing `self.frame_context` across the
+                    // mutable app borrow.
+                    let frame_context = self.frame_context.clone();
+                    let mut callback = self
+                        .frame_callback
+                        .take()
+                        .expect("frame callback missing during frame dispatch");
+                    callback(engine, &frame_context, self);
+                    self.frame_callback = Some(callback);
 
                     // Update engine-side items (pluto objects and their textures)
                     // Pass the last pressed key this frame so interactive widgets receive input
@@ -815,7 +827,7 @@ impl ApplicationHandler<()> for PlutoniumApp {
                 }
 
                 if let Some(line) = self.metrics.maybe_report() {
-                    println!("{}", line);
+                    log::info!("{}", line);
                 }
             }
             WindowEvent::Resized(new_size) => {

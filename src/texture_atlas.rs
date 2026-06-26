@@ -75,7 +75,7 @@ impl TextureAtlas {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn new_from_texture(
+    pub(crate) fn new_from_texture(
         texture_key: Uuid,
         texture: wgpu::Texture,
         texture_bind_group: wgpu::BindGroup,
@@ -600,10 +600,10 @@ impl TextureAtlas {
         let uv_bind_group = if tile_index < self.uv_bind_groups.len() {
             &self.uv_bind_groups[tile_index]
         } else {
-            println!(
+            log::info!(
                 "Warning: Tile index {} out of bounds (max: {}), using default UV bind group",
                 tile_index,
-                self.uv_bind_groups.len() - 1
+                self.uv_bind_groups.len().saturating_sub(1)
             );
             &self.uv_bind_group
         };
@@ -637,7 +637,7 @@ impl TextureAtlas {
         self.num_indices
     }
 
-    pub fn get_transform_uniform(
+    pub(crate) fn get_transform_uniform(
         &self,
         viewport_size: Size,
         pos: Position, // logical top-left position
@@ -671,8 +671,20 @@ impl TextureAtlas {
         }
     }
 
+    pub fn get_transform_matrix(
+        &self,
+        viewport_size: Size,
+        pos: Position,
+        camera_pos: Position,
+        position_scale: f32,
+        tile_scale: f32,
+    ) -> [[f32; 4]; 4] {
+        self.get_transform_uniform(viewport_size, pos, camera_pos, position_scale, tile_scale)
+            .transform
+    }
+
     // Pure helper for tests: compute transform without accessing self
-    pub fn compute_transform_uniform(
+    pub(crate) fn compute_transform_uniform(
         viewport_size: Size,
         pos: Position,
         camera_pos: Position,
@@ -706,41 +718,14 @@ impl TextureAtlas {
         }
     }
 
-    // Non-uniform variant: separate width/height scale factors
-    pub fn compute_transform_uniform_nonuniform(
+    pub fn compute_transform_matrix(
         viewport_size: Size,
         pos: Position,
         camera_pos: Position,
-        position_scale: f32,
+        scale: f32,
         tile_size: Size,
-        tile_scale_x: f32,
-        tile_scale_y: f32,
-    ) -> TransformUniform {
-        let scaled_tile_w = tile_size.width * tile_scale_x;
-        let scaled_tile_h = tile_size.height * tile_scale_y;
-
-        let final_x = (pos.x - camera_pos.x) * position_scale;
-        let final_y = (pos.y - camera_pos.y) * position_scale;
-
-        let ndc_left = 2.0 * (final_x / viewport_size.width) - 1.0;
-        let ndc_top = -2.0 * (final_y / viewport_size.height) + 1.0;
-
-        let tile_w_ndc = 2.0 * (scaled_tile_w / viewport_size.width);
-        let tile_h_ndc = 2.0 * (scaled_tile_h / viewport_size.height);
-
-        TransformUniform {
-            transform: [
-                [tile_w_ndc, 0.0, 0.0, 0.0],
-                [0.0, -tile_h_ndc, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
-                [
-                    ndc_left + tile_w_ndc * 0.5,
-                    ndc_top - tile_h_ndc * 0.5,
-                    0.0,
-                    1.0,
-                ],
-            ],
-        }
+    ) -> [[f32; 4]; 4] {
+        Self::compute_transform_uniform(viewport_size, pos, camera_pos, scale, tile_size).transform
     }
 
     /// Adjusts the vertex texture coordinates based on the tile size and viewport size.
@@ -828,8 +813,7 @@ impl TextureAtlas {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) -> Option<(wgpu::Texture, Size)> {
-        let svg_data = fs::read_to_string(file_path)
-            .unwrap_or_else(|_| panic!("file not found: {}", file_path));
+        let svg_data = fs::read_to_string(file_path).ok()?;
         let opt = Options::default();
         let rtree = Tree::from_str(&svg_data, &opt).ok()?;
         let original_size = rtree.size();

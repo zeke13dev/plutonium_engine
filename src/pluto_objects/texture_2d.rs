@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use uuid::Uuid;
 
-pub struct Texture2DInternal {
+pub(crate) struct Texture2DInternal {
     id: Uuid,
     texture_key: Uuid,
     dimensions: Rectangle,
@@ -78,7 +78,7 @@ pub struct Texture2D {
 }
 
 impl Texture2D {
-    pub fn new(internal: Rc<RefCell<Texture2DInternal>>) -> Self {
+    pub(crate) fn new(internal: Rc<RefCell<Texture2DInternal>>) -> Self {
         Self { internal }
     }
 

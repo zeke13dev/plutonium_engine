@@ -9,7 +9,7 @@ use std::rc::Rc;
 use uuid::Uuid;
 use winit::keyboard::{Key, NamedKey};
 
-pub struct TextInputInternal {
+pub(crate) struct TextInputInternal {
     id: Uuid,
     button: Button,
     text: Text2D,
@@ -333,7 +333,7 @@ pub struct TextInput {
 }
 
 impl TextInput {
-    pub fn new(internal: Rc<RefCell<TextInputInternal>>) -> Self {
+    pub(crate) fn new(internal: Rc<RefCell<TextInputInternal>>) -> Self {
         // Set the focus callback on the button
         let internal_clone = Rc::clone(&internal);
         internal
@@ -368,10 +368,6 @@ impl TextInput {
 
     pub fn set_focus(&self, focus: bool) {
         self.internal.borrow_mut().set_focus(focus);
-    }
-
-    pub fn internal(&self) -> Rc<RefCell<TextInputInternal>> {
-        Rc::clone(&self.internal)
     }
 
     pub fn render(&self, engine: &mut PlutoniumEngine) {

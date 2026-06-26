@@ -3,24 +3,27 @@
 //! All items in this module are either `pub` (matching the public API surface in lib.rs) or
 //! `pub(crate)` (cross-called from lib.rs but not part of the public API surface).
 
-use crate::text::{CharacterInfo, FontError, TextRenderer, TinyRasterFallbackSpec};
+use crate::text::{CharacterInfo, FontError, OwnedFont, TextRenderer, TinyRasterFallbackSpec};
 #[cfg(all(feature = "raster", target_arch = "wasm32"))]
 use crate::texture_svg::TextureSVG;
-use crate::utils::Size;
 #[cfg(all(feature = "raster", target_arch = "wasm32"))]
 use crate::utils::Position;
+use crate::utils::Size;
 use crate::{
-    FontLoadOptions, GlyphSet, PrewarmConfig, PrewarmPolicy, PlutoniumEngine, RasterHintingMode,
+    FontLoadOptions, GlyphSet, PlutoniumEngine, PrewarmConfig, PrewarmPolicy, RasterHintingMode,
     WarmStats,
 };
 #[cfg(all(feature = "raster", target_arch = "wasm32"))]
 use crate::{RasterTextureLoadError, RasterTextureUrlLoadHandle};
 use rusttype::{Font, Scale};
-use std::collections::{HashMap, HashSet, VecDeque};
 #[cfg(all(feature = "raster", target_arch = "wasm32"))]
 use std::cell::RefCell;
 #[cfg(all(feature = "raster", target_arch = "wasm32"))]
 use std::rc::Rc;
+use std::{
+    collections::{HashMap, HashSet, VecDeque},
+    sync::Arc,
+};
 use uuid::Uuid;
 #[cfg(all(feature = "raster", target_arch = "wasm32"))]
 use wasm_bindgen::JsCast;
@@ -51,7 +54,7 @@ pub(crate) struct RasterSizeEntry {
 
 #[derive(Debug)]
 pub(crate) struct RasterFontFamily {
-    pub(crate) font_data: &'static [u8],
+    pub(crate) font_data: Arc<[u8]>,
     pub(crate) default_size: f32,
     pub(crate) hinting: RasterHintingMode,
     pub(crate) runtime_budget_glyphs_per_frame: usize,
@@ -283,7 +286,7 @@ impl<'a> PlutoniumEngine<'a> {
         font_key: &str,
         options: FontLoadOptions,
     ) -> Result<(), FontError> {
-        let font_data = std::fs::read(font_path).map_err(FontError::IoError)?;
+        let font_data = std::fs::read(font_path).map_err(FontError::from)?;
         self.load_font_with_options_from_bytes_internal(
             font_data,
             logical_font_size,
@@ -304,8 +307,7 @@ impl<'a> PlutoniumEngine<'a> {
         }
 
         let base_size = Self::sanitize_font_size(logical_font_size);
-        // SAFETY: cached for the engine lifetime to keep rusttype font slices valid.
-        let leaked: &'static [u8] = Box::leak(font_data.into_boxed_slice());
+        let font_bytes: Arc<[u8]> = Arc::from(font_data.into_boxed_slice());
         let mut prewarm_sizes = vec![base_size];
         let mut runtime_glyphs = Self::glyphs_from_set(&GlyphSet::AsciiCore);
         match &options.prewarm_policy {
@@ -338,7 +340,7 @@ impl<'a> PlutoniumEngine<'a> {
                 Self::raster_variant_key(font_key, size_q, current_dpi_q)
             };
             self.load_raster_font_variant_from_data(
-                leaked,
+                font_bytes.clone(),
                 &runtime_glyphs,
                 size,
                 self.dpi_scale_factor,
@@ -349,7 +351,7 @@ impl<'a> PlutoniumEngine<'a> {
         }
 
         let family = RasterFontFamily {
-            font_data: leaked,
+            font_data: font_bytes,
             default_size: base_size,
             hinting: options.hinting,
             runtime_budget_glyphs_per_frame: options.runtime_budget_glyphs_per_frame,
@@ -387,18 +389,16 @@ impl<'a> PlutoniumEngine<'a> {
         &mut self,
         font_key: &str,
         prewarm: PrewarmConfig,
-    ) -> Result<WarmStats, String> {
+    ) -> Result<WarmStats, FontError> {
         if !self.loaded_fonts.contains_key(font_key) {
-            return Err(format!("font '{font_key}' is not loaded"));
+            return Err(FontError::InvalidFontData);
         }
         let Some(family) = self.raster_font_families.get(font_key) else {
-            return Err(format!(
-                "font '{font_key}' does not use raster cache warming"
-            ));
+            return Err(FontError::InvalidFontData);
         };
 
         let glyphs = Self::glyphs_from_set(&prewarm.glyph_set);
-        let font_data = family.font_data;
+        let font_data = family.font_data.clone();
         let base_q = Self::quantize_font_size(family.default_size);
         let current_dpi_q = Self::quantize_font_size(self.dpi_scale_factor);
         let hinting = family.hinting;
@@ -434,14 +434,16 @@ impl<'a> PlutoniumEngine<'a> {
                 Self::raster_variant_key(font_key, size_q, current_dpi_q)
             };
             self.load_raster_font_variant_from_data(
-                font_data,
+                font_data.clone(),
                 &glyphs,
                 size,
                 self.dpi_scale_factor,
                 &atlas_key,
                 hinting,
             )
-            .map_err(|e| format!("failed to warm '{}': {:?}", font_key, e))?;
+            .map_err(|e| {
+                FontError::FreeTypeError(format!("failed to warm '{}': {}", font_key, e))
+            })?;
             if let Some(family_mut) = self.raster_font_families.get_mut(font_key) {
                 family_mut
                     .loaded_sizes
@@ -459,7 +461,7 @@ impl<'a> PlutoniumEngine<'a> {
 
     fn load_raster_font_variant_from_data(
         &mut self,
-        font_data: &'static [u8],
+        font_data: Arc<[u8]>,
         glyphs: &[char],
         logical_font_size: f32,
         dpi_scale_factor: f32,
@@ -481,14 +483,15 @@ impl<'a> PlutoniumEngine<'a> {
 
         let atlas_build = if use_hinted {
             self.build_hinted_raster_atlas_from_font_data(
-                font_data,
+                font_data.as_ref(),
                 logical_font_size,
                 dpi_scale_factor,
                 glyphs,
             )?
         } else {
             let physical_font_size = logical_font_size * self.dpi_scale_factor;
-            let font = Font::try_from_bytes(font_data).ok_or(FontError::InvalidFontData)?;
+            let font =
+                Font::try_from_bytes(font_data.as_ref()).ok_or(FontError::InvalidFontData)?;
             let scale = Scale::uniform(physical_font_size);
             let padding = 2;
 
@@ -546,12 +549,13 @@ impl<'a> PlutoniumEngine<'a> {
                 height: atlas_build.max_tile_height as f32,
             },
             &atlas_build.char_map,
-        );
+        )?;
 
-        let font_static = Font::try_from_bytes(font_data).ok_or(FontError::InvalidFontData)?;
+        let owned_font =
+            OwnedFont::from_arc(font_data.clone()).ok_or(FontError::InvalidFontData)?;
         self.text_renderer
             .fonts
-            .insert(atlas_key.to_string(), font_static);
+            .insert(atlas_key.to_string(), owned_font);
 
         self.text_renderer.store_font_atlas(
             atlas_key,
@@ -663,7 +667,7 @@ impl<'a> PlutoniumEngine<'a> {
             } else {
                 Self::raster_variant_key(&req.family_key, req.size_q, req.dpi_q)
             };
-            let font_data = family.font_data;
+            let font_data = family.font_data.clone();
             let runtime_glyphs = family.runtime_glyphs.clone();
             let hinting = family.hinting;
             match self.load_raster_font_variant_from_data(
@@ -685,9 +689,11 @@ impl<'a> PlutoniumEngine<'a> {
                     self.font_cache_version = self.font_cache_version.wrapping_add(1);
                 }
                 Err(err) => {
-                    eprintln!(
+                    log::warn!(
                         "[FONT CACHE] failed to warm '{}' @ {:.2}px: {:?}",
-                        req.family_key, logical_size, err
+                        req.family_key,
+                        logical_size,
+                        err
                     );
                     self.pending_raster_warm_dedupe.remove(&dedupe_key);
                 }
@@ -784,7 +790,7 @@ impl<'a> PlutoniumEngine<'a> {
             return Err(FontError::AtlasRenderError);
         }
         if !missing.is_empty() {
-            eprintln!(
+            log::warn!(
                 "[FONT CACHE] skipped {} missing glyphs while hint-rasterizing",
                 missing.len()
             );
@@ -986,12 +992,6 @@ impl<'a> PlutoniumEngine<'a> {
             );
         }
 
-        let size_metrics = face
-            .size_metrics()
-            .ok_or_else(|| FontError::FreeTypeError("missing freetype size metrics".to_string()))?;
-        let ascent = (size_metrics.ascender as f32 / 64.0) / dpi_scale_factor;
-        let descent = (size_metrics.descender as f32 / 64.0) / dpi_scale_factor;
-
         let atlas_id = Uuid::new_v4();
         let atlas = self.create_font_texture_atlas(
             atlas_id,
@@ -1003,13 +1003,11 @@ impl<'a> PlutoniumEngine<'a> {
                 height: max_tile_height as f32,
             },
             &char_map,
-        );
+        )?;
         Ok(TinyRasterFallbackSpec {
             atlas,
             char_map,
             font_size: tiny_size,
-            ascent,
-            descent,
             padding: padding as f32 / dpi_scale_factor,
         })
     }

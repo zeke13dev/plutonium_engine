@@ -11,7 +11,7 @@ use crate::pluto_objects::shapes::Shape;
 use crate::utils::{MouseInfo, Position, Rectangle};
 use crate::{
     traits::{PlutoObject, UpdateContext},
-    PlutoniumEngine,
+    EngineError, PlutoniumEngine,
 };
 
 use crate::text::TextRenderer;
@@ -129,7 +129,7 @@ impl TextContainer {
     }
 }
 // Text2D Implementation
-pub struct Text2DInternal {
+pub(crate) struct Text2DInternal {
     id: Uuid,
     font_key: String,
     dimensions: Rectangle,
@@ -200,10 +200,6 @@ impl Text2DInternal {
         self.cached_font_size = None;
         self.cached_wrapped_text = None;
     }
-    pub fn get_render_position(&self, text_width: f32) -> Position {
-        self.container
-            .calculate_text_position(text_width, self.font_size)
-    }
 
     pub fn set_container(&mut self, container: TextContainer) {
         self.container = container;
@@ -214,10 +210,6 @@ impl Text2DInternal {
 
     pub fn get_container(&self) -> &TextContainer {
         &self.container
-    }
-
-    pub fn get_container_mut(&mut self) -> &mut TextContainer {
-        &mut self.container
     }
 
     pub fn reset_container(&mut self) {
@@ -330,9 +322,6 @@ impl Text2DInternal {
         // If line is empty, return cursor at line start
         (index_offset, clicked_line)
     }
-    pub fn get_font_size(&mut self) -> f32 {
-        self.font_size
-    }
     pub fn set_font_size(&mut self, font_size: f32) {
         self.font_size = font_size;
     }
@@ -361,13 +350,6 @@ impl Text2DInternal {
         } else {
             false
         }
-    }
-    pub fn get_text(&self) -> &str {
-        &self.content
-    }
-
-    pub fn get_font(&self) -> &str {
-        &self.font_key
     }
 
     pub fn set_z(&mut self, z: i32) {
@@ -761,7 +743,10 @@ pub struct Text2D {
 }
 
 impl Text2D {
-    pub fn create_debug_visualization(&self, engine: &mut PlutoniumEngine) -> Shape {
+    pub fn create_debug_visualization(
+        &self,
+        engine: &mut PlutoniumEngine,
+    ) -> Result<Shape, EngineError> {
         let inner = self.internal.borrow();
         let container = inner.get_container();
 
@@ -772,7 +757,7 @@ impl Text2D {
             "rgba(0, 0, 255, 0.1)".to_string(), // Semi-transparent blue fill
             "rgba(0, 0, 255, 0.8)".to_string(), // Solid blue outline
             1.0,
-        );
+        )?;
 
         // If you want to visualize the padding area, create another rectangle
         let content_area = Rectangle::new(
@@ -788,12 +773,12 @@ impl Text2D {
             "rgba(255, 0, 0, 0.1)".to_string(), // Semi-transparent red fill
             "rgba(255, 0, 0, 0.8)".to_string(), // Solid red outline
             1.0,
-        );
+        )?;
 
-        rect
+        Ok(rect)
     }
 
-    pub fn new(internal: Rc<RefCell<Text2DInternal>>) -> Self {
+    pub(crate) fn new(internal: Rc<RefCell<Text2DInternal>>) -> Self {
         Self { internal }
     }
 
@@ -958,7 +943,7 @@ impl Text2D {
     }
 
     pub fn log_container(&self) {
-        println!("{:?}", self.internal.borrow().get_container());
+        log::info!("{:?}", self.internal.borrow().get_container());
     }
 
     pub fn container_bounds(&self) -> Rectangle {

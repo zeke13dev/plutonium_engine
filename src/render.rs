@@ -1,5 +1,5 @@
 use crate::utils::TransformUniform;
-use crate::{RenderItem, Rectangle};
+use crate::{Rectangle, RenderItem};
 use uuid::Uuid;
 use wgpu::util::DeviceExt;
 
@@ -120,10 +120,12 @@ impl<'a> super::PlutoniumEngine<'a> {
                     },
                 })],
                 depth_stencil_attachment: None,
-                timestamp_writes: self.gpu_timer.query.as_ref().map(|qs| wgpu::RenderPassTimestampWrites {
-                    query_set: qs,
-                    beginning_of_pass_write_index: Some(q0),
-                    end_of_pass_write_index: Some(q1),
+                timestamp_writes: self.gpu_timer.query.as_ref().map(|qs| {
+                    wgpu::RenderPassTimestampWrites {
+                        query_set: qs,
+                        beginning_of_pass_write_index: Some(q0),
+                        end_of_pass_write_index: Some(q1),
+                    }
                 }),
                 occlusion_query_set: None,
             });
@@ -677,7 +679,8 @@ impl<'a> super::PlutoniumEngine<'a> {
         self.queue.submit(Some(encoder.finish()));
         frame.present();
         // Read back timestamps (synchronously for simplicity)
-        self.gpu_timer.readback_and_report(&self.device, &self.queue, q0);
+        self.gpu_timer
+            .readback_and_report(&self.device, &self.queue, q0);
         Ok(())
     }
 

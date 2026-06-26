@@ -1,5 +1,6 @@
 pub mod camera;
 mod draw;
+pub mod error;
 mod font_msdf;
 mod font_raster;
 mod objects;
@@ -16,14 +17,15 @@ pub mod pluto_objects {
 }
 pub mod app;
 pub use app::{FrameContext, PlutoniumApp, WindowConfig};
+pub use error::EngineError;
 #[cfg(feature = "anim")]
 pub mod anim;
+mod glow;
+mod gpu_timer;
 pub mod input;
 #[cfg(feature = "layout")]
 pub mod layout;
 pub mod popup;
-mod glow;
-mod gpu_timer;
 mod popup_render;
 pub mod renderer;
 pub mod rng;
@@ -37,11 +39,11 @@ pub use popup::{
     PopupAction, PopupActionStyle, PopupConfig, PopupDismissReason, PopupEvent, PopupSize,
 };
 
+#[cfg(all(feature = "raster", target_arch = "wasm32"))]
+use crate::font_raster::PendingRasterTextureUrlLoad;
 use crate::font_raster::{
     PendingRasterWarmRequest, RasterFontFamily, DEFAULT_RUNTIME_GLYPH_BUDGET_PER_FRAME,
 };
-#[cfg(all(feature = "raster", target_arch = "wasm32"))]
-use crate::font_raster::PendingRasterTextureUrlLoad;
 use crate::popup::PopupRuntimeState;
 use crate::traits::UpdateContext;
 use camera::Camera;
@@ -81,7 +83,6 @@ pub enum TextureFit {
     StretchFill,
     Cover,
 }
-
 
 #[derive(Debug, Clone)]
 pub enum GlyphSet {
@@ -192,7 +193,6 @@ impl std::error::Error for RasterTextureLoadError {}
 #[cfg(all(feature = "raster", target_arch = "wasm32"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RasterTextureUrlLoadHandle(Uuid);
-
 
 /// Curve used to fade halo intensity as it radiates outward.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -397,7 +397,6 @@ struct SlotState {
     clip_radius: Option<f32>,
 }
 
-
 pub struct PlutoniumEngine<'a> {
     pub size: PhysicalSize<u32>,
     dpi_scale_factor: f32,
@@ -521,31 +520,31 @@ impl<'a> PlutoniumEngine<'a> {
             word_spacing,
         )?;
 
-        println!(
+        log::info!(
             "[TEXT LAYOUT DEBUG] font='{}' size={:.2}px text={:?}",
-            font_key, font_size, line
+            font_key,
+            font_size,
+            line
         );
         let mut prev_right: Option<f32> = None;
         for rec in records {
             let gap_from_prev = prev_right.map(|right| rec.glyph_left_px - right);
-            println!(
-                "  #{:02} {} '{}'->'{}' pen={:+7.2} kern={:+6.2} left={:+7.2} right={:+7.2} adv={:+6.2} ls={:+5.2} next_pen={:+7.2} gap_prev={}",
-                rec.index,
-                rec.mode,
-                rec.input_char,
-                rec.resolved_char,
-                rec.pen_x_before,
-                rec.kerning_px,
-                rec.glyph_left_px,
-                rec.glyph_right_px,
-                rec.advance_px,
-                rec.letter_spacing_px,
-                rec.pen_x_after,
-                match gap_from_prev {
-                    Some(v) => format!("{:+.2}", v),
-                    None => "-".to_string(),
-                }
-            );
+            log::info!("  #{:02} {} '{}'->'{}' pen={:+7.2} kern={:+6.2} left={:+7.2} right={:+7.2} adv={:+6.2} ls={:+5.2} next_pen={:+7.2} gap_prev={}",
+            rec.index,
+            rec.mode,
+            rec.input_char,
+            rec.resolved_char,
+            rec.pen_x_before,
+            rec.kerning_px,
+            rec.glyph_left_px,
+            rec.glyph_right_px,
+            rec.advance_px,
+            rec.letter_spacing_px,
+            rec.pen_x_after,
+            match gap_from_prev {
+                Some(v) => format!("{:+.2}", v),
+                None => "-".to_string(),
+            });
             prev_right = Some(rec.glyph_right_px);
         }
 
@@ -641,6 +640,7 @@ impl<'a> PlutoniumEngine<'a> {
         }
     }
 
+    /// Resize the GPU surface and viewport for manual event-loop integrations.
     pub fn resize(&mut self, new_size: &PhysicalSize<u32>) {
         // MAYBE NEEDS TO TAKE INTO ACCOUNT NEW SCALE FACTOR IF RESIZE CHANGES DEVICE
         self.size = *new_size;
@@ -656,6 +656,7 @@ impl<'a> PlutoniumEngine<'a> {
         };
     }
 
+    /// Update retained Pluto objects for manual event-loop integrations.
     pub fn update(&mut self, mouse_info: Option<MouseInfo>, key: &Option<Key>, delta_time: f32) {
         // text doesn't seem to be getting updated
         let scaled_mouse_info = mouse_info.map(|info| MouseInfo {
@@ -821,14 +822,14 @@ impl<'a> PlutoniumEngine<'a> {
         instance: wgpu::Instance,
         size: PhysicalSize<u32>,
         dpi_scale_factor: f32,
-    ) -> Self {
+    ) -> Result<Self, EngineError> {
         let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::default(),
             force_fallback_adapter: false,
             // Request an adapter which can render to our surface
             compatible_surface: Some(&surface),
         }))
-        .expect("Failed to find an appropriate adapter");
+        .ok_or(EngineError::AdapterUnavailable)?;
 
         let required_features = wgpu::Features::empty();
         let (device, queue) = block_on(adapter.request_device(
@@ -840,9 +841,16 @@ impl<'a> PlutoniumEngine<'a> {
             },
             None,
         ))
-        .expect("Failed to create device");
+        .map_err(|err| EngineError::DeviceRequestError(err.to_string()))?;
 
-        Self::new_with_device_and_adapter(surface, size, dpi_scale_factor, adapter, device, queue)
+        Ok(Self::new_with_device_and_adapter(
+            surface,
+            size,
+            dpi_scale_factor,
+            adapter,
+            device,
+            queue,
+        ))
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -851,8 +859,11 @@ impl<'a> PlutoniumEngine<'a> {
         _instance: wgpu::Instance,
         _size: PhysicalSize<u32>,
         _dpi_scale_factor: f32,
-    ) -> Self {
-        panic!("PlutoniumEngine::new is not available on wasm32. Use PlutoniumEngine::new_async.");
+    ) -> Result<Self, EngineError> {
+        Err(EngineError::SurfaceError(
+            "PlutoniumEngine::new is not available on wasm32; use PlutoniumEngine::new_async"
+                .to_string(),
+        ))
     }
 
     #[cfg(target_arch = "wasm32")]

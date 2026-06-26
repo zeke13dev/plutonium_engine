@@ -19,14 +19,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut text2d: Option<Text2D> = None;
     let mut debug_shape: Option<Shape> = None;
 
-    run_app(config, move |engine, frame, _app| {
+    run_app(config, move |engine, _frame, _app| {
         // Initialize text objects on first frame
         if text2d.is_none() {
             // Load the font (absolute path from crate root)
             let font_path = format!("{}/examples/media/roboto.ttf", env!("CARGO_MANIFEST_DIR"));
             match engine.load_font(&font_path, 50.0, "roboto") {
                 Ok(_) => (),
-                Err(FontError::IoError(err)) => println!("I/O error occurred: {}", err),
+                Err(FontError::IoError { message, .. }) => {
+                    println!("I/O error occurred: {}", message)
+                }
                 Err(FontError::InvalidFontData) => println!("Invalid font data"),
                 Err(FontError::AtlasRenderError) => println!("Atlas render error occurred"),
                 Err(other) => println!("Font load error: {:?}", other),
@@ -34,12 +36,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // Create text with the specified font
             let text_position = Position { x: 60.0, y: 60.0 };
-            let mut t = engine.create_text2d(
+            let Ok(mut t) = engine.create_text2d(
                 "Left/Center demo\nAligned across lines",
                 "roboto",
                 36.0,
                 text_position,
-            );
+            ) else {
+                eprintln!("failed to create text");
+                return;
+            };
             // Give it a visible container and alignment; normalize left margin by layout logic
             let container = TextContainer::new(Rectangle::new(
                 text_position.x,
@@ -55,15 +60,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // Create debug visualization if text was created successfully
             if let Some(text) = &text2d {
-                debug_shape = Some(text.create_debug_visualization(engine));
+                match text.create_debug_visualization(engine) {
+                    Ok(shape) => debug_shape = Some(shape),
+                    Err(err) => {
+                        eprintln!("failed to create text debug visualization: {err}");
+                        return;
+                    }
+                }
             }
         }
 
         // Clear previous frame
         engine.clear_render_queue();
-
-        // Update engine state
-        engine.update(None, &None, frame.delta_time);
 
         // Render text and debug shape
         if let Some(text) = &text2d {

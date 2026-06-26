@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     run_app(config, move |engine, _frame, _app| {
         // Initialize atlas on first frame
         if atlas.is_none() {
-            atlas = Some(engine.create_texture_atlas_2d(
+            let Ok(new_atlas) = engine.create_texture_atlas_2d(
                 "examples/media/map_atlas.svg",
                 Position::default(),
                 scale_factor,
@@ -26,7 +26,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     width: 512.0,
                     height: 512.0,
                 },
-            ));
+            ) else {
+                eprintln!("failed to create atlas");
+                return;
+            };
+            atlas = Some(new_atlas);
         }
 
         // Clear the render queue before each frame

@@ -364,7 +364,7 @@ fn estimated_message_line_count(message: &str, content_width: f32) -> usize {
         let len = line.chars().count();
         total += len.div_ceil(chars_per_line).max(1);
     }
-    total.max(1).min(12)
+    total.clamp(1, 12)
 }
 
 pub(crate) fn popup_layout_for(config: &PopupConfig, window_size: Size) -> PopupLayout {

@@ -20,12 +20,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut large_container_text: Option<Text2D> = None;
     let mut debug_shapes: Vec<Shape> = Vec::new();
 
-    run_app(config, move |engine, frame, _app| {
+    run_app(config, move |engine, _frame, _app| {
         if small_container_text.is_none() {
             let font_path = format!("{}/examples/media/roboto.ttf", env!("CARGO_MANIFEST_DIR"));
             match engine.load_font(&font_path, 50.0, "roboto") {
                 Ok(_) => println!("Font loaded successfully"),
-                Err(FontError::IoError(err)) => println!("I/O error occurred: {}", err),
+                Err(FontError::IoError { message, .. }) => {
+                    println!("I/O error occurred: {}", message)
+                }
                 Err(FontError::InvalidFontData) => println!("Invalid font data"),
                 Err(FontError::AtlasRenderError) => println!("Atlas render error occurred"),
                 Err(other) => println!("Font load error: {:?}", other),
@@ -42,15 +44,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ))
             .with_alignment(HorizontalAlignment::Center, VerticalAlignment::Middle);
 
-            let mut small_text = engine.create_text2d(
+            let Ok(mut small_text) = engine.create_text2d(
                 "Tiny Box", "roboto", 32.0, // Initial size (will be adjusted)
                 small_pos,
-            );
+            ) else {
+                eprintln!("failed to create small text");
+                return;
+            };
             small_text.set_container(small_container);
             small_text.set_auto_size(true); // Enable auto-sizing
             small_text.set_min_font_size(8.0); // Minimum allowed
             small_text.set_max_font_size(128.0); // Maximum allowed (NEW!)
-            debug_shapes.push(small_text.create_debug_visualization(engine));
+            match small_text.create_debug_visualization(engine) {
+                Ok(shape) => debug_shapes.push(shape),
+                Err(err) => {
+                    eprintln!("failed to create small text debug visualization: {err}");
+                    return;
+                }
+            }
             small_container_text = Some(small_text);
 
             // Example 2: Large container with auto-sizing
@@ -64,23 +75,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ))
             .with_alignment(HorizontalAlignment::Center, VerticalAlignment::Middle);
 
-            let mut large_text = engine.create_text2d(
+            let Ok(mut large_text) = engine.create_text2d(
                 "BIG TEXT\nAuto-Sized!",
                 "roboto",
                 32.0, // Small initial size, but will GROW to fill space
                 large_pos,
-            );
+            ) else {
+                eprintln!("failed to create large text");
+                return;
+            };
             large_text.set_container(large_container);
             large_text.set_auto_size(true); // Enable auto-sizing
             large_text.set_min_font_size(8.0); // Minimum allowed
             large_text.set_max_font_size(256.0); // Large maximum - text will grow!
             large_text.set_color([0.3, 0.8, 0.3, 1.0]); // Green
-            debug_shapes.push(large_text.create_debug_visualization(engine));
+            match large_text.create_debug_visualization(engine) {
+                Ok(shape) => debug_shapes.push(shape),
+                Err(err) => {
+                    eprintln!("failed to create large text debug visualization: {err}");
+                    return;
+                }
+            }
             large_container_text = Some(large_text);
         }
 
         engine.clear_render_queue();
-        engine.update(None, &None, frame.delta_time);
 
         // Render text and debug shapes
         if let Some(text) = &small_container_text {

@@ -5,7 +5,7 @@ use crate::pluto_objects::{
 use crate::utils::{Position, Size};
 use rusttype::{point, Font, GlyphId, OutlineBuilder, Scale};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Deref, sync::Arc};
 use uuid::Uuid;
 
 pub const DEFAULT_MSDF_PX_RANGE: f32 = 8.0;
@@ -13,6 +13,7 @@ pub const DEFAULT_TINY_RASTER_MAX_PX: f32 = 15.0;
 pub const DEFAULT_MSDF_MIN_PX: f32 = 18.0;
 
 // Character information for the font atlas
+#[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct CharacterInfo {
     pub tile_index: usize,
@@ -22,12 +23,12 @@ pub struct CharacterInfo {
 }
 
 #[derive(Clone, Debug)]
-pub struct MsdfGlyphInfo {
-    pub advance_width: f32,   // em units
-    pub plane_bounds: Bounds, // em units, y-up (top positive, bottom negative)
-    pub uv_offset: [f32; 2],  // normalized
-    pub uv_scale: [f32; 2],   // normalized
-    pub padding_em: f32,      // atlas padding in em units (padding_px / generation_font_size)
+pub(crate) struct MsdfGlyphInfo {
+    pub(crate) advance_width: f32,   // em units
+    pub(crate) plane_bounds: Bounds, // em units, y-up (top positive, bottom negative)
+    pub(crate) uv_offset: [f32; 2],  // normalized
+    pub(crate) uv_scale: [f32; 2],   // normalized
+    pub(crate) padding_em: f32, // atlas padding in em units (padding_px / generation_font_size)
 }
 
 #[derive(Clone, Debug)]
@@ -66,9 +67,12 @@ pub struct GlyphLayoutDebugRecord {
     pub pen_x_after: f32,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum FontError {
-    IoError(std::io::Error),
+    IoError {
+        kind: std::io::ErrorKind,
+        message: String,
+    },
     InvalidFontData,
     AtlasRenderError,
     MetadataParseError(String),
@@ -76,6 +80,65 @@ pub enum FontError {
     MissingGlyphData(char),
     ImageDecodeError(String),
     FreeTypeError(String),
+}
+
+impl std::fmt::Display for FontError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::IoError { message, .. } => write!(f, "I/O error: {message}"),
+            Self::InvalidFontData => write!(f, "invalid font data"),
+            Self::AtlasRenderError => write!(f, "failed to render font atlas"),
+            Self::MetadataParseError(message) => write!(f, "font metadata parse error: {message}"),
+            Self::UnsupportedAtlasFormat(format) => {
+                write!(f, "unsupported font atlas format: {format}")
+            }
+            Self::MissingGlyphData(ch) => write!(f, "missing glyph data for '{ch}'"),
+            Self::ImageDecodeError(message) => write!(f, "font image decode error: {message}"),
+            Self::FreeTypeError(message) => write!(f, "FreeType error: {message}"),
+        }
+    }
+}
+
+impl std::error::Error for FontError {}
+
+impl From<std::io::Error> for FontError {
+    fn from(err: std::io::Error) -> Self {
+        Self::IoError {
+            kind: err.kind(),
+            message: err.to_string(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct OwnedFont {
+    font: Font<'static>,
+    // Invariant: `font` was constructed from a borrow into this Arc allocation and is stored before
+    // `bytes`, so Rust drops `font` before releasing the final byte owner. Every clone carries its
+    // own Arc clone, keeping the borrowed allocation alive for the cloned `Font<'static>` too.
+    #[allow(dead_code)]
+    bytes: Arc<[u8]>,
+}
+
+impl OwnedFont {
+    pub(crate) fn from_arc(bytes: Arc<[u8]>) -> Option<Self> {
+        let font = Font::try_from_bytes(bytes.as_ref())?;
+        let font = unsafe {
+            // SAFETY: the returned `OwnedFont` stores an `Arc` clone for the exact allocation that
+            // `font` borrows. Field drop order releases `font` before `bytes`, so the borrow cannot
+            // outlive the allocation. Cloning `OwnedFont` clones both the font handle and Arc.
+            std::mem::transmute::<Font<'_>, Font<'static>>(font)
+        };
+        Some(Self { font, bytes })
+    }
+}
+
+impl Deref for OwnedFont {
+    type Target = Font<'static>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.font
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -454,13 +517,11 @@ pub struct FontAtlas {
     data: FontAtlasData,
 }
 
-pub struct TinyRasterFallbackSpec {
-    pub atlas: TextureAtlas2D,
-    pub char_map: HashMap<char, CharacterInfo>,
-    pub font_size: f32,
-    pub ascent: f32,
-    pub descent: f32,
-    pub padding: f32,
+pub(crate) struct TinyRasterFallbackSpec {
+    pub(crate) atlas: TextureAtlas2D,
+    pub(crate) char_map: HashMap<char, CharacterInfo>,
+    pub(crate) font_size: f32,
+    pub(crate) padding: f32,
 }
 
 struct TinyRasterFallback {
@@ -491,7 +552,7 @@ impl FontAtlas {
         self.max_tile_size
     }
 
-    pub fn get_char_info(&self, c: char) -> Option<&CharacterInfo> {
+    pub(crate) fn get_char_info(&self, c: char) -> Option<&CharacterInfo> {
         self.char_map.get(&c)
     }
 
@@ -511,28 +572,24 @@ impl FontAtlas {
         match &self.data {
             FontAtlasData::Raster(_) => {
                 for (c, info) in &self.char_map {
-                    println!(
-                        "Char '{}' (ASCII: {}) - Tile Index: {}, Size: {:?}, Bearing: {:?}, Advance: {}",
-                        c, *c as u32, info.tile_index, info.size, info.bearing, info.advance_width
-                    );
+                    log::info!("Char '{}' (ASCII: {}) - Tile Index: {}, Size: {:?}, Bearing: {:?}, Advance: {}",
+                    c, *c as u32, info.tile_index, info.size, info.bearing, info.advance_width);
                 }
             }
             FontAtlasData::Msdf(msdf) => {
                 for (c, info) in &msdf.glyphs {
-                    println!(
-                        "MSDF '{}' (ASCII: {}) - advance: {}, plane: ({:.3}, {:.3}, {:.3}, {:.3}), uv: ({:.3}, {:.3}) scale: ({:.3}, {:.3})",
-                        c,
-                        *c as u32,
-                        info.advance_width,
-                        info.plane_bounds.left,
-                        info.plane_bounds.top,
-                        info.plane_bounds.right,
-                        info.plane_bounds.bottom,
-                        info.uv_offset[0],
-                        info.uv_offset[1],
-                        info.uv_scale[0],
-                        info.uv_scale[1]
-                    );
+                    log::info!("MSDF '{}' (ASCII: {}) - advance: {}, plane: ({:.3}, {:.3}, {:.3}, {:.3}), uv: ({:.3}, {:.3}) scale: ({:.3}, {:.3})",
+                    c,
+                    *c as u32,
+                    info.advance_width,
+                    info.plane_bounds.left,
+                    info.plane_bounds.top,
+                    info.plane_bounds.right,
+                    info.plane_bounds.bottom,
+                    info.uv_offset[0],
+                    info.uv_offset[1],
+                    info.uv_scale[0],
+                    info.uv_scale[1]);
                 }
             }
         }
@@ -543,7 +600,7 @@ impl FontAtlas {
 #[derive(Default)]
 pub struct TextRenderer {
     pub(crate) font_atlases: HashMap<String, FontAtlas>,
-    pub(crate) fonts: HashMap<String, Font<'static>>,
+    pub(crate) fonts: HashMap<String, OwnedFont>,
     pub(crate) quality: TextQualitySettings,
 }
 
@@ -743,6 +800,7 @@ impl TextRenderer {
     /// Returns the ratio `height / upem` so that
     /// `rusttype_value / gen_size * correction` gives true em-unit values.
     /// Falls back to `1.0` when no shaping data is available.
+    #[doc(hidden)]
     pub fn compute_rusttype_em_correction(
         shaping_advances: &Option<HashMap<char, f32>>,
         char_map: &HashMap<char, CharacterInfo>,
@@ -967,27 +1025,7 @@ impl TextRenderer {
         }
     }
 
-    /// Measure caret advance for a single line prefix using the same pen math as layout.
-    /// Input should not contain newlines; if present, measurement stops at the first newline.
-    pub fn render_glyphs_to_atlas(
-        font: &Font,
-        scale: Scale,
-        atlas_size: (u32, u32),
-        char_dimensions: &HashMap<char, (u32, u32)>,
-        padding: u32,
-    ) -> Option<(Vec<u8>, HashMap<char, CharacterInfo>)> {
-        let glyphs: Vec<char> = (32..=126).map(|c| c as u8 as char).collect();
-        Self::render_glyphs_to_atlas_for_chars(
-            font,
-            scale,
-            atlas_size,
-            char_dimensions,
-            padding,
-            &glyphs,
-        )
-    }
-
-    pub fn render_glyphs_to_atlas_for_chars(
+    pub(crate) fn render_glyphs_to_atlas_for_chars(
         font: &Font,
         scale: Scale,
         atlas_size: (u32, u32),
@@ -996,12 +1034,12 @@ impl TextRenderer {
         glyphs: &[char],
     ) -> Option<(Vec<u8>, HashMap<char, CharacterInfo>)> {
         let (atlas_width, atlas_height) = atlas_size;
-        println!("[FONT DEBUG] Atlas size: {}x{}", atlas_width, atlas_height);
-        println!(
+        log::info!("[FONT DEBUG] Atlas size: {}x{}", atlas_width, atlas_height);
+        log::info!(
             "[FONT DEBUG] Char dimensions count: {}",
             char_dimensions.len()
         );
-        println!("[FONT DEBUG] Scale: {:?}", scale);
+        log::info!("[FONT DEBUG] Scale: {:?}", scale);
         let mut texture_data = vec![0; (atlas_width * atlas_height * 4) as usize];
         let mut char_map = HashMap::new();
         // Use the pre-padded glyph cell size computed in calculate_atlas_size.
@@ -1012,7 +1050,7 @@ impl TextRenderer {
         let max_height = (*char_dimensions.values().map(|(_, h)| h).max().unwrap_or(&0))
             .max(padding.saturating_mul(2))
             .max(1);
-        println!("[FONT DEBUG] Max tile size: {}x{}", max_width, max_height);
+        log::info!("[FONT DEBUG] Max tile size: {}x{}", max_width, max_height);
         // Start packing tiles at (0,0) on a strict grid so tile indices map
         // exactly to grid cells used by tile_uv_coordinates.
         let mut current_x = 0;
@@ -1050,9 +1088,12 @@ impl TextRenderer {
 
             if let Some(bb) = glyph.pixel_bounding_box() {
                 if next_tile_index < 5 {
-                    println!(
+                    log::info!(
                         "[FONT DEBUG] Char '{}': bbox={:?}, pos=({}, {})",
-                        c, bb, glyph_x, glyph_y
+                        c,
+                        bb,
+                        glyph_x,
+                        glyph_y
                     );
                 }
                 glyph.draw(|x, y, v| {
@@ -1072,7 +1113,7 @@ impl TextRenderer {
                 });
             } else {
                 if next_tile_index < 5 {
-                    println!("[FONT DEBUG] Char '{}': NO BOUNDING BOX", c);
+                    log::info!("[FONT DEBUG] Char '{}': NO BOUNDING BOX", c);
                 }
             }
 
@@ -1089,12 +1130,12 @@ impl TextRenderer {
             current_x += max_width;
         }
 
-        println!("[FONT DEBUG] Total glyphs drawn: {}", glyphs_drawn);
-        println!("[FONT DEBUG] Total characters in map: {}", char_map.len());
+        log::info!("[FONT DEBUG] Total glyphs drawn: {}", glyphs_drawn);
+        log::info!("[FONT DEBUG] Total characters in map: {}", char_map.len());
 
         // Check if any pixels were written
         let non_zero_pixels = texture_data.iter().filter(|&&b| b != 0).count();
-        println!(
+        log::info!(
             "[FONT DEBUG] Non-zero bytes in texture: {}/{}",
             non_zero_pixels,
             texture_data.len()
@@ -1103,6 +1144,7 @@ impl TextRenderer {
         Some((texture_data, char_map))
     }
 
+    #[doc(hidden)]
     pub fn render_msdf_glyphs_to_atlas(
         font: &Font,
         scale: Scale,
@@ -1254,7 +1296,7 @@ impl TextRenderer {
         removed_ids
     }
 
-    pub fn store_font_atlas(
+    pub(crate) fn store_font_atlas(
         &mut self,
         font_key: &str,
         atlas: TextureAtlas2D,
@@ -1356,7 +1398,7 @@ impl TextRenderer {
         Ok((glyphs, kernings))
     }
 
-    pub fn store_msdf_font_atlas(
+    pub(crate) fn store_msdf_font_atlas(
         &mut self,
         font_key: &str,
         atlas: TextureAtlas2D,
@@ -1422,7 +1464,7 @@ impl TextRenderer {
         let font_atlas = match self.font_atlases.get(font_key) {
             Some(atlas) => atlas,
             _ => {
-                eprintln!("Font atlas not found: {}", font_key);
+                log::warn!("Font atlas not found: {}", font_key);
                 return chars_to_render;
             }
         };
@@ -2248,6 +2290,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn owned_font_clone_keeps_arc_backing_alive() {
+        let font_path = format!("{}/examples/media/roboto.ttf", env!("CARGO_MANIFEST_DIR"));
+        let bytes: Arc<[u8]> = std::fs::read(font_path).unwrap().into();
+        let font = OwnedFont::from_arc(bytes.clone()).unwrap();
+        drop(bytes);
+
+        let cloned = font.clone();
+        drop(font);
+
+        let glyph = cloned.glyph('A').scaled(Scale::uniform(16.0));
+        assert!(glyph.h_metrics().advance_width > 0.0);
+    }
+
+    #[test]
     fn parses_msdf_metadata_json() {
         let json = r#"{
             "atlas": { "width": 256.0, "height": 256.0, "kind": "msdf" },
@@ -2436,11 +2492,13 @@ mod tests {
         }
 
         let total_delta = (msdf_pen - raster_pen).abs();
-        eprintln!(
+        log::warn!(
             "MSDF total: {:.2}px, Raster total: {:.2}px, delta: {:.4}px",
-            msdf_pen, raster_pen, total_delta
+            msdf_pen,
+            raster_pen,
+            total_delta
         );
-        eprintln!("Max per-char delta: {:.4}px", max_delta);
+        log::warn!("Max per-char delta: {:.4}px", max_delta);
 
         // Compare quad width (from plane_bounds) vs actual tile width (from atlas_bounds)
         // These should match for correct UV mapping but use different bounding box methods
@@ -2448,7 +2506,7 @@ mod tests {
         let denom = font_size * gen_scale; // generation_font_size = 128
         let _padding_px = 10u32;
 
-        eprintln!("\nQuad vs tile width mismatch (per glyph):");
+        log::warn!("\nQuad vs tile width mismatch (per glyph):");
         let mut total_width_error = 0.0f32;
         let mut count = 0;
         for code in 33u8..=126 {
@@ -2469,14 +2527,17 @@ mod tests {
                 count += 1;
 
                 if delta.abs() > 0.5 {
-                    eprintln!(
+                    log::warn!(
                         "  '{}': quad_gen={:.2} tile={:.2} delta={:+.2}px",
-                        ch, quad_width_gen, tile_width, delta
+                        ch,
+                        quad_width_gen,
+                        tile_width,
+                        delta
                     );
                 }
             }
         }
-        eprintln!(
+        log::warn!(
             "Avg width error: {:.3} gen px ({:.3} screen px @32)",
             total_width_error / count as f32,
             total_width_error / count as f32 * font_size / denom

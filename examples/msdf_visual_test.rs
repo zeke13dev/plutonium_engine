@@ -68,22 +68,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &metadata_path,
                 "roboto_msdf",
             ) {
-                panic!(
-                    "failed to load baked MSDF font: {:?}\n\n\
+                eprintln!(
+                    "failed to load baked MSDF font: {err}\n\n\
                      Bake once, then re-run this example:\n\
                        cargo run --bin msdf_bake -- --font \"{}\" --out-dir \"{}/examples/media\" --name roboto\n\n\
                      Expected files:\n\
                        {}\n\
                        {}",
-                    err,
                     font_path,
                     env!("CARGO_MANIFEST_DIR"),
                     atlas_path,
                     metadata_path
                 );
+                return;
             }
             if let Err(err) = engine.load_font(&font_path, RASTER_COMPARE_SIZE, "roboto_raster") {
-                panic!("failed to load raster font for comparison: {:?}", err);
+                eprintln!("failed to load raster font for comparison: {err}");
+                return;
             }
             initialized = true;
         }

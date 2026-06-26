@@ -58,20 +58,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         elapsed += frame.delta_time;
 
         if !initialized {
-            if engine.load_font(&font_path, 24.0, "roboto").is_err() {
-                panic!("failed to load demo font");
+            if let Err(err) = engine.load_font(&font_path, 24.0, "roboto") {
+                eprintln!("failed to load demo font: {err}");
+                return;
             }
 
-            focus_target = Some(engine.create_texture_2d(&object_svg, focus_pos, 1.0));
+            let Ok(focus_texture) = engine.create_texture_2d(&object_svg, focus_pos, 1.0) else {
+                eprintln!("failed to create focus target texture");
+                return;
+            };
+            focus_target = Some(focus_texture);
             // Starts fully offscreen to verify draw_halo_for_object -> false.
-            offscreen_target = Some(engine.create_texture_2d(
+            let Ok(offscreen_texture) = engine.create_texture_2d(
                 &object_svg,
                 Position {
                     x: 1200.0,
                     y: 220.0,
                 },
                 1.0,
-            ));
+            ) else {
+                eprintln!("failed to create offscreen target texture");
+                return;
+            };
+            offscreen_target = Some(offscreen_texture);
             initialized = true;
         }
 

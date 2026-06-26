@@ -4,7 +4,9 @@ use crate::pluto_objects::text2d::TextContainer;
 use crate::renderer::RectCommand;
 use crate::text::GlyphRenderMode;
 use crate::utils::{Position, Size, TransformUniform};
-use crate::{DrawParams, PlutoniumEngine, QueuedItem, Rectangle, RenderItem, SlotState, TextureFit};
+use crate::{
+    DrawParams, PlutoniumEngine, QueuedItem, Rectangle, RenderItem, SlotState, TextureFit,
+};
 use uuid::Uuid;
 
 impl<'a> PlutoniumEngine<'a> {

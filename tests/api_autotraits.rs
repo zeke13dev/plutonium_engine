@@ -22,7 +22,9 @@ use plutonium_engine::{
 
 use plutonium_engine::app::{FrameContext, WindowConfig};
 
-use plutonium_engine::popup::{PopupAction, PopupActionStyle, PopupConfig, PopupDismissReason, PopupEvent, PopupSize};
+use plutonium_engine::popup::{
+    PopupAction, PopupActionStyle, PopupConfig, PopupDismissReason, PopupEvent, PopupSize,
+};
 
 /// Compile-time assertion: T must implement both Send and Sync.
 ///

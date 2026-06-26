@@ -2028,6 +2028,7 @@ dependencies = [
  "getrandom",
  "image",
  "js-sys",
+ "log",
  "plutonium_game_input",
  "pollster",
  "resvg",

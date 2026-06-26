@@ -38,8 +38,8 @@ impl AssetsRegistry {
         file_path: &str,
         position: plutonium_engine::utils::Position,
         scale_factor: f32,
-    ) -> (Handle, plutonium_engine::utils::Rectangle) {
-        let (uuid, dims) = engine.create_texture_svg(file_path, position, scale_factor);
+    ) -> Result<(Handle, plutonium_engine::utils::Rectangle), plutonium_engine::EngineError> {
+        let (uuid, dims) = engine.create_texture_svg(file_path, position, scale_factor)?;
         let handle = self.reserve_handle();
         self.texture_handles.insert(handle, uuid);
         self.refs_tex.insert(handle, 1);
@@ -49,7 +49,7 @@ impl AssetsRegistry {
                 .and_then(|m| m.modified())
                 .unwrap_or(SystemTime::UNIX_EPOCH),
         );
-        (handle, dims)
+        Ok((handle, dims))
     }
 
     pub fn texture_uuid(&self, handle: Handle) -> Option<Uuid> {
@@ -157,9 +157,12 @@ pub fn process_load_requests_parallel(
     if !validated_textures.is_empty() {
         if let Some(registry) = world.get_resource_mut::<AssetsRegistry>() {
             for req in validated_textures {
-                let (uuid, _dims) =
-                    engine.create_texture_svg(&req.file_path, req.position, req.scale_factor);
-                registry.set_texture_uuid(req.handle, uuid);
+                match engine.create_texture_svg(&req.file_path, req.position, req.scale_factor) {
+                    Ok((uuid, _dims)) => registry.set_texture_uuid(req.handle, uuid),
+                    Err(err) => {
+                        eprintln!("Warning: failed to load texture '{}': {err}", req.file_path)
+                    }
+                }
             }
         }
     }
@@ -168,9 +171,12 @@ pub fn process_load_requests_parallel(
     if !validated_atlases.is_empty() {
         if let Some(registry) = world.get_resource_mut::<AssetsRegistry>() {
             for req in validated_atlases {
-                let (uuid, _rect) =
-                    engine.create_texture_atlas(&req.file_path, req.position, req.tile_size);
-                registry.set_atlas_uuid(req.handle, uuid);
+                match engine.create_texture_atlas(&req.file_path, req.position, req.tile_size) {
+                    Ok((uuid, _rect)) => registry.set_atlas_uuid(req.handle, uuid),
+                    Err(err) => {
+                        eprintln!("Warning: failed to load atlas '{}': {err}", req.file_path)
+                    }
+                }
             }
         }
     }
@@ -195,9 +201,12 @@ fn process_load_requests_sequential(
     if !pending_textures.is_empty() {
         if let Some(registry) = world.get_resource_mut::<AssetsRegistry>() {
             for req in pending_textures {
-                let (uuid, _dims) =
-                    engine.create_texture_svg(&req.file_path, req.position, req.scale_factor);
-                registry.set_texture_uuid(req.handle, uuid);
+                match engine.create_texture_svg(&req.file_path, req.position, req.scale_factor) {
+                    Ok((uuid, _dims)) => registry.set_texture_uuid(req.handle, uuid),
+                    Err(err) => {
+                        eprintln!("Warning: failed to load texture '{}': {err}", req.file_path)
+                    }
+                }
             }
         }
     }
@@ -205,9 +214,12 @@ fn process_load_requests_sequential(
     if !pending_atlases.is_empty() {
         if let Some(registry) = world.get_resource_mut::<AssetsRegistry>() {
             for req in pending_atlases {
-                let (uuid, _rect) =
-                    engine.create_texture_atlas(&req.file_path, req.position, req.tile_size);
-                registry.set_atlas_uuid(req.handle, uuid);
+                match engine.create_texture_atlas(&req.file_path, req.position, req.tile_size) {
+                    Ok((uuid, _rect)) => registry.set_atlas_uuid(req.handle, uuid),
+                    Err(err) => {
+                        eprintln!("Warning: failed to load atlas '{}': {err}", req.file_path)
+                    }
+                }
             }
         }
     }
@@ -263,13 +275,17 @@ pub fn batch_load_assets(
 
     // Sequential loading (engine is not thread-safe)
     for (handle, path, pos, scale) in validated_textures {
-        let (uuid, _dims) = engine.create_texture_svg(&path, pos, scale);
-        registry.set_texture_uuid(handle, uuid);
+        match engine.create_texture_svg(&path, pos, scale) {
+            Ok((uuid, _dims)) => registry.set_texture_uuid(handle, uuid),
+            Err(err) => eprintln!("Warning: failed to load texture '{}': {err}", path),
+        }
     }
 
     for (handle, path, pos, tile_size) in validated_atlases {
-        let (uuid, _rect) = engine.create_texture_atlas(&path, pos, tile_size);
-        registry.set_atlas_uuid(handle, uuid);
+        match engine.create_texture_atlas(&path, pos, tile_size) {
+            Ok((uuid, _rect)) => registry.set_atlas_uuid(handle, uuid),
+            Err(err) => eprintln!("Warning: failed to load atlas '{}': {err}", path),
+        }
     }
 
     (texture_handles, atlas_handles)

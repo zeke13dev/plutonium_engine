@@ -67,13 +67,16 @@ fn draw_demo(engine: &mut PlutoniumEngine) {
             cell_w - 32.0,
             cell_h - 32.0,
         );
-        let shape = engine.create_rect(
+        let Ok(shape) = engine.create_rect(
             rect,
             rect.pos(),
             "rgba(0,0,0,0.0)".to_string(),
             "rgba(0,255,0,0.6)".to_string(),
             1.0,
-        );
+        ) else {
+            eprintln!("failed to create alignment guide rect");
+            continue;
+        };
         shape.render(engine);
         let pos = rect.pos();
         let container = TextContainer::new(rect)

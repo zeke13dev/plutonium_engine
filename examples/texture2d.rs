@@ -14,11 +14,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     run_app(config, move |engine, frame, _app| {
         // Create game objects on first frame
         if player.is_none() {
-            player = Some(engine.create_texture_2d(
-                "examples/media/player.svg",
-                Position::default(),
-                1.0,
-            ));
+            let Ok(texture) =
+                engine.create_texture_2d("examples/media/player.svg", Position::default(), 1.0)
+            else {
+                eprintln!("failed to create player texture");
+                return;
+            };
+            player = Some(texture);
         }
 
         // Handle input

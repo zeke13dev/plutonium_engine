@@ -11,7 +11,7 @@ use uuid::Uuid;
 use winit::keyboard::Key;
 
 // Internal Representation
-pub struct ButtonInternal {
+pub(crate) struct ButtonInternal {
     id: Uuid,
     texture_key: Uuid,
     text_object: Text2D,
@@ -179,7 +179,7 @@ pub struct Button {
 }
 
 impl Button {
-    pub fn new(internal: Rc<RefCell<ButtonInternal>>) -> Self {
+    pub(crate) fn new(internal: Rc<RefCell<ButtonInternal>>) -> Self {
         Self { internal }
     }
 
@@ -205,7 +205,7 @@ impl Button {
 
     pub fn render(&self, engine: &mut PlutoniumEngine) {
         // Call the inherent render method directly on ButtonInternal
-        ButtonInternal::render(&mut *self.internal.borrow_mut(), engine);
+        ButtonInternal::render(&mut self.internal.borrow_mut(), engine);
     }
 
     pub fn update(&self, mouse_info: Option<MouseInfo>, key_pressed: Option<Key>) {

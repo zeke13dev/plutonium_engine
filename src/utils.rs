@@ -28,107 +28,76 @@ pub(crate) fn monotonic_now_seconds() -> f64 {
         .unwrap_or(0.0)
 }
 
-pub struct DrawingContext<'a> {
-    pub rpass: &'a mut wgpu::RenderPass<'a>,
-    pub pipeline: &'a wgpu::RenderPipeline,
+pub(crate) struct DrawingContext<'a> {
+    pub(crate) rpass: &'a mut wgpu::RenderPass<'a>,
+    pub(crate) pipeline: &'a wgpu::RenderPipeline,
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug)]
 #[allow(dead_code)]
-pub struct UVTransform {
-    #[allow(dead_code)]
-    pub uv_offset: [f32; 2],
-    #[allow(dead_code)]
-    pub uv_scale: [f32; 2],
-    #[allow(dead_code)]
-    pub tint: [f32; 4],
+pub(crate) struct UVTransform {
+    pub(crate) uv_offset: [f32; 2],
+    pub(crate) uv_scale: [f32; 2],
+    pub(crate) tint: [f32; 4],
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug)]
 #[allow(dead_code)]
-pub struct Vertex {
-    #[allow(dead_code)]
-    pub position: [f32; 2],
-    #[allow(dead_code)]
-    pub tex_coords: [f32; 2], // u, v texture coordinates
+pub(crate) struct Vertex {
+    pub(crate) position: [f32; 2],
+    pub(crate) tex_coords: [f32; 2], // u, v texture coordinates
 }
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 #[allow(dead_code)]
-pub struct TransformUniform {
-    #[allow(dead_code)]
-    pub transform: [[f32; 4]; 4], // 4x4 transformation matrix
+pub(crate) struct TransformUniform {
+    pub(crate) transform: [[f32; 4]; 4], // 4x4 transformation matrix
 }
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 #[allow(dead_code)]
-pub struct InstanceRaw {
-    #[allow(dead_code)]
-    pub model: [[f32; 4]; 4],
-    #[allow(dead_code)]
-    pub uv_offset: [f32; 2],
-    #[allow(dead_code)]
-    pub uv_scale: [f32; 2],
-    #[allow(dead_code)]
-    pub msdf_px_range: f32,
-    #[allow(dead_code)]
-    pub _msdf_pad: [f32; 3],
-    #[allow(dead_code)]
-    pub tint: [f32; 4],
+pub(crate) struct InstanceRaw {
+    pub(crate) model: [[f32; 4]; 4],
+    pub(crate) uv_offset: [f32; 2],
+    pub(crate) uv_scale: [f32; 2],
+    pub(crate) msdf_px_range: f32,
+    pub(crate) _msdf_pad: [f32; 3],
+    pub(crate) tint: [f32; 4],
 }
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 #[allow(dead_code)]
-pub struct RectInstanceRaw {
-    #[allow(dead_code)]
-    pub model: [[f32; 4]; 4],
-    #[allow(dead_code)]
-    pub color: [f32; 4],
-    #[allow(dead_code)]
-    pub corner_radius_px: f32,
-    #[allow(dead_code)]
-    pub border_thickness_px: f32,
-    #[allow(dead_code)]
-    pub _pad0: [f32; 2],
-    #[allow(dead_code)]
-    pub border_color: [f32; 4],
-    #[allow(dead_code)]
-    pub rect_size_px: [f32; 2],
-    #[allow(dead_code)]
-    pub _pad1: [f32; 2],
-    #[allow(dead_code)]
-    pub _pad2: [f32; 4],
+pub(crate) struct RectInstanceRaw {
+    pub(crate) model: [[f32; 4]; 4],
+    pub(crate) color: [f32; 4],
+    pub(crate) corner_radius_px: f32,
+    pub(crate) border_thickness_px: f32,
+    pub(crate) _pad0: [f32; 2],
+    pub(crate) border_color: [f32; 4],
+    pub(crate) rect_size_px: [f32; 2],
+    pub(crate) _pad1: [f32; 2],
+    pub(crate) _pad2: [f32; 4],
 }
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 #[allow(dead_code)]
-pub struct GlowInstanceRaw {
-    #[allow(dead_code)]
-    pub model: [[f32; 4]; 4],
-    #[allow(dead_code)]
-    pub color: [f32; 4],
-    #[allow(dead_code)]
-    pub rect_size_px: [f32; 2],
-    #[allow(dead_code)]
-    pub corner_radius_px: f32,
-    #[allow(dead_code)]
-    pub glow_radius_px: f32,
-    #[allow(dead_code)]
-    pub sigma: f32,
-    #[allow(dead_code)]
-    pub max_alpha: f32,
-    #[allow(dead_code)]
-    pub mode: f32,
-    #[allow(dead_code)]
-    pub border_width: f32,
-    #[allow(dead_code)]
-    pub _pad: [f32; 4],
+pub(crate) struct GlowInstanceRaw {
+    pub(crate) model: [[f32; 4]; 4],
+    pub(crate) color: [f32; 4],
+    pub(crate) rect_size_px: [f32; 2],
+    pub(crate) corner_radius_px: f32,
+    pub(crate) glow_radius_px: f32,
+    pub(crate) sigma: f32,
+    pub(crate) max_alpha: f32,
+    pub(crate) mode: f32,
+    pub(crate) border_width: f32,
+    pub(crate) _pad: [f32; 4],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -331,10 +300,10 @@ pub struct Rectangle {
 
 impl Rectangle {
     pub fn padded_contains(&self, position: Position, padding: f32) -> bool {
-        position.x >= self.x - padding
-            && position.x <= self.x - padding + self.width - (2.0 * padding)
-            && position.y >= self.y - padding
-            && position.y <= self.y - padding + self.height - (2.0 * padding)
+        position.x >= self.x + padding
+            && position.x <= self.x + self.width - padding
+            && position.y >= self.y + padding
+            && position.y <= self.y + self.height - padding
     }
 
     pub fn contains(&self, position: Position) -> bool {
@@ -504,5 +473,19 @@ impl FrameTimeMetrics {
 				p50, p95, p99, fps, self.buffer.len()
 			)
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Position, Rectangle};
+
+    #[test]
+    fn padded_contains_shrinks_hit_region_uniformly() {
+        let rect = Rectangle::new(10.0, 20.0, 100.0, 60.0);
+
+        assert!(!rect.padded_contains(Position { x: 10.0, y: 50.0 }, 8.0));
+        assert!(!rect.padded_contains(Position { x: 50.0, y: 20.0 }, 8.0));
+        assert!(rect.padded_contains(Position { x: 60.0, y: 50.0 }, 8.0));
     }
 }

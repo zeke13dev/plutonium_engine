@@ -17,11 +17,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut sprite = None;
     run_app(config, move |engine, _, _app| {
         if sprite.is_none() {
-            sprite = Some(engine.create_texture_2d(
+            let Ok(texture) = engine.create_texture_2d(
                 "examples/media/square.svg",
                 Position { x: 0.0, y: 0.0 },
                 1.0,
-            ));
+            ) else {
+                eprintln!("failed to create layout sprite");
+                return;
+            };
+            sprite = Some(texture);
         }
         engine.begin_frame();
         // simple centered 50% sized element in window

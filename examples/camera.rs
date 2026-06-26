@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Create game objects on first frame
         if player.is_none() {
             // Create texture atlas for the map
-            atlas = Some(engine.create_texture_atlas_2d(
+            let Ok(map_atlas) = engine.create_texture_atlas_2d(
                 "examples/media/map_atlas.svg",
                 Position::default(),
                 scale_factor,
@@ -34,17 +34,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     width: 512.0,
                     height: 512.0,
                 },
-            ));
+            ) else {
+                eprintln!("failed to create map atlas");
+                return;
+            };
+            atlas = Some(map_atlas);
 
             // Create player texture object
-            player = Some(engine.create_texture_2d("examples/media/player.svg", player_pos, 0.3));
+            let Ok(player_texture) =
+                engine.create_texture_2d("examples/media/player.svg", player_pos, 0.3)
+            else {
+                eprintln!("failed to create player texture");
+                return;
+            };
+            player = Some(player_texture);
 
             // Create boundary texture object
-            boundary = Some(engine.create_texture_2d(
-                "examples/media/boundary.svg",
-                Position::default(),
-                2.0,
-            ));
+            let Ok(boundary_texture) =
+                engine.create_texture_2d("examples/media/boundary.svg", Position::default(), 2.0)
+            else {
+                eprintln!("failed to create boundary texture");
+                return;
+            };
+            boundary = Some(boundary_texture);
 
             // Set up camera and boundary
             if let Some(player) = &player {

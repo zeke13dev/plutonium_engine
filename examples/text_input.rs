@@ -20,13 +20,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .ok();
 
             // Create text input
-            text_input = Some(engine.create_text_input(
+            let Ok(input) = engine.create_text_input(
                 "examples/media/input.svg",
                 "roboto",
                 20.0,
                 Position::default(),
                 1.0,
-            ));
+            ) else {
+                eprintln!("failed to create text input");
+                return;
+            };
+            text_input = Some(input);
         }
 
         // Immediate-mode background

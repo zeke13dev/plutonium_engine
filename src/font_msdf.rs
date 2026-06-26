@@ -95,7 +95,7 @@ impl<'a> PlutoniumEngine<'a> {
             wgpu::FilterMode::Linear,
             wgpu::FilterMode::Linear,
             true,
-        );
+        )?;
 
         self.text_renderer
             .store_msdf_font_atlas(font_key, atlas, metadata, None)?;
@@ -151,7 +151,7 @@ impl<'a> PlutoniumEngine<'a> {
             wgpu::FilterMode::Linear,
             wgpu::FilterMode::Linear,
             true,
-        );
+        )?;
 
         self.text_renderer
             .store_msdf_font_atlas(font_key, atlas, metadata, None)?;
@@ -208,7 +208,7 @@ impl<'a> PlutoniumEngine<'a> {
             wgpu::FilterMode::Linear,
             wgpu::FilterMode::Linear,
             true,
-        );
+        )?;
 
         self.text_renderer
             .store_msdf_font_atlas(font_key, atlas, metadata, None)?;
@@ -248,7 +248,7 @@ impl<'a> PlutoniumEngine<'a> {
             )));
         }
 
-        let font_data = std::fs::read(font_path).map_err(FontError::IoError)?;
+        let font_data = std::fs::read(font_path).map_err(FontError::from)?;
         let tiny_raster =
             self.build_tiny_raster_fallback_from_font_data(&font_data, self.dpi_scale_factor)?;
 
@@ -268,7 +268,7 @@ impl<'a> PlutoniumEngine<'a> {
             wgpu::FilterMode::Linear,
             wgpu::FilterMode::Linear,
             true,
-        );
+        )?;
         self.text_renderer
             .store_msdf_font_atlas(font_key, atlas, metadata, Some(tiny_raster))?;
         self.loaded_fonts.insert(font_key.to_string(), true);
@@ -295,7 +295,7 @@ impl<'a> PlutoniumEngine<'a> {
         let physical_font_size = logical_font_size * self.dpi_scale_factor;
         let generation_font_size =
             (physical_font_size * RUNTIME_MSDF_GENERATION_SCALE).max(physical_font_size);
-        let font_data = std::fs::read(font_path).map_err(FontError::IoError)?;
+        let font_data = std::fs::read(font_path).map_err(FontError::from)?;
         let font = Font::try_from_vec(font_data.clone()).ok_or(FontError::InvalidFontData)?;
         let scale = Scale::uniform(generation_font_size);
         let padding = 10u32;
@@ -442,7 +442,7 @@ impl<'a> PlutoniumEngine<'a> {
             wgpu::FilterMode::Linear,
             wgpu::FilterMode::Linear,
             true,
-        );
+        )?;
 
         let tiny_raster = Some(
             self.build_tiny_raster_fallback_from_font_data(&font_data, self.dpi_scale_factor)?,

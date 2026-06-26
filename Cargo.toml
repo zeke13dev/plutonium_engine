@@ -15,7 +15,6 @@ exclude = [
     ".DS_Store",
     "**/.DS_Store",
     ".github/**",
-    "NEXTREADMENEXT.md",
     "debug_*.png",
     "snapshots/**",
     "plutonium_game/**",
@@ -25,13 +24,13 @@ exclude = [
 image = "0.25.5"
 winit = "0.30.8"
 wgpu = "23.0.1"
-env_logger = "0.11.6"
 pollster = "0.4.0"
 tiny-skia = "0.11.4"
 resvg = "0.44.0"
 rusttype = "0.9.3"
 rustybuzz = "0.14.1"
 anyhow = "1.0.86"
+log = "0.4"
 
 uuid = { version = "1.11.0", features = ["v4"] }
 serde = { version = "1", features = ["derive"] }
@@ -53,13 +52,11 @@ version = "1.21.0"
 features = ["derive"]
 
 [features]
-default = ["backend-wgpu", "widgets"]
-backend-wgpu = []
+default = ["widgets"]
 raster = []        # enable PNG/JPEG helper APIs
 widgets = []       # enable retained-mode widgets (Button, TextInput, etc.)
 layout = []        # enable simple layout helpers (anchors/percent)
 anim = []          # enable tweening/animation APIs
-replay = []        # enable record/replay helpers and RNG-driven examples
 wasm = ["dep:getrandom"] # opt-in wasm32 support (enables JS entropy backend)
 
 [workspace]
@@ -80,3 +77,4 @@ path = "examples/jitter_test.rs"
 
 [dev-dependencies]
 plutonium_game_input = { path = "plutonium_game/crates/input" }
+env_logger = "0.11.6"

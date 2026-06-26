@@ -1,82 +1,50 @@
-#[repr(C)] pub struct plutonium_engine::utils::GlowInstanceRaw
-#[repr(C)] pub struct plutonium_engine::utils::InstanceRaw
-#[repr(C)] pub struct plutonium_engine::utils::RectInstanceRaw
-#[repr(C)] pub struct plutonium_engine::utils::TransformUniform
-#[repr(C)] pub struct plutonium_engine::utils::UVTransform
-#[repr(C)] pub struct plutonium_engine::utils::Vertex
 impl !core::marker::Freeze for plutonium_engine::app::PlutoniumApp
 impl !core::marker::Freeze for plutonium_engine::texture_atlas::TextureAtlas
 impl !core::marker::Freeze for plutonium_engine::texture_svg::TextureSVG
 impl !core::marker::Send for plutonium_engine::app::PlutoniumApp
 impl !core::marker::Send for plutonium_engine::pluto_objects::button::Button
-impl !core::marker::Send for plutonium_engine::pluto_objects::button::ButtonInternal
 impl !core::marker::Send for plutonium_engine::pluto_objects::shapes::Shape
 impl !core::marker::Send for plutonium_engine::pluto_objects::text2d::Text2D
 impl !core::marker::Send for plutonium_engine::pluto_objects::text_input::TextInput
-impl !core::marker::Send for plutonium_engine::pluto_objects::text_input::TextInputInternal
 impl !core::marker::Send for plutonium_engine::pluto_objects::texture_2d::Texture2D
 impl !core::marker::Send for plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D
 impl !core::marker::Send for plutonium_engine::text::FontAtlas
 impl !core::marker::Send for plutonium_engine::text::TextRenderer
-impl !core::marker::Send for plutonium_engine::text::TinyRasterFallbackSpec
 impl !core::marker::Send for plutonium_engine::texture_atlas::TextureAtlas
 impl !core::marker::Send for plutonium_engine::texture_svg::TextureSVG
 impl !core::marker::Sync for plutonium_engine::app::PlutoniumApp
 impl !core::marker::Sync for plutonium_engine::pluto_objects::button::Button
-impl !core::marker::Sync for plutonium_engine::pluto_objects::button::ButtonInternal
 impl !core::marker::Sync for plutonium_engine::pluto_objects::shapes::Shape
 impl !core::marker::Sync for plutonium_engine::pluto_objects::text2d::Text2D
 impl !core::marker::Sync for plutonium_engine::pluto_objects::text_input::TextInput
-impl !core::marker::Sync for plutonium_engine::pluto_objects::text_input::TextInputInternal
 impl !core::marker::Sync for plutonium_engine::pluto_objects::texture_2d::Texture2D
 impl !core::marker::Sync for plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D
 impl !core::marker::Sync for plutonium_engine::text::FontAtlas
 impl !core::marker::Sync for plutonium_engine::text::TextRenderer
-impl !core::marker::Sync for plutonium_engine::text::TinyRasterFallbackSpec
 impl !core::marker::Sync for plutonium_engine::texture_atlas::TextureAtlas
 impl !core::marker::Sync for plutonium_engine::texture_svg::TextureSVG
 impl !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::app::PlutoniumApp
 impl !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::button::Button
-impl !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::button::ButtonInternal
 impl !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::shapes::Shape
 impl !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::text2d::Text2D
 impl !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::text_input::TextInput
-impl !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::text_input::TextInputInternal
 impl !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::texture_2d::Texture2D
 impl !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D
 impl !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::text::FontAtlas
-impl !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::text::FontError
 impl !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::text::TextRenderer
-impl !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::text::TinyRasterFallbackSpec
 impl !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::texture_atlas::TextureAtlas
 impl !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::texture_svg::TextureSVG
 impl !core::panic::unwind_safe::UnwindSafe for plutonium_engine::app::PlutoniumApp
 impl !core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::button::Button
-impl !core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::button::ButtonInternal
 impl !core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::shapes::Shape
 impl !core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::text2d::Text2D
 impl !core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::text_input::TextInput
-impl !core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::text_input::TextInputInternal
 impl !core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::texture_2d::Texture2D
 impl !core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D
 impl !core::panic::unwind_safe::UnwindSafe for plutonium_engine::text::FontAtlas
-impl !core::panic::unwind_safe::UnwindSafe for plutonium_engine::text::FontError
 impl !core::panic::unwind_safe::UnwindSafe for plutonium_engine::text::TextRenderer
-impl !core::panic::unwind_safe::UnwindSafe for plutonium_engine::text::TinyRasterFallbackSpec
 impl !core::panic::unwind_safe::UnwindSafe for plutonium_engine::texture_atlas::TextureAtlas
 impl !core::panic::unwind_safe::UnwindSafe for plutonium_engine::texture_svg::TextureSVG
-impl bytemuck::pod::Pod for plutonium_engine::utils::GlowInstanceRaw
-impl bytemuck::pod::Pod for plutonium_engine::utils::InstanceRaw
-impl bytemuck::pod::Pod for plutonium_engine::utils::RectInstanceRaw
-impl bytemuck::pod::Pod for plutonium_engine::utils::TransformUniform
-impl bytemuck::pod::Pod for plutonium_engine::utils::UVTransform
-impl bytemuck::pod::Pod for plutonium_engine::utils::Vertex
-impl bytemuck::zeroable::Zeroable for plutonium_engine::utils::GlowInstanceRaw
-impl bytemuck::zeroable::Zeroable for plutonium_engine::utils::InstanceRaw
-impl bytemuck::zeroable::Zeroable for plutonium_engine::utils::RectInstanceRaw
-impl bytemuck::zeroable::Zeroable for plutonium_engine::utils::TransformUniform
-impl bytemuck::zeroable::Zeroable for plutonium_engine::utils::UVTransform
-impl bytemuck::zeroable::Zeroable for plutonium_engine::utils::Vertex
 impl core::clone::Clone for plutonium_engine::DrawParams
 impl core::clone::Clone for plutonium_engine::FontLoadOptions
 impl core::clone::Clone for plutonium_engine::GlyphSet
@@ -92,8 +60,9 @@ impl core::clone::Clone for plutonium_engine::RasterTextureUrlLoadHandle
 impl core::clone::Clone for plutonium_engine::TextureFit
 impl core::clone::Clone for plutonium_engine::WarmStats
 impl core::clone::Clone for plutonium_engine::anim::Ease
-impl core::clone::Clone for plutonium_engine::app::FrameInputRecordLocal
+impl core::clone::Clone for plutonium_engine::app::FrameContext
 impl core::clone::Clone for plutonium_engine::app::WasmAppConfig
+impl core::clone::Clone for plutonium_engine::error::EngineError
 impl core::clone::Clone for plutonium_engine::input::ActionMap
 impl core::clone::Clone for plutonium_engine::input::AxisBinding
 impl core::clone::Clone for plutonium_engine::input::AxisSource
@@ -120,27 +89,20 @@ impl core::clone::Clone for plutonium_engine::rng::RngService
 impl core::clone::Clone for plutonium_engine::rng::RngStream
 impl core::clone::Clone for plutonium_engine::rng::RngStreamId
 impl core::clone::Clone for plutonium_engine::text::Bounds
-impl core::clone::Clone for plutonium_engine::text::CharacterInfo
+impl core::clone::Clone for plutonium_engine::text::FontError
 impl core::clone::Clone for plutonium_engine::text::GlyphLayoutDebugRecord
 impl core::clone::Clone for plutonium_engine::text::GlyphRenderMode
 impl core::clone::Clone for plutonium_engine::text::MsdfAtlasInfo
 impl core::clone::Clone for plutonium_engine::text::MsdfFontMetadata
-impl core::clone::Clone for plutonium_engine::text::MsdfGlyphInfo
 impl core::clone::Clone for plutonium_engine::text::MsdfGlyphRecord
 impl core::clone::Clone for plutonium_engine::text::MsdfKerningRecord
 impl core::clone::Clone for plutonium_engine::text::MsdfMetrics
 impl core::clone::Clone for plutonium_engine::text::TextQualitySettings
 impl core::clone::Clone for plutonium_engine::ui::FocusRingStyle
-impl core::clone::Clone for plutonium_engine::utils::GlowInstanceRaw
-impl core::clone::Clone for plutonium_engine::utils::InstanceRaw
 impl core::clone::Clone for plutonium_engine::utils::MouseInfo
 impl core::clone::Clone for plutonium_engine::utils::Position
-impl core::clone::Clone for plutonium_engine::utils::RectInstanceRaw
 impl core::clone::Clone for plutonium_engine::utils::Rectangle
 impl core::clone::Clone for plutonium_engine::utils::Size
-impl core::clone::Clone for plutonium_engine::utils::TransformUniform
-impl core::clone::Clone for plutonium_engine::utils::UVTransform
-impl core::clone::Clone for plutonium_engine::utils::Vertex
 impl core::cmp::Eq for plutonium_engine::HaloPreset
 impl core::cmp::Eq for plutonium_engine::RasterTextureUrlLoadHandle
 impl core::cmp::Eq for plutonium_engine::TextureFit
@@ -171,6 +133,9 @@ impl core::cmp::PartialEq for plutonium_engine::rng::RngStreamId
 impl core::cmp::PartialEq for plutonium_engine::text::Bounds
 impl core::cmp::PartialEq for plutonium_engine::utils::Position
 impl core::cmp::PartialEq for plutonium_engine::utils::Rectangle
+impl core::convert::From<plutonium_engine::text::FontError> for plutonium_engine::error::EngineError
+impl core::convert::From<std::io::error::Error> for plutonium_engine::error::EngineError
+impl core::convert::From<std::io::error::Error> for plutonium_engine::text::FontError
 impl core::default::Default for plutonium_engine::DrawParams
 impl core::default::Default for plutonium_engine::FontLoadOptions
 impl core::default::Default for plutonium_engine::GlyphSet
@@ -180,7 +145,6 @@ impl core::default::Default for plutonium_engine::PrewarmPolicy
 impl core::default::Default for plutonium_engine::RasterHintingMode
 impl core::default::Default for plutonium_engine::TextureFit
 impl core::default::Default for plutonium_engine::WarmStats
-impl core::default::Default for plutonium_engine::app::FrameInputRecordLocal
 impl core::default::Default for plutonium_engine::app::WasmAppConfig
 impl core::default::Default for plutonium_engine::app::WindowConfig
 impl core::default::Default for plutonium_engine::input::ActionMap
@@ -198,6 +162,8 @@ impl core::default::Default for plutonium_engine::ui::ToggleStyle
 impl core::default::Default for plutonium_engine::utils::MouseInfo
 impl core::default::Default for plutonium_engine::utils::Position
 impl core::error::Error for plutonium_engine::RasterTextureLoadError
+impl core::error::Error for plutonium_engine::error::EngineError
+impl core::error::Error for plutonium_engine::text::FontError
 impl core::fmt::Debug for plutonium_engine::DrawParams
 impl core::fmt::Debug for plutonium_engine::FontLoadOptions
 impl core::fmt::Debug for plutonium_engine::GlyphSet
@@ -213,9 +179,9 @@ impl core::fmt::Debug for plutonium_engine::RasterTextureUrlLoadHandle
 impl core::fmt::Debug for plutonium_engine::TextureFit
 impl core::fmt::Debug for plutonium_engine::WarmStats
 impl core::fmt::Debug for plutonium_engine::anim::Ease
-impl core::fmt::Debug for plutonium_engine::app::FrameInputRecordLocal
 impl core::fmt::Debug for plutonium_engine::app::WasmAppConfig
 impl core::fmt::Debug for plutonium_engine::camera::Camera
+impl core::fmt::Debug for plutonium_engine::error::EngineError
 impl core::fmt::Debug for plutonium_engine::input::ActionMap
 impl core::fmt::Debug for plutonium_engine::input::AxisBinding
 impl core::fmt::Debug for plutonium_engine::input::AxisSource
@@ -241,13 +207,11 @@ impl core::fmt::Debug for plutonium_engine::rng::RngService
 impl core::fmt::Debug for plutonium_engine::rng::RngStream
 impl core::fmt::Debug for plutonium_engine::rng::RngStreamId
 impl core::fmt::Debug for plutonium_engine::text::Bounds
-impl core::fmt::Debug for plutonium_engine::text::CharacterInfo
 impl core::fmt::Debug for plutonium_engine::text::FontError
 impl core::fmt::Debug for plutonium_engine::text::GlyphLayoutDebugRecord
 impl core::fmt::Debug for plutonium_engine::text::GlyphRenderMode
 impl core::fmt::Debug for plutonium_engine::text::MsdfAtlasInfo
 impl core::fmt::Debug for plutonium_engine::text::MsdfFontMetadata
-impl core::fmt::Debug for plutonium_engine::text::MsdfGlyphInfo
 impl core::fmt::Debug for plutonium_engine::text::MsdfGlyphRecord
 impl core::fmt::Debug for plutonium_engine::text::MsdfKerningRecord
 impl core::fmt::Debug for plutonium_engine::text::MsdfMetrics
@@ -255,17 +219,13 @@ impl core::fmt::Debug for plutonium_engine::text::TextQualitySettings
 impl core::fmt::Debug for plutonium_engine::texture_atlas::TextureAtlas
 impl core::fmt::Debug for plutonium_engine::texture_svg::TextureSVG
 impl core::fmt::Debug for plutonium_engine::utils::FrameTimeMetrics
-impl core::fmt::Debug for plutonium_engine::utils::GlowInstanceRaw
-impl core::fmt::Debug for plutonium_engine::utils::InstanceRaw
 impl core::fmt::Debug for plutonium_engine::utils::MouseInfo
 impl core::fmt::Debug for plutonium_engine::utils::Position
-impl core::fmt::Debug for plutonium_engine::utils::RectInstanceRaw
 impl core::fmt::Debug for plutonium_engine::utils::Rectangle
 impl core::fmt::Debug for plutonium_engine::utils::Size
-impl core::fmt::Debug for plutonium_engine::utils::TransformUniform
-impl core::fmt::Debug for plutonium_engine::utils::UVTransform
-impl core::fmt::Debug for plutonium_engine::utils::Vertex
 impl core::fmt::Display for plutonium_engine::RasterTextureLoadError
+impl core::fmt::Display for plutonium_engine::error::EngineError
+impl core::fmt::Display for plutonium_engine::text::FontError
 impl core::hash::Hash for plutonium_engine::RasterTextureUrlLoadHandle
 impl core::hash::Hash for plutonium_engine::input::ButtonSource
 impl core::hash::Hash for plutonium_engine::rng::RngStreamId
@@ -298,16 +258,10 @@ impl core::marker::Copy for plutonium_engine::rng::RngStream
 impl core::marker::Copy for plutonium_engine::rng::RngStreamId
 impl core::marker::Copy for plutonium_engine::text::Bounds
 impl core::marker::Copy for plutonium_engine::text::TextQualitySettings
-impl core::marker::Copy for plutonium_engine::utils::GlowInstanceRaw
-impl core::marker::Copy for plutonium_engine::utils::InstanceRaw
 impl core::marker::Copy for plutonium_engine::utils::MouseInfo
 impl core::marker::Copy for plutonium_engine::utils::Position
-impl core::marker::Copy for plutonium_engine::utils::RectInstanceRaw
 impl core::marker::Copy for plutonium_engine::utils::Rectangle
 impl core::marker::Copy for plutonium_engine::utils::Size
-impl core::marker::Copy for plutonium_engine::utils::TransformUniform
-impl core::marker::Copy for plutonium_engine::utils::UVTransform
-impl core::marker::Copy for plutonium_engine::utils::Vertex
 impl core::marker::Freeze for plutonium_engine::DrawParams
 impl core::marker::Freeze for plutonium_engine::FontLoadOptions
 impl core::marker::Freeze for plutonium_engine::GlyphSet
@@ -325,10 +279,10 @@ impl core::marker::Freeze for plutonium_engine::TextureFit
 impl core::marker::Freeze for plutonium_engine::WarmStats
 impl core::marker::Freeze for plutonium_engine::anim::Ease
 impl core::marker::Freeze for plutonium_engine::app::FrameContext
-impl core::marker::Freeze for plutonium_engine::app::FrameInputRecordLocal
 impl core::marker::Freeze for plutonium_engine::app::WasmAppConfig
 impl core::marker::Freeze for plutonium_engine::app::WindowConfig
 impl core::marker::Freeze for plutonium_engine::camera::Camera
+impl core::marker::Freeze for plutonium_engine::error::EngineError
 impl core::marker::Freeze for plutonium_engine::input::ActionMap
 impl core::marker::Freeze for plutonium_engine::input::AxisBinding
 impl core::marker::Freeze for plutonium_engine::input::AxisSource
@@ -342,21 +296,15 @@ impl core::marker::Freeze for plutonium_engine::layout::Margins
 impl core::marker::Freeze for plutonium_engine::layout::PercentSize
 impl core::marker::Freeze for plutonium_engine::layout::VAnchor
 impl core::marker::Freeze for plutonium_engine::pluto_objects::button::Button
-impl core::marker::Freeze for plutonium_engine::pluto_objects::button::ButtonInternal
 impl core::marker::Freeze for plutonium_engine::pluto_objects::shapes::Shape
-impl core::marker::Freeze for plutonium_engine::pluto_objects::shapes::ShapeInternal
 impl core::marker::Freeze for plutonium_engine::pluto_objects::shapes::ShapeType
 impl core::marker::Freeze for plutonium_engine::pluto_objects::text2d::HorizontalAlignment
 impl core::marker::Freeze for plutonium_engine::pluto_objects::text2d::Text2D
-impl core::marker::Freeze for plutonium_engine::pluto_objects::text2d::Text2DInternal
 impl core::marker::Freeze for plutonium_engine::pluto_objects::text2d::TextContainer
 impl core::marker::Freeze for plutonium_engine::pluto_objects::text2d::VerticalAlignment
 impl core::marker::Freeze for plutonium_engine::pluto_objects::text_input::TextInput
-impl core::marker::Freeze for plutonium_engine::pluto_objects::text_input::TextInputInternal
 impl core::marker::Freeze for plutonium_engine::pluto_objects::texture_2d::Texture2D
-impl core::marker::Freeze for plutonium_engine::pluto_objects::texture_2d::Texture2DInternal
 impl core::marker::Freeze for plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D
-impl core::marker::Freeze for plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal
 impl core::marker::Freeze for plutonium_engine::popup::PopupAction
 impl core::marker::Freeze for plutonium_engine::popup::PopupActionStyle
 impl core::marker::Freeze for plutonium_engine::popup::PopupConfig
@@ -371,7 +319,6 @@ impl core::marker::Freeze for plutonium_engine::rng::RngService
 impl core::marker::Freeze for plutonium_engine::rng::RngStream
 impl core::marker::Freeze for plutonium_engine::rng::RngStreamId
 impl core::marker::Freeze for plutonium_engine::text::Bounds
-impl core::marker::Freeze for plutonium_engine::text::CharacterInfo
 impl core::marker::Freeze for plutonium_engine::text::CharacterRenderInfo
 impl core::marker::Freeze for plutonium_engine::text::FontAtlas
 impl core::marker::Freeze for plutonium_engine::text::FontError
@@ -379,29 +326,21 @@ impl core::marker::Freeze for plutonium_engine::text::GlyphLayoutDebugRecord
 impl core::marker::Freeze for plutonium_engine::text::GlyphRenderMode
 impl core::marker::Freeze for plutonium_engine::text::MsdfAtlasInfo
 impl core::marker::Freeze for plutonium_engine::text::MsdfFontMetadata
-impl core::marker::Freeze for plutonium_engine::text::MsdfGlyphInfo
 impl core::marker::Freeze for plutonium_engine::text::MsdfGlyphRecord
 impl core::marker::Freeze for plutonium_engine::text::MsdfKerningRecord
 impl core::marker::Freeze for plutonium_engine::text::MsdfMetrics
 impl core::marker::Freeze for plutonium_engine::text::TextQualitySettings
 impl core::marker::Freeze for plutonium_engine::text::TextRenderer
-impl core::marker::Freeze for plutonium_engine::text::TinyRasterFallbackSpec
 impl core::marker::Freeze for plutonium_engine::ui::ButtonStyle
 impl core::marker::Freeze for plutonium_engine::ui::ButtonVisualState
 impl core::marker::Freeze for plutonium_engine::ui::FocusRingStyle
 impl core::marker::Freeze for plutonium_engine::ui::NinePatch
 impl core::marker::Freeze for plutonium_engine::ui::ToggleStyle
 impl core::marker::Freeze for plutonium_engine::utils::FrameTimeMetrics
-impl core::marker::Freeze for plutonium_engine::utils::GlowInstanceRaw
-impl core::marker::Freeze for plutonium_engine::utils::InstanceRaw
 impl core::marker::Freeze for plutonium_engine::utils::MouseInfo
 impl core::marker::Freeze for plutonium_engine::utils::Position
-impl core::marker::Freeze for plutonium_engine::utils::RectInstanceRaw
 impl core::marker::Freeze for plutonium_engine::utils::Rectangle
 impl core::marker::Freeze for plutonium_engine::utils::Size
-impl core::marker::Freeze for plutonium_engine::utils::TransformUniform
-impl core::marker::Freeze for plutonium_engine::utils::UVTransform
-impl core::marker::Freeze for plutonium_engine::utils::Vertex
 impl core::marker::Send for plutonium_engine::DrawParams
 impl core::marker::Send for plutonium_engine::FontLoadOptions
 impl core::marker::Send for plutonium_engine::GlyphSet
@@ -419,10 +358,10 @@ impl core::marker::Send for plutonium_engine::TextureFit
 impl core::marker::Send for plutonium_engine::WarmStats
 impl core::marker::Send for plutonium_engine::anim::Ease
 impl core::marker::Send for plutonium_engine::app::FrameContext
-impl core::marker::Send for plutonium_engine::app::FrameInputRecordLocal
 impl core::marker::Send for plutonium_engine::app::WasmAppConfig
 impl core::marker::Send for plutonium_engine::app::WindowConfig
 impl core::marker::Send for plutonium_engine::camera::Camera
+impl core::marker::Send for plutonium_engine::error::EngineError
 impl core::marker::Send for plutonium_engine::input::ActionMap
 impl core::marker::Send for plutonium_engine::input::AxisBinding
 impl core::marker::Send for plutonium_engine::input::AxisSource
@@ -435,14 +374,10 @@ impl core::marker::Send for plutonium_engine::layout::LayoutResult
 impl core::marker::Send for plutonium_engine::layout::Margins
 impl core::marker::Send for plutonium_engine::layout::PercentSize
 impl core::marker::Send for plutonium_engine::layout::VAnchor
-impl core::marker::Send for plutonium_engine::pluto_objects::shapes::ShapeInternal
 impl core::marker::Send for plutonium_engine::pluto_objects::shapes::ShapeType
 impl core::marker::Send for plutonium_engine::pluto_objects::text2d::HorizontalAlignment
-impl core::marker::Send for plutonium_engine::pluto_objects::text2d::Text2DInternal
 impl core::marker::Send for plutonium_engine::pluto_objects::text2d::TextContainer
 impl core::marker::Send for plutonium_engine::pluto_objects::text2d::VerticalAlignment
-impl core::marker::Send for plutonium_engine::pluto_objects::texture_2d::Texture2DInternal
-impl core::marker::Send for plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal
 impl core::marker::Send for plutonium_engine::popup::PopupAction
 impl core::marker::Send for plutonium_engine::popup::PopupActionStyle
 impl core::marker::Send for plutonium_engine::popup::PopupConfig
@@ -457,14 +392,12 @@ impl core::marker::Send for plutonium_engine::rng::RngService
 impl core::marker::Send for plutonium_engine::rng::RngStream
 impl core::marker::Send for plutonium_engine::rng::RngStreamId
 impl core::marker::Send for plutonium_engine::text::Bounds
-impl core::marker::Send for plutonium_engine::text::CharacterInfo
 impl core::marker::Send for plutonium_engine::text::CharacterRenderInfo
 impl core::marker::Send for plutonium_engine::text::FontError
 impl core::marker::Send for plutonium_engine::text::GlyphLayoutDebugRecord
 impl core::marker::Send for plutonium_engine::text::GlyphRenderMode
 impl core::marker::Send for plutonium_engine::text::MsdfAtlasInfo
 impl core::marker::Send for plutonium_engine::text::MsdfFontMetadata
-impl core::marker::Send for plutonium_engine::text::MsdfGlyphInfo
 impl core::marker::Send for plutonium_engine::text::MsdfGlyphRecord
 impl core::marker::Send for plutonium_engine::text::MsdfKerningRecord
 impl core::marker::Send for plutonium_engine::text::MsdfMetrics
@@ -475,16 +408,10 @@ impl core::marker::Send for plutonium_engine::ui::FocusRingStyle
 impl core::marker::Send for plutonium_engine::ui::NinePatch
 impl core::marker::Send for plutonium_engine::ui::ToggleStyle
 impl core::marker::Send for plutonium_engine::utils::FrameTimeMetrics
-impl core::marker::Send for plutonium_engine::utils::GlowInstanceRaw
-impl core::marker::Send for plutonium_engine::utils::InstanceRaw
 impl core::marker::Send for plutonium_engine::utils::MouseInfo
 impl core::marker::Send for plutonium_engine::utils::Position
-impl core::marker::Send for plutonium_engine::utils::RectInstanceRaw
 impl core::marker::Send for plutonium_engine::utils::Rectangle
 impl core::marker::Send for plutonium_engine::utils::Size
-impl core::marker::Send for plutonium_engine::utils::TransformUniform
-impl core::marker::Send for plutonium_engine::utils::UVTransform
-impl core::marker::Send for plutonium_engine::utils::Vertex
 impl core::marker::StructuralPartialEq for plutonium_engine::HaloFalloff
 impl core::marker::StructuralPartialEq for plutonium_engine::HaloMode
 impl core::marker::StructuralPartialEq for plutonium_engine::HaloPreset
@@ -518,10 +445,10 @@ impl core::marker::Sync for plutonium_engine::TextureFit
 impl core::marker::Sync for plutonium_engine::WarmStats
 impl core::marker::Sync for plutonium_engine::anim::Ease
 impl core::marker::Sync for plutonium_engine::app::FrameContext
-impl core::marker::Sync for plutonium_engine::app::FrameInputRecordLocal
 impl core::marker::Sync for plutonium_engine::app::WasmAppConfig
 impl core::marker::Sync for plutonium_engine::app::WindowConfig
 impl core::marker::Sync for plutonium_engine::camera::Camera
+impl core::marker::Sync for plutonium_engine::error::EngineError
 impl core::marker::Sync for plutonium_engine::input::ActionMap
 impl core::marker::Sync for plutonium_engine::input::AxisBinding
 impl core::marker::Sync for plutonium_engine::input::AxisSource
@@ -534,14 +461,10 @@ impl core::marker::Sync for plutonium_engine::layout::LayoutResult
 impl core::marker::Sync for plutonium_engine::layout::Margins
 impl core::marker::Sync for plutonium_engine::layout::PercentSize
 impl core::marker::Sync for plutonium_engine::layout::VAnchor
-impl core::marker::Sync for plutonium_engine::pluto_objects::shapes::ShapeInternal
 impl core::marker::Sync for plutonium_engine::pluto_objects::shapes::ShapeType
 impl core::marker::Sync for plutonium_engine::pluto_objects::text2d::HorizontalAlignment
-impl core::marker::Sync for plutonium_engine::pluto_objects::text2d::Text2DInternal
 impl core::marker::Sync for plutonium_engine::pluto_objects::text2d::TextContainer
 impl core::marker::Sync for plutonium_engine::pluto_objects::text2d::VerticalAlignment
-impl core::marker::Sync for plutonium_engine::pluto_objects::texture_2d::Texture2DInternal
-impl core::marker::Sync for plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal
 impl core::marker::Sync for plutonium_engine::popup::PopupAction
 impl core::marker::Sync for plutonium_engine::popup::PopupActionStyle
 impl core::marker::Sync for plutonium_engine::popup::PopupConfig
@@ -556,14 +479,12 @@ impl core::marker::Sync for plutonium_engine::rng::RngService
 impl core::marker::Sync for plutonium_engine::rng::RngStream
 impl core::marker::Sync for plutonium_engine::rng::RngStreamId
 impl core::marker::Sync for plutonium_engine::text::Bounds
-impl core::marker::Sync for plutonium_engine::text::CharacterInfo
 impl core::marker::Sync for plutonium_engine::text::CharacterRenderInfo
 impl core::marker::Sync for plutonium_engine::text::FontError
 impl core::marker::Sync for plutonium_engine::text::GlyphLayoutDebugRecord
 impl core::marker::Sync for plutonium_engine::text::GlyphRenderMode
 impl core::marker::Sync for plutonium_engine::text::MsdfAtlasInfo
 impl core::marker::Sync for plutonium_engine::text::MsdfFontMetadata
-impl core::marker::Sync for plutonium_engine::text::MsdfGlyphInfo
 impl core::marker::Sync for plutonium_engine::text::MsdfGlyphRecord
 impl core::marker::Sync for plutonium_engine::text::MsdfKerningRecord
 impl core::marker::Sync for plutonium_engine::text::MsdfMetrics
@@ -574,16 +495,10 @@ impl core::marker::Sync for plutonium_engine::ui::FocusRingStyle
 impl core::marker::Sync for plutonium_engine::ui::NinePatch
 impl core::marker::Sync for plutonium_engine::ui::ToggleStyle
 impl core::marker::Sync for plutonium_engine::utils::FrameTimeMetrics
-impl core::marker::Sync for plutonium_engine::utils::GlowInstanceRaw
-impl core::marker::Sync for plutonium_engine::utils::InstanceRaw
 impl core::marker::Sync for plutonium_engine::utils::MouseInfo
 impl core::marker::Sync for plutonium_engine::utils::Position
-impl core::marker::Sync for plutonium_engine::utils::RectInstanceRaw
 impl core::marker::Sync for plutonium_engine::utils::Rectangle
 impl core::marker::Sync for plutonium_engine::utils::Size
-impl core::marker::Sync for plutonium_engine::utils::TransformUniform
-impl core::marker::Sync for plutonium_engine::utils::UVTransform
-impl core::marker::Sync for plutonium_engine::utils::Vertex
 impl core::marker::Unpin for plutonium_engine::DrawParams
 impl core::marker::Unpin for plutonium_engine::FontLoadOptions
 impl core::marker::Unpin for plutonium_engine::GlyphSet
@@ -601,11 +516,11 @@ impl core::marker::Unpin for plutonium_engine::TextureFit
 impl core::marker::Unpin for plutonium_engine::WarmStats
 impl core::marker::Unpin for plutonium_engine::anim::Ease
 impl core::marker::Unpin for plutonium_engine::app::FrameContext
-impl core::marker::Unpin for plutonium_engine::app::FrameInputRecordLocal
 impl core::marker::Unpin for plutonium_engine::app::PlutoniumApp
 impl core::marker::Unpin for plutonium_engine::app::WasmAppConfig
 impl core::marker::Unpin for plutonium_engine::app::WindowConfig
 impl core::marker::Unpin for plutonium_engine::camera::Camera
+impl core::marker::Unpin for plutonium_engine::error::EngineError
 impl core::marker::Unpin for plutonium_engine::input::ActionMap
 impl core::marker::Unpin for plutonium_engine::input::AxisBinding
 impl core::marker::Unpin for plutonium_engine::input::AxisSource
@@ -619,21 +534,15 @@ impl core::marker::Unpin for plutonium_engine::layout::Margins
 impl core::marker::Unpin for plutonium_engine::layout::PercentSize
 impl core::marker::Unpin for plutonium_engine::layout::VAnchor
 impl core::marker::Unpin for plutonium_engine::pluto_objects::button::Button
-impl core::marker::Unpin for plutonium_engine::pluto_objects::button::ButtonInternal
 impl core::marker::Unpin for plutonium_engine::pluto_objects::shapes::Shape
-impl core::marker::Unpin for plutonium_engine::pluto_objects::shapes::ShapeInternal
 impl core::marker::Unpin for plutonium_engine::pluto_objects::shapes::ShapeType
 impl core::marker::Unpin for plutonium_engine::pluto_objects::text2d::HorizontalAlignment
 impl core::marker::Unpin for plutonium_engine::pluto_objects::text2d::Text2D
-impl core::marker::Unpin for plutonium_engine::pluto_objects::text2d::Text2DInternal
 impl core::marker::Unpin for plutonium_engine::pluto_objects::text2d::TextContainer
 impl core::marker::Unpin for plutonium_engine::pluto_objects::text2d::VerticalAlignment
 impl core::marker::Unpin for plutonium_engine::pluto_objects::text_input::TextInput
-impl core::marker::Unpin for plutonium_engine::pluto_objects::text_input::TextInputInternal
 impl core::marker::Unpin for plutonium_engine::pluto_objects::texture_2d::Texture2D
-impl core::marker::Unpin for plutonium_engine::pluto_objects::texture_2d::Texture2DInternal
 impl core::marker::Unpin for plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D
-impl core::marker::Unpin for plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal
 impl core::marker::Unpin for plutonium_engine::popup::PopupAction
 impl core::marker::Unpin for plutonium_engine::popup::PopupActionStyle
 impl core::marker::Unpin for plutonium_engine::popup::PopupConfig
@@ -648,7 +557,6 @@ impl core::marker::Unpin for plutonium_engine::rng::RngService
 impl core::marker::Unpin for plutonium_engine::rng::RngStream
 impl core::marker::Unpin for plutonium_engine::rng::RngStreamId
 impl core::marker::Unpin for plutonium_engine::text::Bounds
-impl core::marker::Unpin for plutonium_engine::text::CharacterInfo
 impl core::marker::Unpin for plutonium_engine::text::CharacterRenderInfo
 impl core::marker::Unpin for plutonium_engine::text::FontAtlas
 impl core::marker::Unpin for plutonium_engine::text::FontError
@@ -656,13 +564,11 @@ impl core::marker::Unpin for plutonium_engine::text::GlyphLayoutDebugRecord
 impl core::marker::Unpin for plutonium_engine::text::GlyphRenderMode
 impl core::marker::Unpin for plutonium_engine::text::MsdfAtlasInfo
 impl core::marker::Unpin for plutonium_engine::text::MsdfFontMetadata
-impl core::marker::Unpin for plutonium_engine::text::MsdfGlyphInfo
 impl core::marker::Unpin for plutonium_engine::text::MsdfGlyphRecord
 impl core::marker::Unpin for plutonium_engine::text::MsdfKerningRecord
 impl core::marker::Unpin for plutonium_engine::text::MsdfMetrics
 impl core::marker::Unpin for plutonium_engine::text::TextQualitySettings
 impl core::marker::Unpin for plutonium_engine::text::TextRenderer
-impl core::marker::Unpin for plutonium_engine::text::TinyRasterFallbackSpec
 impl core::marker::Unpin for plutonium_engine::texture_atlas::TextureAtlas
 impl core::marker::Unpin for plutonium_engine::texture_svg::TextureSVG
 impl core::marker::Unpin for plutonium_engine::ui::ButtonStyle
@@ -671,16 +577,10 @@ impl core::marker::Unpin for plutonium_engine::ui::FocusRingStyle
 impl core::marker::Unpin for plutonium_engine::ui::NinePatch
 impl core::marker::Unpin for plutonium_engine::ui::ToggleStyle
 impl core::marker::Unpin for plutonium_engine::utils::FrameTimeMetrics
-impl core::marker::Unpin for plutonium_engine::utils::GlowInstanceRaw
-impl core::marker::Unpin for plutonium_engine::utils::InstanceRaw
 impl core::marker::Unpin for plutonium_engine::utils::MouseInfo
 impl core::marker::Unpin for plutonium_engine::utils::Position
-impl core::marker::Unpin for plutonium_engine::utils::RectInstanceRaw
 impl core::marker::Unpin for plutonium_engine::utils::Rectangle
 impl core::marker::Unpin for plutonium_engine::utils::Size
-impl core::marker::Unpin for plutonium_engine::utils::TransformUniform
-impl core::marker::Unpin for plutonium_engine::utils::UVTransform
-impl core::marker::Unpin for plutonium_engine::utils::Vertex
 impl core::ops::arith::Add for plutonium_engine::utils::Position
 impl core::ops::arith::Add<f32> for plutonium_engine::utils::Position
 impl core::ops::arith::Add<f32> for plutonium_engine::utils::Rectangle
@@ -709,10 +609,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::TextureFit
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::WarmStats
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::anim::Ease
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::app::FrameContext
-impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::app::FrameInputRecordLocal
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::app::WasmAppConfig
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::app::WindowConfig
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::camera::Camera
+impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::error::EngineError
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::input::ActionMap
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::input::AxisBinding
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::input::AxisSource
@@ -725,14 +625,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::layout::Layou
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::layout::Margins
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::layout::PercentSize
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::layout::VAnchor
-impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::shapes::ShapeInternal
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::shapes::ShapeType
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::text2d::HorizontalAlignment
-impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::text2d::Text2DInternal
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::text2d::TextContainer
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::text2d::VerticalAlignment
-impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::texture_2d::Texture2DInternal
-impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::popup::PopupAction
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::popup::PopupActionStyle
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::popup::PopupConfig
@@ -747,13 +643,12 @@ impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::rng::RngServi
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::rng::RngStream
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::rng::RngStreamId
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::text::Bounds
-impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::text::CharacterInfo
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::text::CharacterRenderInfo
+impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::text::FontError
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::text::GlyphLayoutDebugRecord
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::text::GlyphRenderMode
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::text::MsdfAtlasInfo
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::text::MsdfFontMetadata
-impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::text::MsdfGlyphInfo
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::text::MsdfGlyphRecord
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::text::MsdfKerningRecord
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::text::MsdfMetrics
@@ -764,16 +659,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::ui::FocusRing
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::ui::NinePatch
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::ui::ToggleStyle
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::utils::FrameTimeMetrics
-impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::utils::GlowInstanceRaw
-impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::utils::InstanceRaw
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::utils::MouseInfo
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::utils::Position
-impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::utils::RectInstanceRaw
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::utils::Rectangle
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::utils::Size
-impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::utils::TransformUniform
-impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::utils::UVTransform
-impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::utils::Vertex
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::DrawParams
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::FontLoadOptions
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::GlyphSet
@@ -791,10 +680,10 @@ impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::TextureFit
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::WarmStats
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::anim::Ease
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::app::FrameContext
-impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::app::FrameInputRecordLocal
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::app::WasmAppConfig
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::app::WindowConfig
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::camera::Camera
+impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::error::EngineError
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::input::ActionMap
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::input::AxisBinding
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::input::AxisSource
@@ -807,14 +696,10 @@ impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::layout::LayoutRe
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::layout::Margins
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::layout::PercentSize
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::layout::VAnchor
-impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::shapes::ShapeInternal
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::shapes::ShapeType
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::text2d::HorizontalAlignment
-impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::text2d::Text2DInternal
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::text2d::TextContainer
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::text2d::VerticalAlignment
-impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::texture_2d::Texture2DInternal
-impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::popup::PopupAction
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::popup::PopupActionStyle
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::popup::PopupConfig
@@ -829,13 +714,12 @@ impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::rng::RngService
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::rng::RngStream
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::rng::RngStreamId
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::text::Bounds
-impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::text::CharacterInfo
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::text::CharacterRenderInfo
+impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::text::FontError
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::text::GlyphLayoutDebugRecord
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::text::GlyphRenderMode
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::text::MsdfAtlasInfo
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::text::MsdfFontMetadata
-impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::text::MsdfGlyphInfo
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::text::MsdfGlyphRecord
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::text::MsdfKerningRecord
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::text::MsdfMetrics
@@ -846,34 +730,22 @@ impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::ui::FocusRingSty
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::ui::NinePatch
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::ui::ToggleStyle
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::utils::FrameTimeMetrics
-impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::utils::GlowInstanceRaw
-impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::utils::InstanceRaw
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::utils::MouseInfo
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::utils::Position
-impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::utils::RectInstanceRaw
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::utils::Rectangle
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::utils::Size
-impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::utils::TransformUniform
-impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::utils::UVTransform
-impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::utils::Vertex
 impl plutonium_engine::HaloFalloff
 impl plutonium_engine::HaloStyle
 impl plutonium_engine::app::PlutoniumApp
 impl plutonium_engine::camera::Camera
 impl plutonium_engine::input::ActionMap
 impl plutonium_engine::pluto_objects::button::Button
-impl plutonium_engine::pluto_objects::button::ButtonInternal
 impl plutonium_engine::pluto_objects::shapes::Shape
-impl plutonium_engine::pluto_objects::shapes::ShapeInternal
 impl plutonium_engine::pluto_objects::text2d::Text2D
-impl plutonium_engine::pluto_objects::text2d::Text2DInternal
 impl plutonium_engine::pluto_objects::text2d::TextContainer
 impl plutonium_engine::pluto_objects::text_input::TextInput
-impl plutonium_engine::pluto_objects::text_input::TextInputInternal
 impl plutonium_engine::pluto_objects::texture_2d::Texture2D
-impl plutonium_engine::pluto_objects::texture_2d::Texture2DInternal
 impl plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D
-impl plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal
 impl plutonium_engine::renderer::RectBatch
 impl plutonium_engine::renderer::Renderer for plutonium_engine::renderer::WgpuRenderer
 impl plutonium_engine::renderer::WgpuRenderer
@@ -883,17 +755,10 @@ impl plutonium_engine::text::FontAtlas
 impl plutonium_engine::text::TextRenderer
 impl plutonium_engine::texture_atlas::TextureAtlas
 impl plutonium_engine::texture_svg::TextureSVG
-impl plutonium_engine::traits::PlutoObject for plutonium_engine::pluto_objects::button::ButtonInternal
-impl plutonium_engine::traits::PlutoObject for plutonium_engine::pluto_objects::shapes::ShapeInternal
-impl plutonium_engine::traits::PlutoObject for plutonium_engine::pluto_objects::text2d::Text2DInternal
-impl plutonium_engine::traits::PlutoObject for plutonium_engine::pluto_objects::text_input::TextInputInternal
-impl plutonium_engine::traits::PlutoObject for plutonium_engine::pluto_objects::texture_2d::Texture2DInternal
-impl plutonium_engine::traits::PlutoObject for plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal
 impl plutonium_engine::ui::NinePatch
 impl plutonium_engine::utils::FrameTimeMetrics
 impl plutonium_engine::utils::Rectangle
 impl plutonium_engine::utils::Size
-impl serde::ser::Serialize for plutonium_engine::app::FrameInputRecordLocal
 impl serde::ser::Serialize for plutonium_engine::text::Bounds
 impl serde::ser::Serialize for plutonium_engine::text::MsdfAtlasInfo
 impl serde::ser::Serialize for plutonium_engine::text::MsdfFontMetadata
@@ -904,23 +769,16 @@ impl winit::application::ApplicationHandler for plutonium_engine::app::Plutonium
 impl<'a> !core::marker::Freeze for plutonium_engine::PlutoniumEngine<'a>
 impl<'a> !core::marker::Send for plutonium_engine::PlutoniumEngine<'a>
 impl<'a> !core::marker::Send for plutonium_engine::traits::UpdateContext<'a>
-impl<'a> !core::marker::Send for plutonium_engine::utils::DrawingContext<'a>
 impl<'a> !core::marker::Sync for plutonium_engine::PlutoniumEngine<'a>
 impl<'a> !core::marker::Sync for plutonium_engine::traits::UpdateContext<'a>
-impl<'a> !core::marker::Sync for plutonium_engine::utils::DrawingContext<'a>
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::PlutoniumEngine<'a>
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::traits::UpdateContext<'a>
-impl<'a> !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::utils::DrawingContext<'a>
 impl<'a> !core::panic::unwind_safe::UnwindSafe for plutonium_engine::PlutoniumEngine<'a>
 impl<'a> !core::panic::unwind_safe::UnwindSafe for plutonium_engine::traits::UpdateContext<'a>
-impl<'a> !core::panic::unwind_safe::UnwindSafe for plutonium_engine::utils::DrawingContext<'a>
 impl<'a> core::marker::Freeze for plutonium_engine::traits::UpdateContext<'a>
-impl<'a> core::marker::Freeze for plutonium_engine::utils::DrawingContext<'a>
 impl<'a> core::marker::Unpin for plutonium_engine::PlutoniumEngine<'a>
 impl<'a> core::marker::Unpin for plutonium_engine::traits::UpdateContext<'a>
-impl<'a> core::marker::Unpin for plutonium_engine::utils::DrawingContext<'a>
 impl<'a> plutonium_engine::PlutoniumEngine<'a>
-impl<'de> serde::de::Deserialize<'de> for plutonium_engine::app::FrameInputRecordLocal where plutonium_engine::app::FrameInputRecordLocal: core::default::Default
 impl<'de> serde::de::Deserialize<'de> for plutonium_engine::text::Bounds
 impl<'de> serde::de::Deserialize<'de> for plutonium_engine::text::MsdfAtlasInfo
 impl<'de> serde::de::Deserialize<'de> for plutonium_engine::text::MsdfFontMetadata
@@ -960,6 +818,7 @@ pub async fn plutonium_engine::app::run_app_wasm_with_options<F>(plutonium_engin
 pub const plutonium_engine::text::DEFAULT_MSDF_MIN_PX: f32
 pub const plutonium_engine::text::DEFAULT_MSDF_PX_RANGE: f32
 pub const plutonium_engine::text::DEFAULT_TINY_RASTER_MAX_PX: f32
+pub enum plutonium_engine::EngineError
 pub enum plutonium_engine::GlyphSet
 pub enum plutonium_engine::HaloFalloff
 pub enum plutonium_engine::HaloMode
@@ -974,6 +833,7 @@ pub enum plutonium_engine::RasterTextureLoadError
 pub enum plutonium_engine::TextureFit
 pub enum plutonium_engine::anim::Ease
 pub enum plutonium_engine::anim::Track<T>
+pub enum plutonium_engine::error::EngineError
 pub enum plutonium_engine::input::AxisSource
 pub enum plutonium_engine::input::ButtonSource
 pub enum plutonium_engine::layout::HAnchor
@@ -1020,21 +880,20 @@ pub fn plutonium_engine::PlutoniumEngine<'a>::clear_boundary(&mut self)
 pub fn plutonium_engine::PlutoniumEngine<'a>::clear_clip(&mut self)
 pub fn plutonium_engine::PlutoniumEngine<'a>::clear_render_queue(&mut self)
 pub fn plutonium_engine::PlutoniumEngine<'a>::close_popup(&mut self, &str) -> bool
-pub fn plutonium_engine::PlutoniumEngine<'a>::create_button(&mut self, &str, &str, &str, f32, plutonium_engine::utils::Position, f32) -> plutonium_engine::pluto_objects::button::Button
-pub fn plutonium_engine::PlutoniumEngine<'a>::create_circle(&mut self, f32, plutonium_engine::utils::Position, alloc::string::String, alloc::string::String, f32) -> plutonium_engine::pluto_objects::shapes::Shape
-pub fn plutonium_engine::PlutoniumEngine<'a>::create_font_texture_atlas(&mut self, uuid::Uuid, &[u8], u32, u32, plutonium_engine::utils::Size, &std::collections::hash::map::HashMap<char, plutonium_engine::text::CharacterInfo>) -> plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D
-pub fn plutonium_engine::PlutoniumEngine<'a>::create_polygon(&mut self, f32, u32, plutonium_engine::utils::Position, alloc::string::String, alloc::string::String, f32) -> plutonium_engine::pluto_objects::shapes::Shape
-pub fn plutonium_engine::PlutoniumEngine<'a>::create_rect(&mut self, plutonium_engine::utils::Rectangle, plutonium_engine::utils::Position, alloc::string::String, alloc::string::String, f32) -> plutonium_engine::pluto_objects::shapes::Shape
-pub fn plutonium_engine::PlutoniumEngine<'a>::create_text2d(&mut self, &str, &str, f32, plutonium_engine::utils::Position) -> plutonium_engine::pluto_objects::text2d::Text2D
-pub fn plutonium_engine::PlutoniumEngine<'a>::create_text2d_with_z(&mut self, &str, &str, f32, plutonium_engine::utils::Position, i32) -> plutonium_engine::pluto_objects::text2d::Text2D
-pub fn plutonium_engine::PlutoniumEngine<'a>::create_text_input(&mut self, &str, &str, f32, plutonium_engine::utils::Position, f32) -> plutonium_engine::pluto_objects::text_input::TextInput
-pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_2d(&mut self, &str, plutonium_engine::utils::Position, f32) -> plutonium_engine::pluto_objects::texture_2d::Texture2D
-pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_atlas(&mut self, &str, plutonium_engine::utils::Position, plutonium_engine::utils::Size) -> (uuid::Uuid, plutonium_engine::utils::Rectangle)
-pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_atlas_2d(&mut self, &str, plutonium_engine::utils::Position, f32, plutonium_engine::utils::Size) -> plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D
-pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_raster_from_path(&mut self, &str, plutonium_engine::utils::Position) -> (uuid::Uuid, plutonium_engine::utils::Rectangle)
-pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_svg(&mut self, &str, plutonium_engine::utils::Position, f32) -> (uuid::Uuid, plutonium_engine::utils::Rectangle)
-pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_svg_from_data(&mut self, &str, plutonium_engine::utils::Position, f32) -> (uuid::Uuid, plutonium_engine::utils::Rectangle)
-pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_svg_from_str(&mut self, &str, plutonium_engine::utils::Position, f32) -> (uuid::Uuid, plutonium_engine::utils::Rectangle)
+pub fn plutonium_engine::PlutoniumEngine<'a>::create_button(&mut self, &str, &str, &str, f32, plutonium_engine::utils::Position, f32) -> core::result::Result<plutonium_engine::pluto_objects::button::Button, plutonium_engine::error::EngineError>
+pub fn plutonium_engine::PlutoniumEngine<'a>::create_circle(&mut self, f32, plutonium_engine::utils::Position, alloc::string::String, alloc::string::String, f32) -> core::result::Result<plutonium_engine::pluto_objects::shapes::Shape, plutonium_engine::error::EngineError>
+pub fn plutonium_engine::PlutoniumEngine<'a>::create_polygon(&mut self, f32, u32, plutonium_engine::utils::Position, alloc::string::String, alloc::string::String, f32) -> core::result::Result<plutonium_engine::pluto_objects::shapes::Shape, plutonium_engine::error::EngineError>
+pub fn plutonium_engine::PlutoniumEngine<'a>::create_rect(&mut self, plutonium_engine::utils::Rectangle, plutonium_engine::utils::Position, alloc::string::String, alloc::string::String, f32) -> core::result::Result<plutonium_engine::pluto_objects::shapes::Shape, plutonium_engine::error::EngineError>
+pub fn plutonium_engine::PlutoniumEngine<'a>::create_text2d(&mut self, &str, &str, f32, plutonium_engine::utils::Position) -> core::result::Result<plutonium_engine::pluto_objects::text2d::Text2D, plutonium_engine::error::EngineError>
+pub fn plutonium_engine::PlutoniumEngine<'a>::create_text2d_with_z(&mut self, &str, &str, f32, plutonium_engine::utils::Position, i32) -> core::result::Result<plutonium_engine::pluto_objects::text2d::Text2D, plutonium_engine::error::EngineError>
+pub fn plutonium_engine::PlutoniumEngine<'a>::create_text_input(&mut self, &str, &str, f32, plutonium_engine::utils::Position, f32) -> core::result::Result<plutonium_engine::pluto_objects::text_input::TextInput, plutonium_engine::error::EngineError>
+pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_2d(&mut self, &str, plutonium_engine::utils::Position, f32) -> core::result::Result<plutonium_engine::pluto_objects::texture_2d::Texture2D, plutonium_engine::error::EngineError>
+pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_atlas(&mut self, &str, plutonium_engine::utils::Position, plutonium_engine::utils::Size) -> core::result::Result<(uuid::Uuid, plutonium_engine::utils::Rectangle), plutonium_engine::error::EngineError>
+pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_atlas_2d(&mut self, &str, plutonium_engine::utils::Position, f32, plutonium_engine::utils::Size) -> core::result::Result<plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D, plutonium_engine::error::EngineError>
+pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_raster_from_path(&mut self, &str, plutonium_engine::utils::Position) -> core::result::Result<(uuid::Uuid, plutonium_engine::utils::Rectangle), plutonium_engine::error::EngineError>
+pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_svg(&mut self, &str, plutonium_engine::utils::Position, f32) -> core::result::Result<(uuid::Uuid, plutonium_engine::utils::Rectangle), plutonium_engine::error::EngineError>
+pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_svg_from_data(&mut self, &str, plutonium_engine::utils::Position, f32) -> core::result::Result<(uuid::Uuid, plutonium_engine::utils::Rectangle), plutonium_engine::error::EngineError>
+pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_svg_from_str(&mut self, &str, plutonium_engine::utils::Position, f32) -> core::result::Result<(uuid::Uuid, plutonium_engine::utils::Rectangle), plutonium_engine::error::EngineError>
 pub fn plutonium_engine::PlutoniumEngine<'a>::deactivate_camera(&mut self)
 pub fn plutonium_engine::PlutoniumEngine<'a>::debug_dump_font_atlas_png(&self, &str, &str) -> core::result::Result<(), alloc::string::String>
 pub fn plutonium_engine::PlutoniumEngine<'a>::debug_print_text_line_layout(&self, &str, &str, f32, f32, f32) -> core::result::Result<(), alloc::string::String>
@@ -1064,7 +923,7 @@ pub fn plutonium_engine::PlutoniumEngine<'a>::load_msdf_font_from_ttf(&mut self,
 pub fn plutonium_engine::PlutoniumEngine<'a>::load_msdf_font_with_tiny_raster(&mut self, &str, &str, &str, &str) -> core::result::Result<(), plutonium_engine::text::FontError>
 pub fn plutonium_engine::PlutoniumEngine<'a>::logical_window_size(&self) -> plutonium_engine::utils::Size
 pub fn plutonium_engine::PlutoniumEngine<'a>::measure_text(&self, &str, &str, f32, f32, core::option::Option<f32>) -> (f32, usize)
-pub fn plutonium_engine::PlutoniumEngine<'a>::new(wgpu::api::surface::Surface<'a>, wgpu::api::instance::Instance, dpi::PhysicalSize<u32>, f32) -> Self
+pub fn plutonium_engine::PlutoniumEngine<'a>::new(wgpu::api::surface::Surface<'a>, wgpu::api::instance::Instance, dpi::PhysicalSize<u32>, f32) -> core::result::Result<Self, plutonium_engine::error::EngineError>
 pub fn plutonium_engine::PlutoniumEngine<'a>::object_bounds(&self, &uuid::Uuid) -> core::option::Option<plutonium_engine::utils::Rectangle>
 pub fn plutonium_engine::PlutoniumEngine<'a>::poll_texture_raster_from_url(&mut self, plutonium_engine::RasterTextureUrlLoadHandle) -> core::option::Option<core::result::Result<(uuid::Uuid, plutonium_engine::utils::Size), plutonium_engine::RasterTextureLoadError>>
 pub fn plutonium_engine::PlutoniumEngine<'a>::pop_clip(&mut self)
@@ -1101,7 +960,7 @@ pub fn plutonium_engine::PlutoniumEngine<'a>::slot_hit_rect(&self, &uuid::Uuid) 
 pub fn plutonium_engine::PlutoniumEngine<'a>::unload_atlas(&mut self, &uuid::Uuid) -> bool
 pub fn plutonium_engine::PlutoniumEngine<'a>::unload_texture(&mut self, &uuid::Uuid) -> bool
 pub fn plutonium_engine::PlutoniumEngine<'a>::update(&mut self, core::option::Option<plutonium_engine::utils::MouseInfo>, &core::option::Option<winit::keyboard::Key>, f32)
-pub fn plutonium_engine::PlutoniumEngine<'a>::warm_text_cache(&mut self, &str, plutonium_engine::PrewarmConfig) -> core::result::Result<plutonium_engine::WarmStats, alloc::string::String>
+pub fn plutonium_engine::PlutoniumEngine<'a>::warm_text_cache(&mut self, &str, plutonium_engine::PrewarmConfig) -> core::result::Result<plutonium_engine::WarmStats, plutonium_engine::text::FontError>
 pub fn plutonium_engine::PlutoniumEngine<'a>::window_bounds(&self) -> plutonium_engine::utils::Rectangle
 pub fn plutonium_engine::PrewarmConfig::clone(&self) -> plutonium_engine::PrewarmConfig
 pub fn plutonium_engine::PrewarmConfig::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -1149,11 +1008,7 @@ pub fn plutonium_engine::anim::Tween<T>::reset(&mut self)
 pub fn plutonium_engine::anim::Tween<T>::sample(&self) -> T
 pub fn plutonium_engine::anim::Tween<T>::step(&mut self, f32) -> T
 pub fn plutonium_engine::anim::ease_value(plutonium_engine::anim::Ease, f32) -> f32
-pub fn plutonium_engine::app::FrameInputRecordLocal::clone(&self) -> plutonium_engine::app::FrameInputRecordLocal
-pub fn plutonium_engine::app::FrameInputRecordLocal::default() -> plutonium_engine::app::FrameInputRecordLocal
-pub fn plutonium_engine::app::FrameInputRecordLocal::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde::de::Deserializer>::Error> where __D: serde::de::Deserializer<'de>
-pub fn plutonium_engine::app::FrameInputRecordLocal::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-pub fn plutonium_engine::app::FrameInputRecordLocal::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde::ser::Serializer>::Ok, <__S as serde::ser::Serializer>::Error> where __S: serde::ser::Serializer
+pub fn plutonium_engine::app::FrameContext::clone(&self) -> plutonium_engine::app::FrameContext
 pub fn plutonium_engine::app::PlutoniumApp::about_to_wait(&mut self, &winit::event_loop::ActiveEventLoop)
 pub fn plutonium_engine::app::PlutoniumApp::clear_fixed_timestep(&mut self)
 pub fn plutonium_engine::app::PlutoniumApp::engine(&mut self) -> core::option::Option<&mut plutonium_engine::PlutoniumEngine<'static>>
@@ -1191,6 +1046,11 @@ pub fn plutonium_engine::camera::Camera::set_smoothing_strength(&mut self, f32)
 pub fn plutonium_engine::camera::Camera::set_tether_size(&mut self, core::option::Option<plutonium_engine::utils::Size>)
 pub fn plutonium_engine::camera::Camera::set_tether_target(&mut self, core::option::Option<uuid::Uuid>)
 pub fn plutonium_engine::camera::Camera::smoothing_strength(&self) -> f32
+pub fn plutonium_engine::error::EngineError::clone(&self) -> plutonium_engine::error::EngineError
+pub fn plutonium_engine::error::EngineError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn plutonium_engine::error::EngineError::from(plutonium_engine::text::FontError) -> Self
+pub fn plutonium_engine::error::EngineError::from(std::io::error::Error) -> Self
+pub fn plutonium_engine::error::EngineError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
 pub fn plutonium_engine::input::ActionMap::bind_axis(&mut self, impl core::convert::Into<alloc::string::String>, plutonium_engine::input::AxisSource, f32, f32)
 pub fn plutonium_engine::input::ActionMap::bind_button(&mut self, impl core::convert::Into<alloc::string::String>, plutonium_engine::input::ButtonSource)
 pub fn plutonium_engine::input::ActionMap::clone(&self) -> plutonium_engine::input::ActionMap
@@ -1227,7 +1087,6 @@ pub fn plutonium_engine::layout::window_bounds(f32, f32) -> plutonium_engine::ut
 pub fn plutonium_engine::pluto_objects::button::Button::clear(&self)
 pub fn plutonium_engine::pluto_objects::button::Button::get_dimensions(&self) -> plutonium_engine::utils::Rectangle
 pub fn plutonium_engine::pluto_objects::button::Button::get_id(&self) -> uuid::Uuid
-pub fn plutonium_engine::pluto_objects::button::Button::new(alloc::rc::Rc<core::cell::RefCell<plutonium_engine::pluto_objects::button::ButtonInternal>>) -> Self
 pub fn plutonium_engine::pluto_objects::button::Button::render(&self, &mut plutonium_engine::PlutoniumEngine<'_>)
 pub fn plutonium_engine::pluto_objects::button::Button::set_content(&self, &str)
 pub fn plutonium_engine::pluto_objects::button::Button::set_dimensions(&self, plutonium_engine::utils::Rectangle)
@@ -1237,28 +1096,10 @@ pub fn plutonium_engine::pluto_objects::button::Button::set_on_unfocus(&self, co
 pub fn plutonium_engine::pluto_objects::button::Button::set_pos(&self, plutonium_engine::utils::Position)
 pub fn plutonium_engine::pluto_objects::button::Button::texture_key(&self) -> uuid::Uuid
 pub fn plutonium_engine::pluto_objects::button::Button::update(&self, core::option::Option<plutonium_engine::utils::MouseInfo>, core::option::Option<winit::keyboard::Key>)
-pub fn plutonium_engine::pluto_objects::button::ButtonInternal::clear(&mut self)
-pub fn plutonium_engine::pluto_objects::button::ButtonInternal::delete(&self, &mut plutonium_engine::PlutoniumEngine<'_>)
-pub fn plutonium_engine::pluto_objects::button::ButtonInternal::dimensions(&self) -> plutonium_engine::utils::Rectangle
-pub fn plutonium_engine::pluto_objects::button::ButtonInternal::get_id(&self) -> uuid::Uuid
-pub fn plutonium_engine::pluto_objects::button::ButtonInternal::new(uuid::Uuid, uuid::Uuid, plutonium_engine::utils::Rectangle, plutonium_engine::pluto_objects::text2d::Text2D) -> Self
-pub fn plutonium_engine::pluto_objects::button::ButtonInternal::pos(&self) -> plutonium_engine::utils::Position
-pub fn plutonium_engine::pluto_objects::button::ButtonInternal::render(&mut self, &mut plutonium_engine::PlutoniumEngine<'_>)
-pub fn plutonium_engine::pluto_objects::button::ButtonInternal::render(&self, &mut plutonium_engine::PlutoniumEngine<'_>)
-pub fn plutonium_engine::pluto_objects::button::ButtonInternal::set_content(&mut self, &str)
-pub fn plutonium_engine::pluto_objects::button::ButtonInternal::set_dimensions(&mut self, plutonium_engine::utils::Rectangle)
-pub fn plutonium_engine::pluto_objects::button::ButtonInternal::set_on_click(&mut self, core::option::Option<alloc::boxed::Box<dyn core::ops::function::Fn()>>)
-pub fn plutonium_engine::pluto_objects::button::ButtonInternal::set_on_focus(&mut self, core::option::Option<alloc::boxed::Box<dyn core::ops::function::Fn()>>)
-pub fn plutonium_engine::pluto_objects::button::ButtonInternal::set_on_unfocus(&mut self, core::option::Option<alloc::boxed::Box<dyn core::ops::function::Fn()>>)
-pub fn plutonium_engine::pluto_objects::button::ButtonInternal::set_pos(&mut self, plutonium_engine::utils::Position)
-pub fn plutonium_engine::pluto_objects::button::ButtonInternal::texture_key(&self) -> uuid::Uuid
-pub fn plutonium_engine::pluto_objects::button::ButtonInternal::update(&mut self, core::option::Option<plutonium_engine::utils::MouseInfo>, &core::option::Option<winit::keyboard::Key>)
-pub fn plutonium_engine::pluto_objects::button::ButtonInternal::update(&mut self, core::option::Option<plutonium_engine::utils::MouseInfo>, &core::option::Option<winit::keyboard::Key>, &mut std::collections::hash::map::HashMap<uuid::Uuid, plutonium_engine::texture_svg::TextureSVG>, core::option::Option<plutonium_engine::traits::UpdateContext<'_>>, f32, &plutonium_engine::text::TextRenderer)
 pub fn plutonium_engine::pluto_objects::shapes::Shape::dimensions(&self) -> plutonium_engine::utils::Rectangle
 pub fn plutonium_engine::pluto_objects::shapes::Shape::fill(&self) -> alloc::string::String
 pub fn plutonium_engine::pluto_objects::shapes::Shape::get_id(&self) -> uuid::Uuid
 pub fn plutonium_engine::pluto_objects::shapes::Shape::get_z(&self) -> i32
-pub fn plutonium_engine::pluto_objects::shapes::Shape::new(alloc::rc::Rc<core::cell::RefCell<plutonium_engine::pluto_objects::shapes::ShapeInternal>>) -> Self
 pub fn plutonium_engine::pluto_objects::shapes::Shape::outline(&self) -> alloc::string::String
 pub fn plutonium_engine::pluto_objects::shapes::Shape::pos(&self) -> plutonium_engine::utils::Position
 pub fn plutonium_engine::pluto_objects::shapes::Shape::render(&self, &mut plutonium_engine::PlutoniumEngine<'_>)
@@ -1272,28 +1113,13 @@ pub fn plutonium_engine::pluto_objects::shapes::Shape::set_z(&self, i32)
 pub fn plutonium_engine::pluto_objects::shapes::Shape::stroke(&self) -> f32
 pub fn plutonium_engine::pluto_objects::shapes::Shape::texture_key(&self) -> uuid::Uuid
 pub fn plutonium_engine::pluto_objects::shapes::Shape::with_z(self, i32) -> Self
-pub fn plutonium_engine::pluto_objects::shapes::ShapeInternal::delete(&self, &mut plutonium_engine::PlutoniumEngine<'_>)
-pub fn plutonium_engine::pluto_objects::shapes::ShapeInternal::dimensions(&self) -> plutonium_engine::utils::Rectangle
-pub fn plutonium_engine::pluto_objects::shapes::ShapeInternal::generate_svg_data(&self) -> alloc::string::String
-pub fn plutonium_engine::pluto_objects::shapes::ShapeInternal::get_id(&self) -> uuid::Uuid
-pub fn plutonium_engine::pluto_objects::shapes::ShapeInternal::get_z(&self) -> i32
-pub fn plutonium_engine::pluto_objects::shapes::ShapeInternal::new(uuid::Uuid, uuid::Uuid, plutonium_engine::utils::Rectangle, plutonium_engine::utils::Position, alloc::string::String, alloc::string::String, f32, plutonium_engine::pluto_objects::shapes::ShapeType) -> Self
-pub fn plutonium_engine::pluto_objects::shapes::ShapeInternal::pos(&self) -> plutonium_engine::utils::Position
-pub fn plutonium_engine::pluto_objects::shapes::ShapeInternal::render(&self, &mut plutonium_engine::PlutoniumEngine<'_>)
-pub fn plutonium_engine::pluto_objects::shapes::ShapeInternal::render_with_z(&self, &mut plutonium_engine::PlutoniumEngine<'_>, i32)
-pub fn plutonium_engine::pluto_objects::shapes::ShapeInternal::set_dimensions(&mut self, plutonium_engine::utils::Rectangle)
-pub fn plutonium_engine::pluto_objects::shapes::ShapeInternal::set_ids(&mut self, uuid::Uuid, uuid::Uuid)
-pub fn plutonium_engine::pluto_objects::shapes::ShapeInternal::set_pos(&mut self, plutonium_engine::utils::Position)
-pub fn plutonium_engine::pluto_objects::shapes::ShapeInternal::set_z(&mut self, i32)
-pub fn plutonium_engine::pluto_objects::shapes::ShapeInternal::texture_key(&self) -> uuid::Uuid
-pub fn plutonium_engine::pluto_objects::shapes::ShapeInternal::update(&mut self, core::option::Option<plutonium_engine::utils::MouseInfo>, &core::option::Option<winit::keyboard::Key>, &mut std::collections::hash::map::HashMap<uuid::Uuid, plutonium_engine::texture_svg::TextureSVG>, core::option::Option<plutonium_engine::traits::UpdateContext<'_>>, f32, &plutonium_engine::text::TextRenderer)
 pub fn plutonium_engine::pluto_objects::shapes::ShapeType::clone(&self) -> plutonium_engine::pluto_objects::shapes::ShapeType
 pub fn plutonium_engine::pluto_objects::text2d::HorizontalAlignment::clone(&self) -> plutonium_engine::pluto_objects::text2d::HorizontalAlignment
 pub fn plutonium_engine::pluto_objects::text2d::HorizontalAlignment::eq(&self, &plutonium_engine::pluto_objects::text2d::HorizontalAlignment) -> bool
 pub fn plutonium_engine::pluto_objects::text2d::HorizontalAlignment::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub fn plutonium_engine::pluto_objects::text2d::Text2D::append_content(&self, &str)
 pub fn plutonium_engine::pluto_objects::text2d::Text2D::container_bounds(&self) -> plutonium_engine::utils::Rectangle
-pub fn plutonium_engine::pluto_objects::text2d::Text2D::create_debug_visualization(&self, &mut plutonium_engine::PlutoniumEngine<'_>) -> plutonium_engine::pluto_objects::shapes::Shape
+pub fn plutonium_engine::pluto_objects::text2d::Text2D::create_debug_visualization(&self, &mut plutonium_engine::PlutoniumEngine<'_>) -> core::result::Result<plutonium_engine::pluto_objects::shapes::Shape, plutonium_engine::error::EngineError>
 pub fn plutonium_engine::pluto_objects::text2d::Text2D::get_color(&self) -> [f32; 4]
 pub fn plutonium_engine::pluto_objects::text2d::Text2D::get_content(&self) -> alloc::string::String
 pub fn plutonium_engine::pluto_objects::text2d::Text2D::get_cursor_position(&self, usize, &plutonium_engine::text::TextRenderer, usize) -> plutonium_engine::utils::Position
@@ -1307,7 +1133,6 @@ pub fn plutonium_engine::pluto_objects::text2d::Text2D::get_z(&self) -> i32
 pub fn plutonium_engine::pluto_objects::text2d::Text2D::insert_at(&mut self, usize, &str)
 pub fn plutonium_engine::pluto_objects::text2d::Text2D::len(&self) -> usize
 pub fn plutonium_engine::pluto_objects::text2d::Text2D::log_container(&self)
-pub fn plutonium_engine::pluto_objects::text2d::Text2D::new(alloc::rc::Rc<core::cell::RefCell<plutonium_engine::pluto_objects::text2d::Text2DInternal>>) -> Self
 pub fn plutonium_engine::pluto_objects::text2d::Text2D::pop_content(&self) -> bool
 pub fn plutonium_engine::pluto_objects::text2d::Text2D::remove_at(&mut self, usize) -> bool
 pub fn plutonium_engine::pluto_objects::text2d::Text2D::render(&self, &mut plutonium_engine::PlutoniumEngine<'_>)
@@ -1330,35 +1155,6 @@ pub fn plutonium_engine::pluto_objects::text2d::Text2D::with_max_font_size(self,
 pub fn plutonium_engine::pluto_objects::text2d::Text2D::with_min_font_size(self, f32) -> Self
 pub fn plutonium_engine::pluto_objects::text2d::Text2D::with_wrap(self, bool) -> Self
 pub fn plutonium_engine::pluto_objects::text2d::Text2D::with_z(self, i32) -> Self
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::append_content(&mut self, &str)
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::delete(&self, &mut plutonium_engine::PlutoniumEngine<'_>)
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::dimensions(&self) -> plutonium_engine::utils::Rectangle
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::get_color(&self) -> [f32; 4]
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::get_container(&self) -> &plutonium_engine::pluto_objects::text2d::TextContainer
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::get_container_mut(&mut self) -> &mut plutonium_engine::pluto_objects::text2d::TextContainer
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::get_cursor_position(&self, usize, &plutonium_engine::text::TextRenderer, usize) -> plutonium_engine::utils::Position
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::get_cursor_position_info(&self, f32, f32, &plutonium_engine::text::TextRenderer) -> (usize, usize)
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::get_font(&self) -> &str
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::get_font_size(&mut self) -> f32
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::get_id(&self) -> uuid::Uuid
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::get_render_position(&self, f32) -> plutonium_engine::utils::Position
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::get_text(&self) -> &str
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::get_z(&self) -> i32
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::new(uuid::Uuid, alloc::string::String, plutonium_engine::utils::Rectangle, f32, &str, core::option::Option<plutonium_engine::pluto_objects::text2d::TextContainer>) -> Self
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::pop_content(&mut self) -> bool
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::pos(&self) -> plutonium_engine::utils::Position
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::render(&self, &mut plutonium_engine::PlutoniumEngine<'_>)
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::render_with_z(&self, &mut plutonium_engine::PlutoniumEngine<'_>, i32)
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::reset_container(&mut self)
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::set_color(&mut self, [f32; 4])
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::set_container(&mut self, plutonium_engine::pluto_objects::text2d::TextContainer)
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::set_content(&mut self, &str)
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::set_dimensions(&mut self, plutonium_engine::utils::Rectangle)
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::set_font_size(&mut self, f32)
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::set_pos(&mut self, plutonium_engine::utils::Position)
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::set_z(&mut self, i32)
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::texture_key(&self) -> uuid::Uuid
-pub fn plutonium_engine::pluto_objects::text2d::Text2DInternal::update(&mut self, core::option::Option<plutonium_engine::utils::MouseInfo>, &core::option::Option<winit::keyboard::Key>, &mut std::collections::hash::map::HashMap<uuid::Uuid, plutonium_engine::texture_svg::TextureSVG>, core::option::Option<plutonium_engine::traits::UpdateContext<'_>>, f32, &plutonium_engine::text::TextRenderer)
 pub fn plutonium_engine::pluto_objects::text2d::TextContainer::calculate_text_position(&self, f32, f32) -> plutonium_engine::utils::Position
 pub fn plutonium_engine::pluto_objects::text2d::TextContainer::clone(&self) -> plutonium_engine::pluto_objects::text2d::TextContainer
 pub fn plutonium_engine::pluto_objects::text2d::TextContainer::default() -> Self
@@ -1372,57 +1168,25 @@ pub fn plutonium_engine::pluto_objects::text2d::VerticalAlignment::clone(&self) 
 pub fn plutonium_engine::pluto_objects::text2d::VerticalAlignment::eq(&self, &plutonium_engine::pluto_objects::text2d::VerticalAlignment) -> bool
 pub fn plutonium_engine::pluto_objects::text2d::VerticalAlignment::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub fn plutonium_engine::pluto_objects::text_input::TextInput::clear(&self)
-pub fn plutonium_engine::pluto_objects::text_input::TextInput::internal(&self) -> alloc::rc::Rc<core::cell::RefCell<plutonium_engine::pluto_objects::text_input::TextInputInternal>>
-pub fn plutonium_engine::pluto_objects::text_input::TextInput::new(alloc::rc::Rc<core::cell::RefCell<plutonium_engine::pluto_objects::text_input::TextInputInternal>>) -> Self
 pub fn plutonium_engine::pluto_objects::text_input::TextInput::render(&self, &mut plutonium_engine::PlutoniumEngine<'_>)
 pub fn plutonium_engine::pluto_objects::text_input::TextInput::set_content(&self, &str)
 pub fn plutonium_engine::pluto_objects::text_input::TextInput::set_focus(&self, bool)
 pub fn plutonium_engine::pluto_objects::text_input::TextInput::set_font_size(&self, f32)
-pub fn plutonium_engine::pluto_objects::text_input::TextInputInternal::clear(&mut self)
-pub fn plutonium_engine::pluto_objects::text_input::TextInputInternal::delete(&self, &mut plutonium_engine::PlutoniumEngine<'_>)
-pub fn plutonium_engine::pluto_objects::text_input::TextInputInternal::dimensions(&self) -> plutonium_engine::utils::Rectangle
-pub fn plutonium_engine::pluto_objects::text_input::TextInputInternal::get_id(&self) -> uuid::Uuid
-pub fn plutonium_engine::pluto_objects::text_input::TextInputInternal::handle_mouse(&mut self, &plutonium_engine::utils::MouseInfo, &plutonium_engine::text::TextRenderer)
-pub fn plutonium_engine::pluto_objects::text_input::TextInputInternal::new(uuid::Uuid, plutonium_engine::pluto_objects::button::Button, plutonium_engine::pluto_objects::text2d::Text2D, plutonium_engine::pluto_objects::texture_2d::Texture2D, plutonium_engine::utils::Rectangle) -> Self
-pub fn plutonium_engine::pluto_objects::text_input::TextInputInternal::pos(&self) -> plutonium_engine::utils::Position
-pub fn plutonium_engine::pluto_objects::text_input::TextInputInternal::render(&self, &mut plutonium_engine::PlutoniumEngine<'_>)
-pub fn plutonium_engine::pluto_objects::text_input::TextInputInternal::set_content(&mut self, &str)
-pub fn plutonium_engine::pluto_objects::text_input::TextInputInternal::set_dimensions(&mut self, plutonium_engine::utils::Rectangle)
-pub fn plutonium_engine::pluto_objects::text_input::TextInputInternal::set_focus(&mut self, bool)
-pub fn plutonium_engine::pluto_objects::text_input::TextInputInternal::set_font_size(&mut self, f32)
-pub fn plutonium_engine::pluto_objects::text_input::TextInputInternal::set_pos(&mut self, plutonium_engine::utils::Position)
-pub fn plutonium_engine::pluto_objects::text_input::TextInputInternal::texture_key(&self) -> uuid::Uuid
-pub fn plutonium_engine::pluto_objects::text_input::TextInputInternal::update(&mut self, core::option::Option<plutonium_engine::utils::MouseInfo>, &core::option::Option<winit::keyboard::Key>, &mut std::collections::hash::map::HashMap<uuid::Uuid, plutonium_engine::texture_svg::TextureSVG>, core::option::Option<plutonium_engine::traits::UpdateContext<'_>>, f32, &plutonium_engine::text::TextRenderer)
 pub fn plutonium_engine::pluto_objects::texture_2d::Texture2D::get_dimensions(&self) -> plutonium_engine::utils::Rectangle
 pub fn plutonium_engine::pluto_objects::texture_2d::Texture2D::get_id(&self) -> uuid::Uuid
 pub fn plutonium_engine::pluto_objects::texture_2d::Texture2D::get_pos(&self) -> plutonium_engine::utils::Position
 pub fn plutonium_engine::pluto_objects::texture_2d::Texture2D::get_z(&self) -> i32
-pub fn plutonium_engine::pluto_objects::texture_2d::Texture2D::new(alloc::rc::Rc<core::cell::RefCell<plutonium_engine::pluto_objects::texture_2d::Texture2DInternal>>) -> Self
 pub fn plutonium_engine::pluto_objects::texture_2d::Texture2D::render(&self, &mut plutonium_engine::PlutoniumEngine<'_>)
 pub fn plutonium_engine::pluto_objects::texture_2d::Texture2D::render_with_z(&self, &mut plutonium_engine::PlutoniumEngine<'_>, i32)
 pub fn plutonium_engine::pluto_objects::texture_2d::Texture2D::set_dimensions(&self, plutonium_engine::utils::Rectangle)
 pub fn plutonium_engine::pluto_objects::texture_2d::Texture2D::set_pos(&self, plutonium_engine::utils::Position)
 pub fn plutonium_engine::pluto_objects::texture_2d::Texture2D::set_z(&self, i32)
 pub fn plutonium_engine::pluto_objects::texture_2d::Texture2D::with_z(self, i32) -> Self
-pub fn plutonium_engine::pluto_objects::texture_2d::Texture2DInternal::delete(&self, &mut plutonium_engine::PlutoniumEngine<'_>)
-pub fn plutonium_engine::pluto_objects::texture_2d::Texture2DInternal::dimensions(&self) -> plutonium_engine::utils::Rectangle
-pub fn plutonium_engine::pluto_objects::texture_2d::Texture2DInternal::get_id(&self) -> uuid::Uuid
-pub fn plutonium_engine::pluto_objects::texture_2d::Texture2DInternal::get_z(&self) -> i32
-pub fn plutonium_engine::pluto_objects::texture_2d::Texture2DInternal::new(uuid::Uuid, uuid::Uuid, plutonium_engine::utils::Rectangle) -> Self
-pub fn plutonium_engine::pluto_objects::texture_2d::Texture2DInternal::pos(&self) -> plutonium_engine::utils::Position
-pub fn plutonium_engine::pluto_objects::texture_2d::Texture2DInternal::render(&self, &mut plutonium_engine::PlutoniumEngine<'_>)
-pub fn plutonium_engine::pluto_objects::texture_2d::Texture2DInternal::render_with_z(&self, &mut plutonium_engine::PlutoniumEngine<'_>, i32)
-pub fn plutonium_engine::pluto_objects::texture_2d::Texture2DInternal::set_dimensions(&mut self, plutonium_engine::utils::Rectangle)
-pub fn plutonium_engine::pluto_objects::texture_2d::Texture2DInternal::set_pos(&mut self, plutonium_engine::utils::Position)
-pub fn plutonium_engine::pluto_objects::texture_2d::Texture2DInternal::set_z(&mut self, i32)
-pub fn plutonium_engine::pluto_objects::texture_2d::Texture2DInternal::texture_key(&self) -> uuid::Uuid
-pub fn plutonium_engine::pluto_objects::texture_2d::Texture2DInternal::update(&mut self, core::option::Option<plutonium_engine::utils::MouseInfo>, &core::option::Option<winit::keyboard::Key>, &mut std::collections::hash::map::HashMap<uuid::Uuid, plutonium_engine::texture_svg::TextureSVG>, core::option::Option<plutonium_engine::traits::UpdateContext<'_>>, f32, &plutonium_engine::text::TextRenderer)
 pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D::get_dimensions(&self) -> plutonium_engine::utils::Rectangle
 pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D::get_id(&self) -> uuid::Uuid
 pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D::get_pos(&self) -> plutonium_engine::utils::Position
 pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D::get_tile_size(&self) -> plutonium_engine::utils::Size
 pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D::get_z(&self) -> i32
-pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D::new(alloc::rc::Rc<core::cell::RefCell<plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal>>) -> Self
 pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D::render_tile(&self, &mut plutonium_engine::PlutoniumEngine<'_>, usize, plutonium_engine::utils::Position)
 pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D::render_tile_with_z(&self, &mut plutonium_engine::PlutoniumEngine<'_>, usize, plutonium_engine::utils::Position, i32)
 pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D::set_dimensions(&self, plutonium_engine::utils::Rectangle)
@@ -1430,22 +1194,6 @@ pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D::set_po
 pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D::set_scale_factor(&mut self, f32)
 pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D::set_z(&self, i32)
 pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D::with_z(self, i32) -> Self
-pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal::delete(&self, &mut plutonium_engine::PlutoniumEngine<'_>)
-pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal::dimensions(&self) -> plutonium_engine::utils::Rectangle
-pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal::get_id(&self) -> uuid::Uuid
-pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal::get_z(&self) -> i32
-pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal::new(uuid::Uuid, uuid::Uuid, f32, plutonium_engine::utils::Rectangle, plutonium_engine::utils::Size) -> Self
-pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal::pos(&self) -> plutonium_engine::utils::Position
-pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal::render(&self, &mut plutonium_engine::PlutoniumEngine<'_>)
-pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal::render_tile(&self, &mut plutonium_engine::PlutoniumEngine<'_>, usize, plutonium_engine::utils::Position)
-pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal::render_tile_with_z(&self, &mut plutonium_engine::PlutoniumEngine<'_>, usize, plutonium_engine::utils::Position, i32)
-pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal::scale_factor(&self) -> f32
-pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal::set_dimensions(&mut self, plutonium_engine::utils::Rectangle)
-pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal::set_pos(&mut self, plutonium_engine::utils::Position)
-pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal::set_scale_factor(&mut self, f32)
-pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal::set_z(&mut self, i32)
-pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal::texture_key(&self) -> uuid::Uuid
-pub fn plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal::update(&mut self, core::option::Option<plutonium_engine::utils::MouseInfo>, &core::option::Option<winit::keyboard::Key>, &mut std::collections::hash::map::HashMap<uuid::Uuid, plutonium_engine::texture_svg::TextureSVG>, core::option::Option<plutonium_engine::traits::UpdateContext<'_>>, f32, &plutonium_engine::text::TextRenderer)
 pub fn plutonium_engine::popup::PopupAction::clone(&self) -> plutonium_engine::popup::PopupAction
 pub fn plutonium_engine::popup::PopupAction::eq(&self, &plutonium_engine::popup::PopupAction) -> bool
 pub fn plutonium_engine::popup::PopupAction::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -1499,15 +1247,14 @@ pub fn plutonium_engine::text::Bounds::deserialize<__D>(__D) -> core::result::Re
 pub fn plutonium_engine::text::Bounds::eq(&self, &plutonium_engine::text::Bounds) -> bool
 pub fn plutonium_engine::text::Bounds::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub fn plutonium_engine::text::Bounds::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde::ser::Serializer>::Ok, <__S as serde::ser::Serializer>::Error> where __S: serde::ser::Serializer
-pub fn plutonium_engine::text::CharacterInfo::clone(&self) -> plutonium_engine::text::CharacterInfo
-pub fn plutonium_engine::text::CharacterInfo::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub fn plutonium_engine::text::FontAtlas::atlas_id(&self) -> uuid::Uuid
 pub fn plutonium_engine::text::FontAtlas::debug_save_atlas(&self) -> core::result::Result<(), std::io::error::Error>
 pub fn plutonium_engine::text::FontAtlas::font_size(&self) -> f32
-pub fn plutonium_engine::text::FontAtlas::get_char_info(&self, char) -> core::option::Option<&plutonium_engine::text::CharacterInfo>
 pub fn plutonium_engine::text::FontAtlas::get_tile_dimensions(&self) -> plutonium_engine::utils::Size
 pub fn plutonium_engine::text::FontAtlas::is_msdf(&self) -> bool
+pub fn plutonium_engine::text::FontError::clone(&self) -> plutonium_engine::text::FontError
 pub fn plutonium_engine::text::FontError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn plutonium_engine::text::FontError::from(std::io::error::Error) -> Self
 pub fn plutonium_engine::text::GlyphLayoutDebugRecord::clone(&self) -> plutonium_engine::text::GlyphLayoutDebugRecord
 pub fn plutonium_engine::text::GlyphLayoutDebugRecord::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub fn plutonium_engine::text::GlyphRenderMode::clone(&self) -> plutonium_engine::text::GlyphRenderMode
@@ -1520,8 +1267,6 @@ pub fn plutonium_engine::text::MsdfFontMetadata::clone(&self) -> plutonium_engin
 pub fn plutonium_engine::text::MsdfFontMetadata::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde::de::Deserializer>::Error> where __D: serde::de::Deserializer<'de>
 pub fn plutonium_engine::text::MsdfFontMetadata::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub fn plutonium_engine::text::MsdfFontMetadata::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde::ser::Serializer>::Ok, <__S as serde::ser::Serializer>::Error> where __S: serde::ser::Serializer
-pub fn plutonium_engine::text::MsdfGlyphInfo::clone(&self) -> plutonium_engine::text::MsdfGlyphInfo
-pub fn plutonium_engine::text::MsdfGlyphInfo::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub fn plutonium_engine::text::MsdfGlyphRecord::clone(&self) -> plutonium_engine::text::MsdfGlyphRecord
 pub fn plutonium_engine::text::MsdfGlyphRecord::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde::de::Deserializer>::Error> where __D: serde::de::Deserializer<'de>
 pub fn plutonium_engine::text::MsdfGlyphRecord::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -1543,7 +1288,6 @@ pub fn plutonium_engine::text::TextRenderer::calculate_atlas_size(&rusttype::fon
 pub fn plutonium_engine::text::TextRenderer::calculate_atlas_size_for_chars(&rusttype::font::Font<'_>, rusttype::Scale, u32, &[char]) -> (u32, u32, std::collections::hash::map::HashMap<char, (u32, u32)>, u32, u32)
 pub fn plutonium_engine::text::TextRenderer::calculate_text_layout(&self, &str, &str, plutonium_engine::utils::Position, &plutonium_engine::pluto_objects::text2d::TextContainer, f32, f32, core::option::Option<f32>) -> alloc::vec::Vec<plutonium_engine::text::CharacterRenderInfo>
 pub fn plutonium_engine::text::TextRenderer::clear_raster_atlases(&mut self) -> alloc::vec::Vec<uuid::Uuid>
-pub fn plutonium_engine::text::TextRenderer::compute_rusttype_em_correction(&core::option::Option<std::collections::hash::map::HashMap<char, f32>>, &std::collections::hash::map::HashMap<char, plutonium_engine::text::CharacterInfo>, f32) -> f32
 pub fn plutonium_engine::text::TextRenderer::debug_line_layout_records(&self, &str, &str, f32, f32, f32) -> core::result::Result<alloc::vec::Vec<plutonium_engine::text::GlyphLayoutDebugRecord>, alloc::string::String>
 pub fn plutonium_engine::text::TextRenderer::default() -> plutonium_engine::text::TextRenderer
 pub fn plutonium_engine::text::TextRenderer::measure_caret_advance(&self, &str, &str, f32, f32, f32) -> f32
@@ -1552,23 +1296,16 @@ pub fn plutonium_engine::text::TextRenderer::msdf_plane_bounds_from_exact_bounds
 pub fn plutonium_engine::text::TextRenderer::msdf_plane_bounds_from_pixel_bounds(rusttype::geometry::Rect<i32>, f32, f32, f32) -> plutonium_engine::text::Bounds
 pub fn plutonium_engine::text::TextRenderer::new() -> Self
 pub fn plutonium_engine::text::TextRenderer::parse_msdf_metadata(&str) -> core::result::Result<plutonium_engine::text::MsdfFontMetadata, plutonium_engine::text::FontError>
-pub fn plutonium_engine::text::TextRenderer::render_glyphs_to_atlas(&rusttype::font::Font<'_>, rusttype::Scale, (u32, u32), &std::collections::hash::map::HashMap<char, (u32, u32)>, u32) -> core::option::Option<(alloc::vec::Vec<u8>, std::collections::hash::map::HashMap<char, plutonium_engine::text::CharacterInfo>)>
-pub fn plutonium_engine::text::TextRenderer::render_glyphs_to_atlas_for_chars(&rusttype::font::Font<'_>, rusttype::Scale, (u32, u32), &std::collections::hash::map::HashMap<char, (u32, u32)>, u32, &[char]) -> core::option::Option<(alloc::vec::Vec<u8>, std::collections::hash::map::HashMap<char, plutonium_engine::text::CharacterInfo>)>
-pub fn plutonium_engine::text::TextRenderer::render_msdf_glyphs_to_atlas(&rusttype::font::Font<'_>, rusttype::Scale, (u32, u32), &std::collections::hash::map::HashMap<char, (u32, u32)>, u32, f32) -> core::option::Option<(alloc::vec::Vec<u8>, std::collections::hash::map::HashMap<char, plutonium_engine::text::CharacterInfo>)>
 pub fn plutonium_engine::text::TextRenderer::set_quality_thresholds(&mut self, f32, f32)
-pub fn plutonium_engine::text::TextRenderer::store_font_atlas(&mut self, &str, plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D, std::collections::hash::map::HashMap<char, plutonium_engine::text::CharacterInfo>, f32, f32, f32, plutonium_engine::utils::Size, f32, u32)
-pub fn plutonium_engine::text::TextRenderer::store_msdf_font_atlas(&mut self, &str, plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D, plutonium_engine::text::MsdfFontMetadata, core::option::Option<plutonium_engine::text::TinyRasterFallbackSpec>) -> core::result::Result<(), plutonium_engine::text::FontError>
 pub fn plutonium_engine::texture_atlas::TextureAtlas::adjust_vertex_texture_coordinates(&mut self, plutonium_engine::utils::Size, plutonium_engine::utils::Size)
-pub fn plutonium_engine::texture_atlas::TextureAtlas::compute_transform_uniform(plutonium_engine::utils::Size, plutonium_engine::utils::Position, plutonium_engine::utils::Position, f32, plutonium_engine::utils::Size) -> plutonium_engine::utils::TransformUniform
-pub fn plutonium_engine::texture_atlas::TextureAtlas::compute_transform_uniform_nonuniform(plutonium_engine::utils::Size, plutonium_engine::utils::Position, plutonium_engine::utils::Position, f32, plutonium_engine::utils::Size, f32, f32) -> plutonium_engine::utils::TransformUniform
+pub fn plutonium_engine::texture_atlas::TextureAtlas::compute_transform_matrix(plutonium_engine::utils::Size, plutonium_engine::utils::Position, plutonium_engine::utils::Position, f32, plutonium_engine::utils::Size) -> [[f32; 4]; 4]
 pub fn plutonium_engine::texture_atlas::TextureAtlas::contains(&self, &plutonium_engine::utils::Position) -> bool
 pub fn plutonium_engine::texture_atlas::TextureAtlas::default_uv_bind_group(&self) -> &wgpu::api::bind_group::BindGroup
 pub fn plutonium_engine::texture_atlas::TextureAtlas::dimensions(&self) -> plutonium_engine::utils::Rectangle
 pub fn plutonium_engine::texture_atlas::TextureAtlas::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-pub fn plutonium_engine::texture_atlas::TextureAtlas::get_transform_uniform(&self, plutonium_engine::utils::Size, plutonium_engine::utils::Position, plutonium_engine::utils::Position, f32, f32) -> plutonium_engine::utils::TransformUniform
+pub fn plutonium_engine::texture_atlas::TextureAtlas::get_transform_matrix(&self, plutonium_engine::utils::Size, plutonium_engine::utils::Position, plutonium_engine::utils::Position, f32, f32) -> [[f32; 4]; 4]
 pub fn plutonium_engine::texture_atlas::TextureAtlas::index_buffer_slice(&self) -> wgpu::api::buffer::BufferSlice<'_>
 pub fn plutonium_engine::texture_atlas::TextureAtlas::new(uuid::Uuid, &wgpu::api::device::Device, &wgpu::api::queue::Queue, &str, &wgpu::api::bind_group_layout::BindGroupLayout, &wgpu::api::bind_group_layout::BindGroupLayout, plutonium_engine::utils::Position, plutonium_engine::utils::Size) -> core::option::Option<Self>
-pub fn plutonium_engine::texture_atlas::TextureAtlas::new_from_texture(uuid::Uuid, wgpu::api::texture::Texture, wgpu::api::bind_group::BindGroup, plutonium_engine::utils::Position, plutonium_engine::utils::Size, plutonium_engine::utils::Size, &wgpu::api::device::Device, &wgpu::api::queue::Queue, &wgpu::api::bind_group_layout::BindGroupLayout, &std::collections::hash::map::HashMap<char, plutonium_engine::text::CharacterInfo>) -> core::option::Option<Self>
 pub fn plutonium_engine::texture_atlas::TextureAtlas::num_indices(&self) -> u32
 pub fn plutonium_engine::texture_atlas::TextureAtlas::pos(&self) -> plutonium_engine::utils::Position
 pub fn plutonium_engine::texture_atlas::TextureAtlas::render<'a>(&'a self, &mut wgpu::api::render_pass::RenderPass<'a>, &'a wgpu::api::render_pipeline::RenderPipeline, &'a wgpu::api::bind_group::BindGroup, core::option::Option<&'a wgpu::api::bind_group::BindGroup>)
@@ -1589,7 +1326,7 @@ pub fn plutonium_engine::texture_svg::TextureSVG::bind_group(&self) -> &wgpu::ap
 pub fn plutonium_engine::texture_svg::TextureSVG::contains(&self, &plutonium_engine::utils::Position) -> bool
 pub fn plutonium_engine::texture_svg::TextureSVG::dimensions(&self) -> plutonium_engine::utils::Rectangle
 pub fn plutonium_engine::texture_svg::TextureSVG::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-pub fn plutonium_engine::texture_svg::TextureSVG::get_transform_uniform(&self, plutonium_engine::utils::Size, plutonium_engine::utils::Position, plutonium_engine::utils::Position, f32, f32) -> plutonium_engine::utils::TransformUniform
+pub fn plutonium_engine::texture_svg::TextureSVG::get_transform_matrix(&self, plutonium_engine::utils::Size, plutonium_engine::utils::Position, plutonium_engine::utils::Position, f32, f32) -> [[f32; 4]; 4]
 pub fn plutonium_engine::texture_svg::TextureSVG::index_buffer_slice(&self) -> wgpu::api::buffer::BufferSlice<'_>
 pub fn plutonium_engine::texture_svg::TextureSVG::new(uuid::Uuid, &wgpu::api::device::Device, &wgpu::api::queue::Queue, &str, &wgpu::api::bind_group_layout::BindGroupLayout, &wgpu::api::bind_group_layout::BindGroupLayout, plutonium_engine::utils::Position, f32) -> core::option::Option<Self>
 pub fn plutonium_engine::texture_svg::TextureSVG::new_from_data(uuid::Uuid, &wgpu::api::device::Device, &wgpu::api::queue::Queue, &str, &wgpu::api::bind_group_layout::BindGroupLayout, &wgpu::api::bind_group_layout::BindGroupLayout, plutonium_engine::utils::Position, f32) -> core::option::Option<Self>
@@ -1629,10 +1366,6 @@ pub fn plutonium_engine::utils::FrameTimeMetrics::maybe_report(&mut self) -> cor
 pub fn plutonium_engine::utils::FrameTimeMetrics::new(usize, f32) -> Self
 pub fn plutonium_engine::utils::FrameTimeMetrics::record(&mut self, f32)
 pub fn plutonium_engine::utils::FrameTimeMetrics::stats(&self) -> core::option::Option<(f32, f32, f32, f32)>
-pub fn plutonium_engine::utils::GlowInstanceRaw::clone(&self) -> plutonium_engine::utils::GlowInstanceRaw
-pub fn plutonium_engine::utils::GlowInstanceRaw::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-pub fn plutonium_engine::utils::InstanceRaw::clone(&self) -> plutonium_engine::utils::InstanceRaw
-pub fn plutonium_engine::utils::InstanceRaw::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub fn plutonium_engine::utils::MouseInfo::clone(&self) -> plutonium_engine::utils::MouseInfo
 pub fn plutonium_engine::utils::MouseInfo::default() -> plutonium_engine::utils::MouseInfo
 pub fn plutonium_engine::utils::MouseInfo::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -1647,8 +1380,6 @@ pub fn plutonium_engine::utils::Position::fmt(&self, &mut core::fmt::Formatter<'
 pub fn plutonium_engine::utils::Position::hash<H: core::hash::Hasher>(&self, &mut H)
 pub fn plutonium_engine::utils::Position::mul(self, f32) -> Self::Output
 pub fn plutonium_engine::utils::Position::sub(self, plutonium_engine::utils::Position) -> Self::Output
-pub fn plutonium_engine::utils::RectInstanceRaw::clone(&self) -> plutonium_engine::utils::RectInstanceRaw
-pub fn plutonium_engine::utils::RectInstanceRaw::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub fn plutonium_engine::utils::Rectangle::add(self, f32) -> Self::Output
 pub fn plutonium_engine::utils::Rectangle::clone(&self) -> plutonium_engine::utils::Rectangle
 pub fn plutonium_engine::utils::Rectangle::contains(&self, plutonium_engine::utils::Position) -> bool
@@ -1668,18 +1399,13 @@ pub fn plutonium_engine::utils::Size::clone(&self) -> plutonium_engine::utils::S
 pub fn plutonium_engine::utils::Size::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub fn plutonium_engine::utils::Size::mul(self, f32) -> Self::Output
 pub fn plutonium_engine::utils::Size::new(f32, f32) -> Self
-pub fn plutonium_engine::utils::TransformUniform::clone(&self) -> plutonium_engine::utils::TransformUniform
-pub fn plutonium_engine::utils::TransformUniform::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-pub fn plutonium_engine::utils::UVTransform::clone(&self) -> plutonium_engine::utils::UVTransform
-pub fn plutonium_engine::utils::UVTransform::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-pub fn plutonium_engine::utils::Vertex::clone(&self) -> plutonium_engine::utils::Vertex
-pub fn plutonium_engine::utils::Vertex::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub fn plutonium_engine::utils::create_centered_quad_buffers(&wgpu::api::device::Device) -> (wgpu::api::buffer::Buffer, wgpu::api::buffer::Buffer)
 pub fn plutonium_engine::utils::create_unit_quad_buffers(&wgpu::api::device::Device) -> (wgpu::api::buffer::Buffer, wgpu::api::buffer::Buffer)
 pub mod plutonium_engine
 pub mod plutonium_engine::anim
 pub mod plutonium_engine::app
 pub mod plutonium_engine::camera
+pub mod plutonium_engine::error
 pub mod plutonium_engine::input
 pub mod plutonium_engine::layout
 pub mod plutonium_engine::pluto_objects
@@ -1702,6 +1428,18 @@ pub plutonium_engine::DrawParams::rotation: f32
 pub plutonium_engine::DrawParams::scale: f32
 pub plutonium_engine::DrawParams::tint: [f32; 4]
 pub plutonium_engine::DrawParams::z: i32
+pub plutonium_engine::EngineError::AdapterUnavailable
+pub plutonium_engine::EngineError::BufferCreationError(alloc::string::String)
+pub plutonium_engine::EngineError::DeviceRequestError(alloc::string::String)
+pub plutonium_engine::EngineError::FontError(plutonium_engine::text::FontError)
+pub plutonium_engine::EngineError::ImageDecodeError(alloc::string::String)
+pub plutonium_engine::EngineError::InvalidResource(alloc::string::String)
+pub plutonium_engine::EngineError::IoError
+pub plutonium_engine::EngineError::IoError::kind: std::io::error::ErrorKind
+pub plutonium_engine::EngineError::IoError::message: alloc::string::String
+pub plutonium_engine::EngineError::PipelineCreationError(alloc::string::String)
+pub plutonium_engine::EngineError::SurfaceError(alloc::string::String)
+pub plutonium_engine::EngineError::TextureCreationError(alloc::string::String)
 pub plutonium_engine::FontLoadOptions::hinting: plutonium_engine::RasterHintingMode
 pub plutonium_engine::FontLoadOptions::prewarm_policy: plutonium_engine::PrewarmPolicy
 pub plutonium_engine::FontLoadOptions::runtime_budget_glyphs_per_frame: usize
@@ -1818,21 +1556,24 @@ pub plutonium_engine::app::FrameContext::mouse_info: plutonium_engine::utils::Mo
 pub plutonium_engine::app::FrameContext::pressed_keys: alloc::vec::Vec<winit::keyboard::Key>
 pub plutonium_engine::app::FrameContext::scroll_delta: plutonium_engine::utils::Position
 pub plutonium_engine::app::FrameContext::text_commits: alloc::vec::Vec<alloc::string::String>
-pub plutonium_engine::app::FrameInputRecordLocal::committed_text: alloc::vec::Vec<alloc::string::String>
-pub plutonium_engine::app::FrameInputRecordLocal::lmb_down: bool
-pub plutonium_engine::app::FrameInputRecordLocal::mmb_down: bool
-pub plutonium_engine::app::FrameInputRecordLocal::mouse_x: f32
-pub plutonium_engine::app::FrameInputRecordLocal::mouse_y: f32
-pub plutonium_engine::app::FrameInputRecordLocal::pressed_keys: alloc::vec::Vec<alloc::string::String>
-pub plutonium_engine::app::FrameInputRecordLocal::rmb_down: bool
-pub plutonium_engine::app::FrameInputRecordLocal::scroll_dx: f32
-pub plutonium_engine::app::FrameInputRecordLocal::scroll_dy: f32
 pub plutonium_engine::app::WasmAppConfig::focusable: bool
 pub plutonium_engine::app::WasmAppConfig::prevent_default: bool
 pub plutonium_engine::app::WindowConfig::height: u32
 pub plutonium_engine::app::WindowConfig::title: alloc::string::String
 pub plutonium_engine::app::WindowConfig::width: u32
 pub plutonium_engine::camera::Camera::tether_target: core::option::Option<uuid::Uuid>
+pub plutonium_engine::error::EngineError::AdapterUnavailable
+pub plutonium_engine::error::EngineError::BufferCreationError(alloc::string::String)
+pub plutonium_engine::error::EngineError::DeviceRequestError(alloc::string::String)
+pub plutonium_engine::error::EngineError::FontError(plutonium_engine::text::FontError)
+pub plutonium_engine::error::EngineError::ImageDecodeError(alloc::string::String)
+pub plutonium_engine::error::EngineError::InvalidResource(alloc::string::String)
+pub plutonium_engine::error::EngineError::IoError
+pub plutonium_engine::error::EngineError::IoError::kind: std::io::error::ErrorKind
+pub plutonium_engine::error::EngineError::IoError::message: alloc::string::String
+pub plutonium_engine::error::EngineError::PipelineCreationError(alloc::string::String)
+pub plutonium_engine::error::EngineError::SurfaceError(alloc::string::String)
+pub plutonium_engine::error::EngineError::TextureCreationError(alloc::string::String)
 pub plutonium_engine::input::AxisBinding::deadzone: f32
 pub plutonium_engine::input::AxisBinding::scale: f32
 pub plutonium_engine::input::AxisBinding::source: plutonium_engine::input::AxisSource
@@ -1939,10 +1680,6 @@ pub plutonium_engine::text::Bounds::bottom: f32
 pub plutonium_engine::text::Bounds::left: f32
 pub plutonium_engine::text::Bounds::right: f32
 pub plutonium_engine::text::Bounds::top: f32
-pub plutonium_engine::text::CharacterInfo::advance_width: f32
-pub plutonium_engine::text::CharacterInfo::bearing: (f32, f32)
-pub plutonium_engine::text::CharacterInfo::size: (u32, u32)
-pub plutonium_engine::text::CharacterInfo::tile_index: usize
 pub plutonium_engine::text::CharacterRenderInfo::atlas_id: uuid::Uuid
 pub plutonium_engine::text::CharacterRenderInfo::mode: plutonium_engine::text::GlyphRenderMode
 pub plutonium_engine::text::CharacterRenderInfo::position: plutonium_engine::utils::Position
@@ -1951,7 +1688,9 @@ pub plutonium_engine::text::FontError::AtlasRenderError
 pub plutonium_engine::text::FontError::FreeTypeError(alloc::string::String)
 pub plutonium_engine::text::FontError::ImageDecodeError(alloc::string::String)
 pub plutonium_engine::text::FontError::InvalidFontData
-pub plutonium_engine::text::FontError::IoError(std::io::error::Error)
+pub plutonium_engine::text::FontError::IoError
+pub plutonium_engine::text::FontError::IoError::kind: std::io::error::ErrorKind
+pub plutonium_engine::text::FontError::IoError::message: alloc::string::String
 pub plutonium_engine::text::FontError::MetadataParseError(alloc::string::String)
 pub plutonium_engine::text::FontError::MissingGlyphData(char)
 pub plutonium_engine::text::FontError::UnsupportedAtlasFormat(alloc::string::String)
@@ -1981,11 +1720,6 @@ pub plutonium_engine::text::MsdfFontMetadata::atlas: plutonium_engine::text::Msd
 pub plutonium_engine::text::MsdfFontMetadata::glyphs: alloc::vec::Vec<plutonium_engine::text::MsdfGlyphRecord>
 pub plutonium_engine::text::MsdfFontMetadata::kerning: alloc::vec::Vec<plutonium_engine::text::MsdfKerningRecord>
 pub plutonium_engine::text::MsdfFontMetadata::metrics: plutonium_engine::text::MsdfMetrics
-pub plutonium_engine::text::MsdfGlyphInfo::advance_width: f32
-pub plutonium_engine::text::MsdfGlyphInfo::padding_em: f32
-pub plutonium_engine::text::MsdfGlyphInfo::plane_bounds: plutonium_engine::text::Bounds
-pub plutonium_engine::text::MsdfGlyphInfo::uv_offset: [f32; 2]
-pub plutonium_engine::text::MsdfGlyphInfo::uv_scale: [f32; 2]
 pub plutonium_engine::text::MsdfGlyphRecord::advance: f32
 pub plutonium_engine::text::MsdfGlyphRecord::atlas_bounds: plutonium_engine::text::Bounds
 pub plutonium_engine::text::MsdfGlyphRecord::plane_bounds: plutonium_engine::text::Bounds
@@ -2001,12 +1735,6 @@ pub plutonium_engine::text::MsdfMetrics::padding_em: f32
 pub plutonium_engine::text::MsdfMetrics::px_range: f32
 pub plutonium_engine::text::TextQualitySettings::msdf_min_px: f32
 pub plutonium_engine::text::TextQualitySettings::tiny_raster_max_px: f32
-pub plutonium_engine::text::TinyRasterFallbackSpec::ascent: f32
-pub plutonium_engine::text::TinyRasterFallbackSpec::atlas: plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D
-pub plutonium_engine::text::TinyRasterFallbackSpec::char_map: std::collections::hash::map::HashMap<char, plutonium_engine::text::CharacterInfo>
-pub plutonium_engine::text::TinyRasterFallbackSpec::descent: f32
-pub plutonium_engine::text::TinyRasterFallbackSpec::font_size: f32
-pub plutonium_engine::text::TinyRasterFallbackSpec::padding: f32
 pub plutonium_engine::traits::UpdateContext::camera_position: &'a plutonium_engine::utils::Position
 pub plutonium_engine::traits::UpdateContext::device: &'a wgpu::api::device::Device
 pub plutonium_engine::traits::UpdateContext::font_cache_version: u32
@@ -2038,24 +1766,6 @@ pub plutonium_engine::ui::ToggleStyle::focus_ring: core::option::Option<plutoniu
 pub plutonium_engine::ui::ToggleStyle::thumb_rgba: [f32; 4]
 pub plutonium_engine::ui::ToggleStyle::track_off_rgba: [f32; 4]
 pub plutonium_engine::ui::ToggleStyle::track_on_rgba: [f32; 4]
-pub plutonium_engine::utils::DrawingContext::pipeline: &'a wgpu::api::render_pipeline::RenderPipeline
-pub plutonium_engine::utils::DrawingContext::rpass: &'a mut wgpu::api::render_pass::RenderPass<'a>
-pub plutonium_engine::utils::GlowInstanceRaw::_pad: [f32; 4]
-pub plutonium_engine::utils::GlowInstanceRaw::border_width: f32
-pub plutonium_engine::utils::GlowInstanceRaw::color: [f32; 4]
-pub plutonium_engine::utils::GlowInstanceRaw::corner_radius_px: f32
-pub plutonium_engine::utils::GlowInstanceRaw::glow_radius_px: f32
-pub plutonium_engine::utils::GlowInstanceRaw::max_alpha: f32
-pub plutonium_engine::utils::GlowInstanceRaw::mode: f32
-pub plutonium_engine::utils::GlowInstanceRaw::model: [[f32; 4]; 4]
-pub plutonium_engine::utils::GlowInstanceRaw::rect_size_px: [f32; 2]
-pub plutonium_engine::utils::GlowInstanceRaw::sigma: f32
-pub plutonium_engine::utils::InstanceRaw::_msdf_pad: [f32; 3]
-pub plutonium_engine::utils::InstanceRaw::model: [[f32; 4]; 4]
-pub plutonium_engine::utils::InstanceRaw::msdf_px_range: f32
-pub plutonium_engine::utils::InstanceRaw::tint: [f32; 4]
-pub plutonium_engine::utils::InstanceRaw::uv_offset: [f32; 2]
-pub plutonium_engine::utils::InstanceRaw::uv_scale: [f32; 2]
 pub plutonium_engine::utils::MouseInfo::is_lmb_clicked: bool
 pub plutonium_engine::utils::MouseInfo::is_mmb_clicked: bool
 pub plutonium_engine::utils::MouseInfo::is_rmb_clicked: bool
@@ -2064,27 +1774,12 @@ pub plutonium_engine::utils::MouseInfo::scroll_dx: f32
 pub plutonium_engine::utils::MouseInfo::scroll_dy: f32
 pub plutonium_engine::utils::Position::x: f32
 pub plutonium_engine::utils::Position::y: f32
-pub plutonium_engine::utils::RectInstanceRaw::_pad0: [f32; 2]
-pub plutonium_engine::utils::RectInstanceRaw::_pad1: [f32; 2]
-pub plutonium_engine::utils::RectInstanceRaw::_pad2: [f32; 4]
-pub plutonium_engine::utils::RectInstanceRaw::border_color: [f32; 4]
-pub plutonium_engine::utils::RectInstanceRaw::border_thickness_px: f32
-pub plutonium_engine::utils::RectInstanceRaw::color: [f32; 4]
-pub plutonium_engine::utils::RectInstanceRaw::corner_radius_px: f32
-pub plutonium_engine::utils::RectInstanceRaw::model: [[f32; 4]; 4]
-pub plutonium_engine::utils::RectInstanceRaw::rect_size_px: [f32; 2]
 pub plutonium_engine::utils::Rectangle::height: f32
 pub plutonium_engine::utils::Rectangle::width: f32
 pub plutonium_engine::utils::Rectangle::x: f32
 pub plutonium_engine::utils::Rectangle::y: f32
 pub plutonium_engine::utils::Size::height: f32
 pub plutonium_engine::utils::Size::width: f32
-pub plutonium_engine::utils::TransformUniform::transform: [[f32; 4]; 4]
-pub plutonium_engine::utils::UVTransform::tint: [f32; 4]
-pub plutonium_engine::utils::UVTransform::uv_offset: [f32; 2]
-pub plutonium_engine::utils::UVTransform::uv_scale: [f32; 2]
-pub plutonium_engine::utils::Vertex::position: [f32; 2]
-pub plutonium_engine::utils::Vertex::tex_coords: [f32; 2]
 pub struct plutonium_engine::DrawParams
 pub struct plutonium_engine::FontLoadOptions
 pub struct plutonium_engine::FrameContext
@@ -2101,7 +1796,6 @@ pub struct plutonium_engine::WindowConfig
 pub struct plutonium_engine::anim::Timeline<T> where T: core::marker::Copy + core::ops::arith::Add<Output = T> + core::ops::arith::Sub<Output = T> + core::ops::arith::Mul<f32, Output = T>
 pub struct plutonium_engine::anim::Tween<T>
 pub struct plutonium_engine::app::FrameContext
-pub struct plutonium_engine::app::FrameInputRecordLocal
 pub struct plutonium_engine::app::PlutoniumApp
 pub struct plutonium_engine::app::WasmAppConfig
 pub struct plutonium_engine::app::WindowConfig
@@ -2115,18 +1809,12 @@ pub struct plutonium_engine::layout::LayoutResult
 pub struct plutonium_engine::layout::Margins
 pub struct plutonium_engine::layout::PercentSize
 pub struct plutonium_engine::pluto_objects::button::Button
-pub struct plutonium_engine::pluto_objects::button::ButtonInternal
 pub struct plutonium_engine::pluto_objects::shapes::Shape
-pub struct plutonium_engine::pluto_objects::shapes::ShapeInternal
 pub struct plutonium_engine::pluto_objects::text2d::Text2D
-pub struct plutonium_engine::pluto_objects::text2d::Text2DInternal
 pub struct plutonium_engine::pluto_objects::text2d::TextContainer
 pub struct plutonium_engine::pluto_objects::text_input::TextInput
-pub struct plutonium_engine::pluto_objects::text_input::TextInputInternal
 pub struct plutonium_engine::pluto_objects::texture_2d::Texture2D
-pub struct plutonium_engine::pluto_objects::texture_2d::Texture2DInternal
 pub struct plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D
-pub struct plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2DInternal
 pub struct plutonium_engine::popup::PopupAction
 pub struct plutonium_engine::popup::PopupConfig
 pub struct plutonium_engine::renderer::GlowCommand
@@ -2137,19 +1825,16 @@ pub struct plutonium_engine::rng::RngService
 pub struct plutonium_engine::rng::RngStream
 pub struct plutonium_engine::rng::RngStreamId(pub u64)
 pub struct plutonium_engine::text::Bounds
-pub struct plutonium_engine::text::CharacterInfo
 pub struct plutonium_engine::text::CharacterRenderInfo
 pub struct plutonium_engine::text::FontAtlas
 pub struct plutonium_engine::text::GlyphLayoutDebugRecord
 pub struct plutonium_engine::text::MsdfAtlasInfo
 pub struct plutonium_engine::text::MsdfFontMetadata
-pub struct plutonium_engine::text::MsdfGlyphInfo
 pub struct plutonium_engine::text::MsdfGlyphRecord
 pub struct plutonium_engine::text::MsdfKerningRecord
 pub struct plutonium_engine::text::MsdfMetrics
 pub struct plutonium_engine::text::TextQualitySettings
 pub struct plutonium_engine::text::TextRenderer
-pub struct plutonium_engine::text::TinyRasterFallbackSpec
 pub struct plutonium_engine::texture_atlas::TextureAtlas
 pub struct plutonium_engine::texture_svg::TextureSVG
 pub struct plutonium_engine::traits::UpdateContext<'a>
@@ -2158,7 +1843,6 @@ pub struct plutonium_engine::ui::ButtonVisualState
 pub struct plutonium_engine::ui::FocusRingStyle
 pub struct plutonium_engine::ui::NinePatch
 pub struct plutonium_engine::ui::ToggleStyle
-pub struct plutonium_engine::utils::DrawingContext<'a>
 pub struct plutonium_engine::utils::FrameTimeMetrics
 pub struct plutonium_engine::utils::MouseInfo
 pub struct plutonium_engine::utils::Position

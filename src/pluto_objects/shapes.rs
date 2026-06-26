@@ -13,7 +13,7 @@ pub enum ShapeType {
     Polygon(u32),
 }
 
-pub struct ShapeInternal {
+pub(crate) struct ShapeInternal {
     id: Uuid,
     texture_id: Uuid,
     bounds: Rectangle,
@@ -137,7 +137,7 @@ pub struct Shape {
 }
 
 impl Shape {
-    pub fn new(internal: Rc<RefCell<ShapeInternal>>) -> Self {
+    pub(crate) fn new(internal: Rc<RefCell<ShapeInternal>>) -> Self {
         Self { internal }
     }
 

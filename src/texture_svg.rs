@@ -724,7 +724,7 @@ impl TextureSVG {
     }
 
     /// gets the transform uniform based on the viewport size and adjusts for position.
-    pub fn get_transform_uniform(
+    pub(crate) fn get_transform_uniform(
         &self,
         viewport_size: Size,
         pos: Position,
@@ -755,6 +755,18 @@ impl TextureSVG {
                 [ndc_x, ndc_y, 0.0, 1.0],
             ],
         }
+    }
+
+    pub fn get_transform_matrix(
+        &self,
+        viewport_size: Size,
+        pos: Position,
+        camera_position: Position,
+        rotation: f32,
+        scale: f32,
+    ) -> [[f32; 4]; 4] {
+        self.get_transform_uniform(viewport_size, pos, camera_position, rotation, scale)
+            .transform
     }
 
     /// Adjusts the vertex texture coordinates based on the tile size and viewport size.
@@ -797,7 +809,7 @@ impl TextureSVG {
         let svg_content = if let Some(data) = svg_data {
             data.to_string()
         } else if let Some(path) = file_path {
-            fs::read_to_string(path).expect("file should exist")
+            fs::read_to_string(path).ok()?
         } else {
             return None;
         };

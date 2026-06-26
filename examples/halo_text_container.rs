@@ -37,8 +37,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         elapsed += frame.delta_time;
 
         if !initialized {
-            if engine.load_font(&font_path, 28.0, "roboto").is_err() {
-                panic!("failed to load demo font");
+            if let Err(err) = engine.load_font(&font_path, 28.0, "roboto") {
+                eprintln!("failed to load demo font: {err}");
+                return;
             }
             initialized = true;
         }
@@ -53,7 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .with_padding(18.0);
 
         if glow_text.is_none() {
-            let mut text = engine.create_text2d(
+            let Ok(mut text) = engine.create_text2d(
                 "Glow halo around\nthis TextContainer",
                 "roboto",
                 32.0,
@@ -61,7 +62,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     x: glow_rect.x,
                     y: glow_rect.y,
                 },
-            );
+            ) else {
+                eprintln!("failed to create glow text");
+                return;
+            };
             text.set_container(glow_container.clone());
             text.set_z(40);
             text.set_color([0.95, 0.97, 1.0, 1.0]);
@@ -69,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         if border_text.is_none() {
-            let mut text = engine.create_text2d(
+            let Ok(mut text) = engine.create_text2d(
                 "Border-only highlight\nfor this container",
                 "roboto",
                 32.0,
@@ -77,7 +81,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     x: border_rect.x,
                     y: border_rect.y,
                 },
-            );
+            ) else {
+                eprintln!("failed to create border text");
+                return;
+            };
             text.set_container(border_container.clone());
             text.set_z(40);
             text.set_color([0.95, 0.97, 1.0, 1.0]);

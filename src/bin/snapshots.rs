@@ -1,10 +1,63 @@
+#![allow(dead_code)]
+
 use image::ImageReader;
 use plutonium_engine::texture_atlas::TextureAtlas;
 use plutonium_engine::texture_svg::TextureSVG;
-use plutonium_engine::utils::{InstanceRaw, Position, Size, TransformUniform};
+use plutonium_engine::utils::{Position, Size};
 use std::fs;
 use std::path::Path;
 use wgpu::util::DeviceExt;
+
+#[allow(dead_code)]
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct TransformUniform {
+    transform: [[f32; 4]; 4],
+}
+
+#[allow(dead_code)]
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct InstanceRaw {
+    model: [[f32; 4]; 4],
+    uv_offset: [f32; 2],
+    uv_scale: [f32; 2],
+    msdf_px_range: f32,
+    _msdf_pad: [f32; 3],
+    tint: [f32; 4],
+}
+
+#[allow(dead_code)]
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug)]
+struct UVTransform {
+    uv_offset: [f32; 2],
+    uv_scale: [f32; 2],
+    tint: [f32; 4],
+}
+
+#[allow(dead_code)]
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug)]
+struct Vertex {
+    position: [f32; 2],
+    tex_coords: [f32; 2],
+}
+
+#[allow(dead_code)]
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct RectInstanceRaw {
+    model: [[f32; 4]; 4],
+    color: [f32; 4],
+    corner_radius_px: f32,
+    border_thickness_px: f32,
+    _pad0: [f32; 2],
+    border_color: [f32; 4],
+    rect_size_px: [f32; 2],
+    _pad1: [f32; 2],
+    _pad2: [f32; 4],
+}
 
 #[cfg(feature = "anim")]
 use plutonium_engine::anim::{Ease, Timeline, Track, Tween};
@@ -189,11 +242,11 @@ fn replay_scene_from(path: &str) -> anyhow::Result<()> {
         width: 256.0,
         height: 256.0,
     };
-    let tf = atlas.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 1.0, 1.0);
+    let tf = atlas.get_transform_matrix(viewport, pos, Position { x: 0.0, y: 0.0 }, 1.0, 1.0);
     let uv = TextureAtlas::tile_uv_coordinates(tile_index, tile_size, atlas.dimensions().size())
         .unwrap_or_else(|| plutonium_engine::utils::Rectangle::new(0.0, 0.0, 1.0, 1.0));
     let raw = InstanceRaw {
-        model: tf.transform,
+        model: tf,
         uv_offset: [uv.x, uv.y],
         uv_scale: [uv.width, uv.height],
         tint: [1.0, 1.0, 1.0, 1.0],
@@ -279,12 +332,12 @@ fn replay_scene_from(path: &str) -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 3);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "replay_scene") {
-            println!("replay_scene snapshot MISMATCH");
+            log::info!("replay_scene snapshot MISMATCH");
         } else {
-            println!("replay_scene snapshot OK");
+            log::info!("replay_scene snapshot OK");
         }
     } else {
-        println!("replay_scene snapshot OK");
+        log::info!("replay_scene snapshot OK");
     }
     Ok(())
 }
@@ -320,9 +373,9 @@ fn make_layouts(device: &wgpu::Device) -> (wgpu::BindGroupLayout, wgpu::BindGrou
             ty: wgpu::BindingType::Buffer {
                 ty: wgpu::BufferBindingType::Uniform,
                 has_dynamic_offset: false,
-                min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<
-                    plutonium_engine::utils::TransformUniform,
-                >() as _),
+                min_binding_size: wgpu::BufferSize::new(
+                    std::mem::size_of::<TransformUniform>() as _
+                ),
             },
             count: None,
         }],
@@ -395,10 +448,10 @@ fn compare_with_tolerance(a_path: &Path, b_path: &Path, tolerance: u8) -> bool {
 fn maybe_update_golden(actual: &Path, golden: &Path, label: &str) -> bool {
     if std::env::var("UPDATE_SNAPSHOTS").ok().as_deref() == Some("1") {
         if let Err(e) = std::fs::copy(actual, golden) {
-            eprintln!("failed to update golden for {label}: {e}");
+            log::warn!("failed to update golden for {label}: {e}");
             false
         } else {
-            println!("{label} golden updated");
+            log::info!("{label} golden updated");
             true
         }
     } else {
@@ -437,19 +490,19 @@ fn snapshot_map_atlas() -> anyhow::Result<()> {
 
     if !out_golden.exists() {
         fs::copy(out_actual, out_golden)?;
-        println!("golden created at {}", out_golden.display());
+        log::info!("golden created at {}", out_golden.display());
         return Ok(());
     }
 
     let ok = compare_with_tolerance(out_actual, out_golden, 3);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "map_atlas") {
-            println!("snapshot mismatch for map_atlas.png");
+            log::info!("snapshot mismatch for map_atlas.png");
         } else {
-            println!("snapshot OK for map_atlas.png");
+            log::info!("snapshot OK for map_atlas.png");
         }
     } else {
-        println!("snapshot OK for map_atlas.png");
+        log::info!("snapshot OK for map_atlas.png");
     }
     Ok(())
 }
@@ -484,9 +537,7 @@ fn create_shader(device: &wgpu::Device) -> (wgpu::RenderPipeline, wgpu::BindGrou
             ty: wgpu::BindingType::Buffer {
                 ty: wgpu::BufferBindingType::Uniform,
                 has_dynamic_offset: false,
-                min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<
-                    plutonium_engine::utils::UVTransform,
-                >() as _),
+                min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<UVTransform>() as _),
             },
             count: None,
         }],
@@ -542,8 +593,7 @@ fn create_shader(device: &wgpu::Device) -> (wgpu::RenderPipeline, wgpu::BindGrou
             module: &shader,
             entry_point: Some("vs_main"),
             buffers: &[wgpu::VertexBufferLayout {
-                array_stride: std::mem::size_of::<plutonium_engine::utils::Vertex>()
-                    as wgpu::BufferAddress,
+                array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
                 step_mode: wgpu::VertexStepMode::Vertex,
                 attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2],
             }],
@@ -605,8 +655,7 @@ fn create_rect_pipeline(
             module: &rect_shader,
             entry_point: Some("vs_main"),
             buffers: &[wgpu::VertexBufferLayout {
-                array_stride: std::mem::size_of::<plutonium_engine::utils::Vertex>()
-                    as wgpu::BufferAddress,
+                array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
                 step_mode: wgpu::VertexStepMode::Vertex,
                 attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2],
             }],
@@ -699,7 +748,7 @@ fn snapshot_toggle_states() -> anyhow::Result<()> {
                     track.height + 8.0,
                 );
                 let ring_model = rect_model_for(view_size, ring_rect);
-                let ring_inst = plutonium_engine::utils::RectInstanceRaw {
+                let ring_inst = RectInstanceRaw {
                     model: ring_model,
                     color: [0.0, 0.0, 0.0, 0.0],
                     corner_radius_px: 22.0,
@@ -725,7 +774,7 @@ fn snapshot_toggle_states() -> anyhow::Result<()> {
                 });
 
                 // Identity world
-                let id = plutonium_engine::utils::TransformUniform {
+                let id = TransformUniform {
                     transform: [
                         [1.0, 0.0, 0.0, 0.0],
                         [0.0, 1.0, 0.0, 0.0],
@@ -764,7 +813,7 @@ fn snapshot_toggle_states() -> anyhow::Result<()> {
                 [0.25, 0.27, 0.32, 1.0]
             };
             let track_model = rect_model_for(view_size, track);
-            let track_inst = plutonium_engine::utils::RectInstanceRaw {
+            let track_inst = RectInstanceRaw {
                 model: track_model,
                 color: track_col,
                 corner_radius_px: 20.0,
@@ -790,7 +839,7 @@ fn snapshot_toggle_states() -> anyhow::Result<()> {
             });
 
             // Identity world
-            let id = plutonium_engine::utils::TransformUniform {
+            let id = TransformUniform {
                 transform: [
                     [1.0, 0.0, 0.0, 0.0],
                     [0.0, 1.0, 0.0, 0.0],
@@ -831,7 +880,7 @@ fn snapshot_toggle_states() -> anyhow::Result<()> {
             };
             let thumb = plutonium_engine::utils::Rectangle::new(cx, track.y + pad, d, d);
             let thumb_model = rect_model_for(view_size, thumb);
-            let thumb_inst = plutonium_engine::utils::RectInstanceRaw {
+            let thumb_inst = RectInstanceRaw {
                 model: thumb_model,
                 color: [0.95, 0.95, 0.98, 1.0],
                 corner_radius_px: d * 0.5,
@@ -882,12 +931,12 @@ fn snapshot_toggle_states() -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 4);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "toggle_states") {
-            println!("toggle_states snapshot MISMATCH");
+            log::info!("toggle_states snapshot MISMATCH");
         } else {
-            println!("toggle_states snapshot OK");
+            log::info!("toggle_states snapshot OK");
         }
     } else {
-        println!("toggle_states snapshot OK");
+        log::info!("toggle_states snapshot OK");
     }
     Ok(())
 }
@@ -1034,8 +1083,8 @@ fn snapshot_checkerboard() -> anyhow::Result<()> {
     // Build 4 instances (2x2) with uv for alternating tiles
     let mut instances: Vec<InstanceRaw> = Vec::new();
     for (i, pos) in positions.iter().enumerate() {
-        let tf = atlas.get_transform_uniform(viewport, *pos, Position { x: 0.0, y: 0.0 }, 1.0, 1.0);
-        let model = tf.transform;
+        let tf = atlas.get_transform_matrix(viewport, *pos, Position { x: 0.0, y: 0.0 }, 1.0, 1.0);
+        let model = tf;
         let tile = tile_indices[i];
         let uv =
             TextureAtlas::tile_uv_coordinates(tile, tile_size, atlas.dimensions().size()).unwrap();
@@ -1129,12 +1178,12 @@ fn snapshot_checkerboard() -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 3);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "checkerboard") {
-            println!("checkerboard snapshot MISMATCH");
+            log::info!("checkerboard snapshot MISMATCH");
         } else {
-            println!("checkerboard snapshot OK");
+            log::info!("checkerboard snapshot OK");
         }
     } else {
-        println!("checkerboard snapshot OK");
+        log::info!("checkerboard snapshot OK");
     }
     Ok(())
 }
@@ -1183,10 +1232,11 @@ fn snapshot_single_sprite() -> anyhow::Result<()> {
         height: 256.0,
     };
     let pos = Position { x: 50.0, y: 50.0 };
-    let tf = texture.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
+    let tf = texture.get_transform_matrix(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
+    let tf_uniform = TransformUniform { transform: tf };
     let tf_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("sprite-tf-ubo"),
-        contents: bytemuck::cast_slice(&[tf]),
+        contents: bytemuck::cast_slice(&[tf_uniform]),
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });
     let tf_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -1224,7 +1274,7 @@ fn snapshot_single_sprite() -> anyhow::Result<()> {
         });
         // Provide a single-instance InstanceRaw with full-UV to match pipeline layout
         let raw = InstanceRaw {
-            model: tf.transform,
+            model: tf,
             uv_offset: [0.0, 0.0],
             uv_scale: [1.0, 1.0],
             tint: [1.0, 1.0, 1.0, 1.0],
@@ -1260,12 +1310,12 @@ fn snapshot_single_sprite() -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 3);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "sprite") {
-            println!("sprite snapshot MISMATCH");
+            log::info!("sprite snapshot MISMATCH");
         } else {
-            println!("sprite snapshot OK");
+            log::info!("sprite snapshot OK");
         }
     } else {
-        println!("sprite snapshot OK");
+        log::info!("sprite snapshot OK");
     }
     Ok(())
 }
@@ -1321,9 +1371,9 @@ fn snapshot_many_sprites() -> anyhow::Result<()> {
                 y: 16.0 + r as f32 * spacing,
             };
             let tf =
-                texture.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
+                texture.get_transform_matrix(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
             instances.push(InstanceRaw {
-                model: tf.transform,
+                model: tf,
                 uv_offset: [0.0, 0.0],
                 uv_scale: [1.0, 1.0],
                 tint: [1.0, 1.0, 1.0, 1.0],
@@ -1417,12 +1467,12 @@ fn snapshot_many_sprites() -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 3);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "many_sprites") {
-            println!("many_sprites snapshot MISMATCH");
+            log::info!("many_sprites snapshot MISMATCH");
         } else {
-            println!("many_sprites snapshot OK");
+            log::info!("many_sprites snapshot OK");
         }
     } else {
-        println!("many_sprites snapshot OK");
+        log::info!("many_sprites snapshot OK");
     }
     Ok(())
 }
@@ -1470,7 +1520,7 @@ fn snapshot_demo_player() -> anyhow::Result<()> {
         height: 256.0,
     };
     let pos = Position { x: 80.0, y: 80.0 };
-    let tf = texture.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
+    let tf = texture.get_transform_matrix(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
 
     // Render
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -1499,7 +1549,7 @@ fn snapshot_demo_player() -> anyhow::Result<()> {
 
         // Instance buffer with single instance (full UVs)
         let raw = InstanceRaw {
-            model: tf.transform,
+            model: tf,
             uv_offset: [0.0, 0.0],
             uv_scale: [1.0, 1.0],
             tint: [1.0, 1.0, 1.0, 1.0],
@@ -1566,12 +1616,12 @@ fn snapshot_demo_player() -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 3);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "demo_player") {
-            println!("demo_player snapshot MISMATCH");
+            log::info!("demo_player snapshot MISMATCH");
         } else {
-            println!("demo_player snapshot OK");
+            log::info!("demo_player snapshot OK");
         }
     } else {
-        println!("demo_player snapshot OK");
+        log::info!("demo_player snapshot OK");
     }
     Ok(())
 }
@@ -1645,9 +1695,9 @@ fn snapshot_menu_ui() -> anyhow::Result<()> {
         height: 120.0,
     };
     let pos = Position { x: 20.0, y: 60.0 };
-    let tf = bg.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
+    let tf = bg.get_transform_matrix(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
     let inst_raw = InstanceRaw {
-        model: tf.transform,
+        model: tf,
         uv_offset: [0.0, 0.0],
         uv_scale: [1.0, 1.0],
         tint: [1.0, 1.0, 1.0, 1.0],
@@ -1716,20 +1766,91 @@ fn snapshot_menu_ui() -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 3);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "menu_button") {
-            println!("menu_button snapshot MISMATCH");
+            log::info!("menu_button snapshot MISMATCH");
         } else {
-            println!("menu_button snapshot OK");
+            log::info!("menu_button snapshot OK");
         }
     } else {
-        println!("menu_button snapshot OK");
+        log::info!("menu_button snapshot OK");
     }
     Ok(())
 }
 
 fn snapshot_menu_ui_text() -> anyhow::Result<()> {
     use plutonium_engine::text::TextRenderer;
-    use rusttype::{Font, Scale};
+    use rusttype::{point, Font, Scale};
+    use std::collections::HashMap;
     use std::fs::read;
+
+    struct SnapshotCharInfo {
+        tile_index: usize,
+        advance_width: f32,
+        bearing: (f32, f32),
+    }
+
+    fn render_snapshot_glyphs_to_atlas(
+        font: &Font<'_>,
+        scale: Scale,
+        atlas_size: (u32, u32),
+        char_dimensions: &HashMap<char, (u32, u32)>,
+        padding: u32,
+    ) -> Option<(Vec<u8>, HashMap<char, SnapshotCharInfo>)> {
+        let (atlas_width, atlas_height) = atlas_size;
+        let mut texture_data = vec![0; (atlas_width * atlas_height * 4) as usize];
+        let mut char_map = HashMap::new();
+        let max_width = (*char_dimensions.values().map(|(w, _)| w).max().unwrap_or(&0))
+            .max(padding.saturating_mul(2))
+            .max(1);
+        let max_height = (*char_dimensions.values().map(|(_, h)| h).max().unwrap_or(&0))
+            .max(padding.saturating_mul(2))
+            .max(1);
+        let mut current_x = 0;
+        let mut current_y = 0;
+        for (next_tile_index, c) in (32u8..=126).map(char::from).enumerate() {
+            let base_glyph = font.glyph(c).scaled(scale);
+            let probe = base_glyph.clone().positioned(point(0.0, 0.0));
+            let bearing_y = probe
+                .pixel_bounding_box()
+                .map(|bb| (-bb.min.y) as f32)
+                .or_else(|| base_glyph.exact_bounding_box().map(|bb| -bb.min.y))
+                .unwrap_or(0.0);
+            let bearing_x = probe
+                .pixel_bounding_box()
+                .map(|bb| bb.min.x as f32)
+                .unwrap_or_else(|| base_glyph.h_metrics().left_side_bearing);
+            if current_x + max_width > atlas_width {
+                current_x = 0;
+                current_y += max_height;
+            }
+            let glyph = base_glyph.clone().positioned(point(0.0, bearing_y));
+            let glyph_x = current_x + padding;
+            let glyph_y = current_y + padding;
+            if let Some(_bb) = glyph.pixel_bounding_box() {
+                glyph.draw(|x, y, v| {
+                    let px = glyph_x + x;
+                    let py = glyph_y + y;
+                    if px < atlas_width && py < atlas_height {
+                        let index = ((py * atlas_width + px) * 4) as usize;
+                        let alpha = (v * 255.0) as u8;
+                        texture_data[index] = 255;
+                        texture_data[index + 1] = 255;
+                        texture_data[index + 2] = 255;
+                        texture_data[index + 3] = alpha;
+                    }
+                });
+            }
+            char_map.insert(
+                c,
+                SnapshotCharInfo {
+                    tile_index: next_tile_index,
+                    advance_width: base_glyph.h_metrics().advance_width,
+                    bearing: (bearing_x, bearing_y),
+                },
+            );
+            current_x += max_width;
+        }
+        Some((texture_data, char_map))
+    }
 
     let (_instance, device, queue) = build_device();
     let (pipeline, inst_bgl) = create_shader(&device);
@@ -1763,7 +1884,7 @@ fn snapshot_menu_ui_text() -> anyhow::Result<()> {
     let (atlas_w, atlas_h, char_dims, max_w, max_h) =
         TextRenderer::calculate_atlas_size(&font, scale, padding);
     let (tex_rgba, char_map) =
-        TextRenderer::render_glyphs_to_atlas(&font, scale, (atlas_w, atlas_h), &char_dims, padding)
+        render_snapshot_glyphs_to_atlas(&font, scale, (atlas_w, atlas_h), &char_dims, padding)
             .ok_or_else(|| anyhow::anyhow!("atlas"))?;
 
     let texture_size = wgpu::Extent3d {
@@ -1821,26 +1942,22 @@ fn snapshot_menu_ui_text() -> anyhow::Result<()> {
         label: Some("font-atlas-bg"),
     });
 
-    // Wrap in TextureAtlas to reuse buffers and uv helpers
-    let atlas = plutonium_engine::texture_atlas::TextureAtlas::new_from_texture(
+    // Use a public atlas constructor only for reusable quad/index buffers and a default UV bind group.
+    // The actual glyph texture is bound separately via `texture_bg`.
+    let geometry_atlas = TextureAtlas::new(
         uuid::Uuid::new_v4(),
-        tex,
-        texture_bg,
+        &device,
+        &queue,
+        &asset("map_atlas.svg"),
+        &tex_bgl,
+        &xform_bgl,
         Position { x: 0.0, y: 0.0 },
-        Size {
-            width: atlas_w as f32,
-            height: atlas_h as f32,
-        },
         Size {
             width: max_w as f32,
             height: max_h as f32,
         },
-        &device,
-        &queue,
-        &xform_bgl,
-        &char_map,
     )
-    .expect("wrap font atlas");
+    .expect("text geometry atlas");
 
     // Identity transform for world (group 1)
     let identity = TransformUniform {
@@ -1877,7 +1994,7 @@ fn snapshot_menu_ui_text() -> anyhow::Result<()> {
     for c in text.chars() {
         if let Some(info) = char_map.get(&c) {
             // model matrix via atlas helper
-            let tf = atlas.get_transform_uniform(
+            let tf = geometry_atlas.get_transform_matrix(
                 viewport,
                 Position {
                     x: pen_x + info.bearing.0,
@@ -1900,7 +2017,7 @@ fn snapshot_menu_ui_text() -> anyhow::Result<()> {
                 },
             ) {
                 instances.push(InstanceRaw {
-                    model: tf.transform,
+                    model: tf,
                     uv_offset: [uv.x, uv.y],
                     uv_scale: [uv.width, uv.height],
                     tint: [1.0, 1.0, 1.0, 1.0],
@@ -1950,13 +2067,20 @@ fn snapshot_menu_ui_text() -> anyhow::Result<()> {
             occlusion_query_set: None,
         });
         rpass.set_pipeline(&pipeline);
-        rpass.set_bind_group(0, atlas.texture_bind_group(), &[]);
+        rpass.set_bind_group(0, &texture_bg, &[]);
         rpass.set_bind_group(1, &id_bg, &[]);
-        rpass.set_bind_group(2, atlas.default_uv_bind_group(), &[]);
+        rpass.set_bind_group(2, geometry_atlas.default_uv_bind_group(), &[]);
         rpass.set_bind_group(3, &inst_bg, &[]);
-        rpass.set_vertex_buffer(0, atlas.vertex_buffer_slice());
-        rpass.set_index_buffer(atlas.index_buffer_slice(), wgpu::IndexFormat::Uint16);
-        rpass.draw_indexed(0..atlas.num_indices(), 0, 0..(instances.len() as u32));
+        rpass.set_vertex_buffer(0, geometry_atlas.vertex_buffer_slice());
+        rpass.set_index_buffer(
+            geometry_atlas.index_buffer_slice(),
+            wgpu::IndexFormat::Uint16,
+        );
+        rpass.draw_indexed(
+            0..geometry_atlas.num_indices(),
+            0,
+            0..(instances.len() as u32),
+        );
     }
     queue.submit(Some(encoder.finish()));
 
@@ -1972,12 +2096,12 @@ fn snapshot_menu_ui_text() -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 5);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "menu_text") {
-            println!("menu_text snapshot MISMATCH");
+            log::info!("menu_text snapshot MISMATCH");
         } else {
-            println!("menu_text snapshot OK");
+            log::info!("menu_text snapshot OK");
         }
     } else {
-        println!("menu_text snapshot OK");
+        log::info!("menu_text snapshot OK");
     }
     Ok(())
 }
@@ -2047,7 +2171,7 @@ fn snapshot_menu_panel() -> anyhow::Result<()> {
             occlusion_query_set: None,
         });
         // Instance buffer/group (single instance) to satisfy pipeline bind group 3
-        let raw = plutonium_engine::utils::InstanceRaw {
+        let raw = InstanceRaw {
             model: [
                 [1.0, 0.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0, 0.0],
@@ -2083,7 +2207,7 @@ fn snapshot_menu_panel() -> anyhow::Result<()> {
         let mut tf_bgs: Vec<wgpu::BindGroup> = Vec::new();
         let mut tf_bufs: Vec<wgpu::Buffer> = Vec::new();
         for (_, pos) in &positions {
-            let tf = atlas.get_transform_uniform(
+            let tf = atlas.get_transform_matrix(
                 Size {
                     width: 256.0,
                     height: 128.0,
@@ -2126,12 +2250,12 @@ fn snapshot_menu_panel() -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 5);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "menu_panel") {
-            println!("menu_panel snapshot MISMATCH");
+            log::info!("menu_panel snapshot MISMATCH");
         } else {
-            println!("menu_panel snapshot OK");
+            log::info!("menu_panel snapshot OK");
         }
     } else {
-        println!("menu_panel snapshot OK");
+        log::info!("menu_panel snapshot OK");
     }
     Ok(())
 }
@@ -2205,7 +2329,7 @@ fn snapshot_menu_button_focused() -> anyhow::Result<()> {
         width: 320.0,
         height: 120.0,
     };
-    let btn_tf = btn.get_transform_uniform(
+    let btn_tf = btn.get_transform_matrix(
         viewport,
         Position { x: 20.0, y: 60.0 },
         Position { x: 0.0, y: 0.0 },
@@ -2213,7 +2337,7 @@ fn snapshot_menu_button_focused() -> anyhow::Result<()> {
         1.0,
     );
     let btn_raw = InstanceRaw {
-        model: btn_tf.transform,
+        model: btn_tf,
         uv_offset: [0.0, 0.0],
         uv_scale: [1.0, 1.0],
         tint: [1.0, 1.0, 1.0, 1.0],
@@ -2283,7 +2407,7 @@ fn snapshot_menu_button_focused() -> anyhow::Result<()> {
             height: 120.0,
         };
         let ring_model = rect_model_for(viewport, ring_rect);
-        let ring_inst = plutonium_engine::utils::RectInstanceRaw {
+        let ring_inst = RectInstanceRaw {
             model: ring_model,
             color: [0.0, 0.0, 0.0, 0.0],
             corner_radius_px: 10.0 + 2.0,
@@ -2329,12 +2453,12 @@ fn snapshot_menu_button_focused() -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 3);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "menu_button_focused") {
-            println!("menu_button_focused snapshot MISMATCH");
+            log::info!("menu_button_focused snapshot MISMATCH");
         } else {
-            println!("menu_button_focused snapshot OK");
+            log::info!("menu_button_focused snapshot OK");
         }
     } else {
-        println!("menu_button_focused snapshot OK");
+        log::info!("menu_button_focused snapshot OK");
     }
     Ok(())
 }
@@ -2402,7 +2526,7 @@ fn snapshot_menu_button_hovered() -> anyhow::Result<()> {
         width: 320.0,
         height: 120.0,
     };
-    let btn_tf = btn.get_transform_uniform(
+    let btn_tf = btn.get_transform_matrix(
         viewport,
         Position { x: 20.0, y: 60.0 },
         Position { x: 0.0, y: 0.0 },
@@ -2410,7 +2534,7 @@ fn snapshot_menu_button_hovered() -> anyhow::Result<()> {
         1.0,
     );
     let btn_raw = InstanceRaw {
-        model: btn_tf.transform,
+        model: btn_tf,
         uv_offset: [0.0, 0.0],
         uv_scale: [1.0, 1.0],
         tint: [1.0, 1.0, 1.0, 1.0],
@@ -2434,7 +2558,7 @@ fn snapshot_menu_button_hovered() -> anyhow::Result<()> {
     // Hover overlay rect (lighten)
     let dims = btn.dimensions();
     let hover_model = rect_model_for(viewport, dims);
-    let hover_inst = plutonium_engine::utils::RectInstanceRaw {
+    let hover_inst = RectInstanceRaw {
         model: hover_model,
         color: [1.0, 1.0, 1.0, 0.06],
         corner_radius_px: 10.0,
@@ -2513,12 +2637,12 @@ fn snapshot_menu_button_hovered() -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 3);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "menu_button_hovered") {
-            println!("menu_button_hovered snapshot MISMATCH");
+            log::info!("menu_button_hovered snapshot MISMATCH");
         } else {
-            println!("menu_button_hovered snapshot OK");
+            log::info!("menu_button_hovered snapshot OK");
         }
     } else {
-        println!("menu_button_hovered snapshot OK");
+        log::info!("menu_button_hovered snapshot OK");
     }
     Ok(())
 }
@@ -2582,7 +2706,7 @@ fn snapshot_menu_button_pressed() -> anyhow::Result<()> {
         width: 320.0,
         height: 120.0,
     };
-    let btn_tf = btn.get_transform_uniform(
+    let btn_tf = btn.get_transform_matrix(
         viewport,
         Position { x: 20.0, y: 62.0 },
         Position { x: 0.0, y: 0.0 },
@@ -2590,7 +2714,7 @@ fn snapshot_menu_button_pressed() -> anyhow::Result<()> {
         1.0,
     );
     let btn_raw = InstanceRaw {
-        model: btn_tf.transform,
+        model: btn_tf,
         uv_offset: [0.0, 0.0],
         uv_scale: [1.0, 1.0],
         tint: [1.0, 1.0, 1.0, 1.0],
@@ -2614,7 +2738,7 @@ fn snapshot_menu_button_pressed() -> anyhow::Result<()> {
     // Darken overlay
     let dims = btn.dimensions();
     let press_model = rect_model_for(viewport, dims);
-    let press_inst = plutonium_engine::utils::RectInstanceRaw {
+    let press_inst = RectInstanceRaw {
         model: press_model,
         color: [0.0, 0.0, 0.0, 0.12],
         corner_radius_px: 10.0,
@@ -2693,12 +2817,12 @@ fn snapshot_menu_button_pressed() -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 3);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "menu_button_pressed") {
-            println!("menu_button_pressed snapshot MISMATCH");
+            log::info!("menu_button_pressed snapshot MISMATCH");
         } else {
-            println!("menu_button_pressed snapshot OK");
+            log::info!("menu_button_pressed snapshot OK");
         }
     } else {
-        println!("menu_button_pressed snapshot OK");
+        log::info!("menu_button_pressed snapshot OK");
     }
     Ok(())
 }
@@ -2785,7 +2909,7 @@ fn snapshot_slider_states() -> anyhow::Result<()> {
         let track_rect =
             plutonium_engine::utils::Rectangle::new(origin.x, origin.y, track_w, track_h);
         let track_model = rect_model_for(viewport, track_rect);
-        let track_inst = plutonium_engine::utils::RectInstanceRaw {
+        let track_inst = RectInstanceRaw {
             model: track_model,
             color: [0.18, 0.20, 0.24, 1.0],
             corner_radius_px: track_h * 0.5,
@@ -2825,7 +2949,7 @@ fn snapshot_slider_states() -> anyhow::Result<()> {
             let fill_rect =
                 plutonium_engine::utils::Rectangle::new(origin.x, origin.y, filled_w, track_h);
             let fill_model = rect_model_for(viewport, fill_rect);
-            let fill_inst = plutonium_engine::utils::RectInstanceRaw {
+            let fill_inst = RectInstanceRaw {
                 model: fill_model,
                 color: [0.36, 0.56, 0.98, 1.0],
                 corner_radius_px: track_h * 0.5,
@@ -2863,7 +2987,7 @@ fn snapshot_slider_states() -> anyhow::Result<()> {
             thumb_h,
         );
         let thumb_model = rect_model_for(viewport, thumb_rect);
-        let thumb_inst = plutonium_engine::utils::RectInstanceRaw {
+        let thumb_inst = RectInstanceRaw {
             model: thumb_model,
             color: [0.92, 0.94, 0.96, 1.0],
             corner_radius_px: corner,
@@ -2899,7 +3023,7 @@ fn snapshot_slider_states() -> anyhow::Result<()> {
             thumb_rect.height + ring_inset * 2.0,
         );
         let ring_model = rect_model_for(viewport, ring_rect);
-        let ring_inst = plutonium_engine::utils::RectInstanceRaw {
+        let ring_inst = RectInstanceRaw {
             model: ring_model,
             color: [0.0, 0.0, 0.0, 0.0],
             corner_radius_px: corner + 2.0,
@@ -2938,12 +3062,12 @@ fn snapshot_slider_states() -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 5);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "slider_states") {
-            println!("slider_states snapshot MISMATCH");
+            log::info!("slider_states snapshot MISMATCH");
         } else {
-            println!("slider_states snapshot OK");
+            log::info!("slider_states snapshot OK");
         }
     } else {
-        println!("slider_states snapshot OK");
+        log::info!("slider_states snapshot OK");
     }
     Ok(())
 }
@@ -3009,7 +3133,7 @@ fn snapshot_button_states() -> anyhow::Result<()> {
                     rect.height + 8.0,
                 );
                 let model = rect_model_for(viewport, fr);
-                let inst = plutonium_engine::utils::RectInstanceRaw {
+                let inst = RectInstanceRaw {
                     model,
                     color: [0.0, 0.0, 0.0, 0.0],
                     corner_radius_px: 12.0,
@@ -3033,7 +3157,7 @@ fn snapshot_button_states() -> anyhow::Result<()> {
                     }],
                     label: Some("btns-fr-bg"),
                 });
-                let id = plutonium_engine::utils::TransformUniform {
+                let id = TransformUniform {
                     transform: [
                         [1.0, 0.0, 0.0, 0.0],
                         [0.0, 1.0, 0.0, 0.0],
@@ -3065,7 +3189,7 @@ fn snapshot_button_states() -> anyhow::Result<()> {
             }
             // Base button
             let base = rect_model_for(viewport, rect);
-            let base_inst = plutonium_engine::utils::RectInstanceRaw {
+            let base_inst = RectInstanceRaw {
                 model: base,
                 color: [0.20, 0.22, 0.28, 1.0],
                 corner_radius_px: 10.0,
@@ -3089,7 +3213,7 @@ fn snapshot_button_states() -> anyhow::Result<()> {
                 }],
                 label: Some("btns-base-bg"),
             });
-            let id = plutonium_engine::utils::TransformUniform {
+            let id = TransformUniform {
                 transform: [
                     [1.0, 0.0, 0.0, 0.0],
                     [0.0, 1.0, 0.0, 0.0],
@@ -3120,7 +3244,7 @@ fn snapshot_button_states() -> anyhow::Result<()> {
             rpass.draw_indexed(0..6, 0, 0..1);
             // Overlay
             if pressed {
-                let over_inst = plutonium_engine::utils::RectInstanceRaw {
+                let over_inst = RectInstanceRaw {
                     model: base,
                     color: [0.0, 0.0, 0.0, 0.12],
                     corner_radius_px: 10.0,
@@ -3147,7 +3271,7 @@ fn snapshot_button_states() -> anyhow::Result<()> {
                 rpass.set_bind_group(3, &obg, &[]);
                 rpass.draw_indexed(0..6, 0, 0..1);
             } else if hovered {
-                let over_inst = plutonium_engine::utils::RectInstanceRaw {
+                let over_inst = RectInstanceRaw {
                     model: base,
                     color: [1.0, 1.0, 1.0, 0.06],
                     corner_radius_px: 10.0,
@@ -3192,12 +3316,12 @@ fn snapshot_button_states() -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 4);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "button_states") {
-            println!("button_states snapshot MISMATCH");
+            log::info!("button_states snapshot MISMATCH");
         } else {
-            println!("button_states snapshot OK");
+            log::info!("button_states snapshot OK");
         }
     } else {
-        println!("button_states snapshot OK");
+        log::info!("button_states snapshot OK");
     }
     Ok(())
 }
@@ -3226,7 +3350,7 @@ fn snapshot_replay_driven() -> anyhow::Result<()> {
     let json = std::fs::read_to_string(script_path)?;
     let script: ReplayScriptLocal = serde_json::from_str(&json)?;
     assert!(!script.frames.is_empty());
-    println!("replay script frames: {}", script.frames.len());
+    log::info!("replay script frames: {}", script.frames.len());
     Ok(())
 }
 
@@ -3309,7 +3433,7 @@ fn snapshot_transitions() -> anyhow::Result<()> {
             width: 256.0,
             height: 256.0,
         };
-        let bg_tf = bg.get_transform_uniform(
+        let bg_tf = bg.get_transform_matrix(
             viewport,
             Position { x: 0.0, y: 0.0 },
             Position { x: 0.0, y: 0.0 },
@@ -3317,7 +3441,7 @@ fn snapshot_transitions() -> anyhow::Result<()> {
             1.0,
         );
         let bg_raw = InstanceRaw {
-            model: bg_tf.transform,
+            model: bg_tf,
             uv_offset: [0.0, 0.0],
             uv_scale: [1.0, 1.0],
             tint: [1.0, 1.0, 1.0, 1.0],
@@ -3368,7 +3492,7 @@ fn snapshot_transitions() -> anyhow::Result<()> {
         rpass.draw_indexed(0..bg.num_indices(), 0, 0..1);
 
         // Draw overlay faded and slid to the right-bottom slightly
-        let fg_tf = fg.get_transform_uniform(
+        let fg_tf = fg.get_transform_matrix(
             viewport,
             Position { x: 20.0, y: 20.0 },
             Position { x: 0.0, y: 0.0 },
@@ -3376,7 +3500,7 @@ fn snapshot_transitions() -> anyhow::Result<()> {
             1.0,
         );
         let fg_raw = InstanceRaw {
-            model: fg_tf.transform,
+            model: fg_tf,
             uv_offset: [0.0, 0.0],
             uv_scale: [1.0, 1.0],
             tint: [1.0, 1.0, 1.0, 1.0],
@@ -3418,12 +3542,12 @@ fn snapshot_transitions() -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 3);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "transitions") {
-            println!("transitions snapshot MISMATCH");
+            log::info!("transitions snapshot MISMATCH");
         } else {
-            println!("transitions snapshot OK");
+            log::info!("transitions snapshot OK");
         }
     } else {
-        println!("transitions snapshot OK");
+        log::info!("transitions snapshot OK");
     }
     Ok(())
 }
@@ -3499,7 +3623,7 @@ fn snapshot_transitions_frame2() -> anyhow::Result<()> {
             height: 256.0,
         };
         // draw background
-        let bg_tf = bg.get_transform_uniform(
+        let bg_tf = bg.get_transform_matrix(
             viewport,
             Position { x: 0.0, y: 0.0 },
             Position { x: 0.0, y: 0.0 },
@@ -3507,7 +3631,7 @@ fn snapshot_transitions_frame2() -> anyhow::Result<()> {
             1.0,
         );
         let bg_raw = InstanceRaw {
-            model: bg_tf.transform,
+            model: bg_tf,
             uv_offset: [0.0, 0.0],
             uv_scale: [1.0, 1.0],
             tint: [1.0, 1.0, 1.0, 1.0],
@@ -3558,7 +3682,7 @@ fn snapshot_transitions_frame2() -> anyhow::Result<()> {
         rpass.set_index_buffer(bg.index_buffer_slice(), wgpu::IndexFormat::Uint16);
         rpass.draw_indexed(0..bg.num_indices(), 0, 0..1);
         // draw overlay further slid (simulate later frame)
-        let fg_tf = fg.get_transform_uniform(
+        let fg_tf = fg.get_transform_matrix(
             viewport,
             Position { x: 60.0, y: 60.0 },
             Position { x: 0.0, y: 0.0 },
@@ -3566,7 +3690,7 @@ fn snapshot_transitions_frame2() -> anyhow::Result<()> {
             1.0,
         );
         let fg_raw = InstanceRaw {
-            model: fg_tf.transform,
+            model: fg_tf,
             uv_offset: [0.0, 0.0],
             uv_scale: [1.0, 1.0],
             tint: [1.0, 1.0, 1.0, 1.0],
@@ -3606,12 +3730,12 @@ fn snapshot_transitions_frame2() -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 3);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "transitions_frame2") {
-            println!("transitions_frame2 snapshot MISMATCH");
+            log::info!("transitions_frame2 snapshot MISMATCH");
         } else {
-            println!("transitions_frame2 snapshot OK");
+            log::info!("transitions_frame2 snapshot OK");
         }
     } else {
-        println!("transitions_frame2 snapshot OK");
+        log::info!("transitions_frame2 snapshot OK");
     }
     Ok(())
 }
@@ -3665,7 +3789,7 @@ fn snapshot_deal_grid() -> anyhow::Result<()> {
     // Build instance buffer of all cards
     let mut raws: Vec<InstanceRaw> = Vec::new();
     for (x, y) in positions {
-        let tf = card.get_transform_uniform(
+        let tf = card.get_transform_matrix(
             viewport,
             Position { x, y },
             Position { x: 0.0, y: 0.0 },
@@ -3673,7 +3797,7 @@ fn snapshot_deal_grid() -> anyhow::Result<()> {
             1.0,
         );
         raws.push(InstanceRaw {
-            model: tf.transform,
+            model: tf,
             uv_offset: [0.0, 0.0],
             uv_scale: [1.0, 1.0],
             tint: [1.0, 1.0, 1.0, 1.0],
@@ -3761,12 +3885,12 @@ fn snapshot_deal_grid() -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 3);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "deal_grid") {
-            println!("deal_grid snapshot MISMATCH");
+            log::info!("deal_grid snapshot MISMATCH");
         } else {
-            println!("deal_grid snapshot OK");
+            log::info!("deal_grid snapshot OK");
         }
     } else {
-        println!("deal_grid snapshot OK");
+        log::info!("deal_grid snapshot OK");
     }
     Ok(())
 }
@@ -3853,9 +3977,9 @@ fn snapshot_timeline_anim() -> anyhow::Result<()> {
             width: 256.0,
             height: 256.0,
         };
-        let tf = sprite.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
+        let tf = sprite.get_transform_matrix(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
         let raw = InstanceRaw {
-            model: tf.transform,
+            model: tf,
             uv_offset: [0.0, 0.0],
             uv_scale: [1.0, 1.0],
             tint: [1.0, 1.0, 1.0, 1.0],
@@ -3919,12 +4043,12 @@ fn snapshot_timeline_anim() -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 3);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "timeline_frame") {
-            println!("timeline_frame snapshot MISMATCH");
+            log::info!("timeline_frame snapshot MISMATCH");
         } else {
-            println!("timeline_frame snapshot OK");
+            log::info!("timeline_frame snapshot OK");
         }
     } else {
-        println!("timeline_frame snapshot OK");
+        log::info!("timeline_frame snapshot OK");
     }
     Ok(())
 }
@@ -4013,9 +4137,9 @@ fn snapshot_timeline_anim_multiframe(frames: usize, frame_dt: f32) -> anyhow::Re
                 occlusion_query_set: None,
             });
             let tf =
-                sprite.get_transform_uniform(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
+                sprite.get_transform_matrix(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
             let raw = InstanceRaw {
-                model: tf.transform,
+                model: tf,
                 uv_offset: [0.0, 0.0],
                 uv_scale: [1.0, 1.0],
                 tint: [1.0, 1.0, 1.0, 1.0],
@@ -4082,12 +4206,12 @@ fn snapshot_timeline_anim_multiframe(frames: usize, frame_dt: f32) -> anyhow::Re
         let label = format!("timeline_frame{}", i);
         if !ok {
             if !maybe_update_golden(out_actual_path, out_golden_path, &label) {
-                println!("{} snapshot MISMATCH", label);
+                log::info!("{} snapshot MISMATCH", label);
             } else {
-                println!("{} snapshot OK", label);
+                log::info!("{} snapshot OK", label);
             }
         } else {
-            println!("{} snapshot OK", label);
+            log::info!("{} snapshot OK", label);
         }
     }
     Ok(())
@@ -4160,7 +4284,7 @@ fn snapshot_rng_pattern(seed: u64) -> anyhow::Result<()> {
         for _ in 0..25 {
             let px = rng.range_f32(8.0, 220.0);
             let py = rng.range_f32(8.0, 220.0);
-            let tf = spr.get_transform_uniform(
+            let tf = spr.get_transform_matrix(
                 viewport,
                 Position { x: px, y: py },
                 Position { x: 0.0, y: 0.0 },
@@ -4168,7 +4292,7 @@ fn snapshot_rng_pattern(seed: u64) -> anyhow::Result<()> {
                 1.0,
             );
             let raw = InstanceRaw {
-                model: tf.transform,
+                model: tf,
                 uv_offset: [0.0, 0.0],
                 uv_scale: [1.0, 1.0],
                 tint: [1.0, 1.0, 1.0, 1.0],
@@ -4232,12 +4356,12 @@ fn snapshot_rng_pattern(seed: u64) -> anyhow::Result<()> {
     let ok = compare_with_tolerance(out_actual, out_golden, 3);
     if !ok {
         if !maybe_update_golden(out_actual, out_golden, "rng_pattern") {
-            println!("rng_pattern snapshot MISMATCH");
+            log::info!("rng_pattern snapshot MISMATCH");
         } else {
-            println!("rng_pattern snapshot OK");
+            log::info!("rng_pattern snapshot OK");
         }
     } else {
-        println!("rng_pattern snapshot OK");
+        log::info!("rng_pattern snapshot OK");
     }
     Ok(())
 }
@@ -4387,15 +4511,10 @@ fn snapshot_deal_grid_anim_multiframe(
                     let y = deck_pos.1 + (d.to.1 - deck_pos.1) * k;
                     Position { x, y }
                 };
-                let tf = card.get_transform_uniform(
-                    viewport,
-                    pos,
-                    Position { x: 0.0, y: 0.0 },
-                    0.0,
-                    1.0,
-                );
+                let tf =
+                    card.get_transform_matrix(viewport, pos, Position { x: 0.0, y: 0.0 }, 0.0, 1.0);
                 let raw = InstanceRaw {
-                    model: tf.transform,
+                    model: tf,
                     uv_offset: [0.0, 0.0],
                     uv_scale: [1.0, 1.0],
                     tint: [1.0, 1.0, 1.0, 1.0],
@@ -4438,12 +4557,12 @@ fn snapshot_deal_grid_anim_multiframe(
         let label = format!("deal_grid_anim{}", fi);
         if !ok {
             if !maybe_update_golden(out_actual_path, out_golden_path, &label) {
-                println!("{} snapshot MISMATCH", label);
+                log::info!("{} snapshot MISMATCH", label);
             } else {
-                println!("{} snapshot OK", label);
+                log::info!("{} snapshot OK", label);
             }
         } else {
-            println!("{} snapshot OK", label);
+            log::info!("{} snapshot OK", label);
         }
     }
     Ok(())
@@ -4451,22 +4570,22 @@ fn snapshot_deal_grid_anim_multiframe(
 
 fn main() -> anyhow::Result<()> {
     if !can_acquire_adapter() {
-        eprintln!("no wgpu adapter available; skipping snapshots");
+        log::warn!("no wgpu adapter available; skipping snapshots");
         return Ok(());
     }
     let (seed_opt, record_opt, replay_opt, frames_opt, dt_opt) = parse_args();
     if let Some(seed) = seed_opt {
-        println!("seed={}", seed);
+        log::info!("seed={}", seed);
     }
     if let Some(rec) = record_opt.as_ref() {
         let n = frames_opt.unwrap_or(3);
         let dt = dt_opt.unwrap_or(0.2);
         let _ = record_minimal_script(rec, n, seed_opt, dt);
-        println!("recorded {} frames to {}", n, rec);
+        log::info!("recorded {} frames to {}", n, rec);
     }
     if let Some(rep) = replay_opt.as_ref() {
         let _ = replay_scene_from(rep);
-        println!("replayed from {}", rep);
+        log::info!("replayed from {}", rep);
     }
 
     let mf_frames = frames_opt.unwrap_or(3);

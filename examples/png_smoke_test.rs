@@ -19,12 +19,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if parrot_tex.is_none() {
             #[cfg(feature = "raster")]
             {
-                let (id, dims) = engine.create_texture_raster_from_path(
+                match engine.create_texture_raster_from_path(
                     "examples/media/parrot.png",
                     Position { x: 0.0, y: 0.0 },
-                );
-                parrot_tex = Some((id, dims));
-                println!("Loaded parrot.png: {:?}", dims);
+                ) {
+                    Ok((id, dims)) => {
+                        parrot_tex = Some((id, dims));
+                        println!("Loaded parrot.png: {:?}", dims);
+                    }
+                    Err(err) => {
+                        eprintln!("failed to load parrot.png: {err}");
+                        return;
+                    }
+                }
             }
             #[cfg(not(feature = "raster"))]
             {

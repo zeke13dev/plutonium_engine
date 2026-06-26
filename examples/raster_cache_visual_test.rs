@@ -72,19 +72,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Err(err) =
                 engine.load_font_with_options(&font_path, BASE_LOAD_SIZE, FONT_KEY, options)
             {
-                panic!("failed to load raster font cache test font: {:?}", err);
+                eprintln!("failed to load raster font cache test font: {err}");
+                return;
             }
 
             // Also warm explicitly so the example prints deterministic cache stats.
-            let warm_stats = engine
-                .warm_text_cache(
-                    FONT_KEY,
-                    PrewarmConfig {
-                        sizes: SAMPLE_SIZES.to_vec(),
-                        glyph_set: GlyphSet::AsciiCore,
-                    },
-                )
-                .expect("warm_text_cache should succeed");
+            let warm_stats = match engine.warm_text_cache(
+                FONT_KEY,
+                PrewarmConfig {
+                    sizes: SAMPLE_SIZES.to_vec(),
+                    glyph_set: GlyphSet::AsciiCore,
+                },
+            ) {
+                Ok(stats) => stats,
+                Err(err) => {
+                    eprintln!("failed to warm raster font cache: {err}");
+                    return;
+                }
+            };
             println!(
                 "[RASTER CACHE] requested={} warmed={} already_loaded={} glyphs_rasterized={}",
                 warm_stats.requested_sizes,

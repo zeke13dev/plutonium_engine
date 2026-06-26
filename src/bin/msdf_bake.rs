@@ -24,35 +24,35 @@ struct BakeArgs {
 }
 
 fn print_help() {
-    eprintln!(
+    log::warn!(
         "\
-msdf_bake: offline ASCII MSDF atlas generator
-
-Usage:
-  cargo run --bin msdf_bake -- --font <path.ttf> --out-dir <dir> [options]
-
-Required:
-  --font <path>            Path to input TTF/OTF font file
-  --out-dir <dir>          Directory for output assets
-
-Options:
-  --name <base>            Output base name (default: font file stem)
-  --font-size <px>         Logical font size stored in metadata (default: 32)
-  --gen-scale <multiplier> Internal generation scale multiplier (default: 4.0)
-  --padding <px>           Glyph tile padding in generated atlas (default: 6)
-  --px-range <px>          Distance range used during bake (default: 8.0)
-  --help                   Show this help
-
-Outputs:
-  <out-dir>/<name>.msdf.png
-  <out-dir>/<name>.msdf.json
-
-Example:
-  cargo run --bin msdf_bake -- \
-    --font examples/media/roboto.ttf \
-    --out-dir examples/media \
-    --name roboto
-"
+    msdf_bake: offline ASCII MSDF atlas generator
+    
+    Usage:
+      cargo run --bin msdf_bake -- --font <path.ttf> --out-dir <dir> [options]
+    
+    Required:
+      --font <path>            Path to input TTF/OTF font file
+      --out-dir <dir>          Directory for output assets
+    
+    Options:
+      --name <base>            Output base name (default: font file stem)
+      --font-size <px>         Logical font size stored in metadata (default: 32)
+      --gen-scale <multiplier> Internal generation scale multiplier (default: 4.0)
+      --padding <px>           Glyph tile padding in generated atlas (default: 6)
+      --px-range <px>          Distance range used during bake (default: 8.0)
+      --help                   Show this help
+    
+    Outputs:
+      <out-dir>/<name>.msdf.png
+      <out-dir>/<name>.msdf.json
+    
+    Example:
+      cargo run --bin msdf_bake -- \
+        --font examples/media/roboto.ttf \
+        --out-dir examples/media \
+        --name roboto
+    "
     );
 }
 
@@ -340,18 +340,21 @@ fn run() -> Result<()> {
         &metadata,
     )?;
 
-    println!("MSDF bake complete.");
-    println!("  atlas: {}", png_path.to_string_lossy());
-    println!("  meta : {}", json_path.to_string_lossy());
-    println!("  atlas size: {}x{}", atlas_width, atlas_height);
-    println!("  glyph count: {}", metadata.glyphs.len());
-    println!(
+    log::info!("MSDF bake complete.");
+    log::info!("  atlas: {}", png_path.to_string_lossy());
+    log::info!("  meta : {}", json_path.to_string_lossy());
+    log::info!("  atlas size: {}x{}", atlas_width, atlas_height);
+    log::info!("  glyph count: {}", metadata.glyphs.len());
+    log::info!(
         "  settings: font-size={} gen-scale={} padding={} px-range={} charset=ASCII(32..=126)",
-        args.logical_font_size, args.generation_scale, args.padding, args.px_range
+        args.logical_font_size,
+        args.generation_scale,
+        args.padding,
+        args.px_range
     );
-    println!();
-    println!("Load in engine with:");
-    println!(
+    log::info!("");
+    log::info!("Load in engine with:");
+    log::info!(
         "  engine.load_msdf_font(\"{}\", \"{}\", \"{}\");",
         png_path.to_string_lossy(),
         json_path.to_string_lossy(),

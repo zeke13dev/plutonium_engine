@@ -77,9 +77,8 @@ impl GpuTimer {
     }
 
     /// Copy resolved results to the staging buffer, block for mapping, read the
-    /// two timestamps, compute dt, record into metrics, and maybe report. Also
-    /// increments frame_index. Matches the inline post-present code verbatim,
-    /// including the poll(Wait) stall and the println!.
+    /// two timestamps, compute dt, record into metrics, and maybe report through
+    /// the `log` facade. Also increments frame_index.
     pub(crate) fn readback_and_report(
         &mut self,
         device: &wgpu::Device,
@@ -114,7 +113,7 @@ impl GpuTimer {
                         let dt_s = (dt_ns / 1_000_000_000.0) as f32;
                         self.metrics.record(dt_s);
                         if let Some(line) = self.metrics.maybe_report() {
-                            println!("gpu_{}", line);
+                            log::info!("gpu_{}", line);
                         }
                     }
                 }

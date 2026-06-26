@@ -83,14 +83,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         engine.begin_frame();
 
         if atlas_id.is_none() {
-            let (atlas_key, _dims) = engine.create_texture_atlas(
+            let Ok((atlas_key, _dims)) = engine.create_texture_atlas(
                 &format!(
                     "{}/examples/media/map_atlas.svg",
                     env!("CARGO_MANIFEST_DIR")
                 ),
                 Position { x: 0.0, y: 0.0 },
                 tile,
-            );
+            ) else {
+                eprintln!("failed to create animation atlas");
+                return;
+            };
             atlas_id = Some(atlas_key);
         }
 

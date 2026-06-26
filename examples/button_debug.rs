@@ -29,27 +29,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let font_path = format!("{}/examples/media/roboto.ttf", env!("CARGO_MANIFEST_DIR"));
             match engine.load_font(&font_path, 48.0, "roboto") {
                 Ok(_) => (),
-                Err(FontError::IoError(err)) => println!("I/O error occurred: {}", err),
+                Err(FontError::IoError { message, .. }) => {
+                    println!("I/O error occurred: {}", message)
+                }
                 Err(FontError::InvalidFontData) => println!("Invalid font data"),
                 Err(FontError::AtlasRenderError) => println!("Atlas render error occurred"),
                 Err(other) => println!("Font load error: {:?}", other),
             }
 
             let svg_path = format!("{}/examples/media/button.svg", env!("CARGO_MANIFEST_DIR"));
-            let b = engine.create_button(
+            let Ok(b) = engine.create_button(
                 &svg_path,
                 "Inventory",
                 "roboto",
                 16.0,
                 Position { x: 20.0, y: 12.0 },
                 1.0,
-            );
+            ) else {
+                eprintln!("failed to create Inventory button");
+                return;
+            };
             b.set_on_click(Some(Box::new(|| {
                 println!("[button_debug] Clicked");
             })));
             button = Some(b);
 
-            let mut text = engine.create_text2d("Rect Button", "roboto", 16.0, rect_button.pos());
+            let Ok(mut text) =
+                engine.create_text2d("Rect Button", "roboto", 16.0, rect_button.pos())
+            else {
+                eprintln!("failed to create Rect Button text");
+                return;
+            };
             let container = TextContainer::new(rect_button)
                 .with_alignment(HorizontalAlignment::Center, VerticalAlignment::Middle)
                 .with_padding(0.0);
@@ -58,11 +68,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             rect_button_text = Some(text);
 
             let manual_pos = Position { x: 300.0, y: 12.0 };
-            let (svg_key, svg_dims) = engine.create_texture_svg(&svg_path, manual_pos, 1.0);
+            let Ok((svg_key, svg_dims)) = engine.create_texture_svg(&svg_path, manual_pos, 1.0)
+            else {
+                eprintln!("failed to create manual SVG texture");
+                return;
+            };
             let manual_rect =
                 Rectangle::new(manual_pos.x, manual_pos.y, svg_dims.width, svg_dims.height);
-            let mut manual_text =
-                engine.create_text2d("Manual SVG", "roboto", 16.0, manual_rect.pos());
+            let Ok(mut manual_text) =
+                engine.create_text2d("Manual SVG", "roboto", 16.0, manual_rect.pos())
+            else {
+                eprintln!("failed to create Manual SVG text");
+                return;
+            };
             let manual_container = TextContainer::new(manual_rect)
                 .with_alignment(HorizontalAlignment::Center, VerticalAlignment::Middle)
                 .with_padding(0.0);
