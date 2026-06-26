@@ -351,13 +351,16 @@ impl Rectangle {
         self.y = pos.y;
     }
 
-    /// Pad.
+    /// Returns `rec` expanded outward by `padding` logical pixels on every side.
+    ///
+    /// Positive padding grows the rectangle symmetrically; negative padding
+    /// shrinks it symmetrically around the same center.
     pub fn pad(rec: &Rectangle, padding: f32) -> Rectangle {
         Rectangle::new(
-            rec.x + padding,
-            rec.y + padding,
-            rec.width + padding,
-            rec.height + padding,
+            rec.x - padding,
+            rec.y - padding,
+            rec.width + (padding * 2.0),
+            rec.height + (padding * 2.0),
         )
     }
 
