@@ -302,6 +302,11 @@ impl PlutoniumApp {
     }
 
     /// Starts replay.
+    ///
+    /// Replay restores mouse buttons, cursor position, scroll, committed text,
+    /// and frame timing from the recording. Logical key events are intentionally
+    /// not reconstructed from their serialized debug names, so
+    /// [`FrameContext::pressed_keys`] is empty during replay frames.
     pub fn start_replay(&mut self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
         let json = std::fs::read_to_string(path)?;
         let frames: Vec<FrameInputRecordLocal> = serde_json::from_str(&json)?;
