@@ -538,15 +538,12 @@ impl TextureAtlas {
     /// Update transform uniform.
     pub fn update_transform_uniform(
         &mut self,
-        device: &wgpu::Device,
+        _device: &wgpu::Device,
         queue: &wgpu::Queue,
         viewport_size: Size,
         camera_position: Position,
     ) {
         let tile_size = self.tile_size;
-        self.adjust_vertex_texture_coordinates(tile_size, viewport_size);
-        self.update_vertex_buffer(device);
-
         let width_ndc_scale = 2.0 * (tile_size.width / viewport_size.width);
         let height_ndc_scale = 2.0 * (tile_size.height / viewport_size.height);
 

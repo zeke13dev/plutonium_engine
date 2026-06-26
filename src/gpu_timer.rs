@@ -11,10 +11,17 @@
 
 use crate::utils::FrameTimeMetrics;
 
+struct PendingGpuReadback {
+    rx: std::sync::mpsc::Receiver<bool>,
+    start: u64,
+    end: u64,
+}
+
 pub(crate) struct GpuTimer {
     pub(crate) query: Option<wgpu::QuerySet>,
     pub(crate) buf: Option<wgpu::Buffer>,
     pub(crate) staging: Option<wgpu::Buffer>,
+    pending_readback: Option<PendingGpuReadback>,
     pub(crate) period_ns: f32,
     pub(crate) count: u32,
     pub(crate) frame_index: u32,
@@ -58,6 +65,7 @@ impl GpuTimer {
             query,
             buf,
             staging,
+            pending_readback: None,
             period_ns,
             count,
             frame_index: 0,
@@ -76,17 +84,50 @@ impl GpuTimer {
         }
     }
 
-    /// Copy resolved results to the staging buffer, block for mapping, read the
-    /// two timestamps, compute dt, record into metrics, and maybe report through
-    /// the `log` facade. Also increments frame_index.
+    /// Opportunistically copy resolved timestamp results and consume completed
+    /// readbacks without blocking the CPU. Mapping callbacks are driven with
+    /// `Maintain::Poll`; if the previous mapping is still pending this frame skips
+    /// starting another readback so the staging buffer is never reused while mapped.
     pub(crate) fn readback_and_report(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         q0: u32,
     ) {
+        let _ = device.poll(wgpu::Maintain::Poll);
+
+        if let (Some(pending), Some(dst)) = (&self.pending_readback, self.staging.as_ref()) {
+            match pending.rx.try_recv() {
+                Ok(true) => {
+                    let slice = dst.slice(pending.start..pending.end);
+                    let data = slice.get_mapped_range();
+                    if data.len() >= 16 {
+                        let t0 = u64::from_le_bytes(data[0..8].try_into().unwrap());
+                        let t1 = u64::from_le_bytes(data[8..16].try_into().unwrap());
+                        if t1 > t0 {
+                            let dt_ns = (t1 - t0) as f64 * (self.period_ns as f64);
+                            let dt_s = (dt_ns / 1_000_000_000.0) as f32;
+                            self.metrics.record(dt_s);
+                            if let Some(line) = self.metrics.maybe_report() {
+                                log::info!("gpu_{}", line);
+                            }
+                        }
+                    }
+                    drop(data);
+                    dst.unmap();
+                    self.pending_readback = None;
+                }
+                Ok(false) | Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.pending_readback = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    self.frame_index = self.frame_index.wrapping_add(1);
+                    return;
+                }
+            }
+        }
+
         if let (Some(src), Some(dst)) = (&self.buf, &self.staging) {
-            // Copy resolved results into MAP_READ staging
             let mut enc = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("copy ts"),
             });
@@ -94,6 +135,7 @@ impl GpuTimer {
                 * wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT;
             enc.copy_buffer_to_buffer(src, base, dst, base, wgpu::QUERY_RESOLVE_BUFFER_ALIGNMENT);
             queue.submit(Some(enc.finish()));
+
             let start = base;
             let end = start + 16;
             let slice = dst.slice(start..end);
@@ -101,26 +143,9 @@ impl GpuTimer {
             slice.map_async(wgpu::MapMode::Read, move |res| {
                 let _ = tx.send(res.is_ok());
             });
-            // Block until mapping completes
-            device.poll(wgpu::Maintain::Wait);
-            if rx.recv().unwrap_or(false) {
-                let data = slice.get_mapped_range();
-                if data.len() >= 16 {
-                    let t0 = u64::from_le_bytes(data[0..8].try_into().unwrap());
-                    let t1 = u64::from_le_bytes(data[8..16].try_into().unwrap());
-                    if t1 > t0 {
-                        let dt_ns = (t1 - t0) as f64 * (self.period_ns as f64);
-                        let dt_s = (dt_ns / 1_000_000_000.0) as f32;
-                        self.metrics.record(dt_s);
-                        if let Some(line) = self.metrics.maybe_report() {
-                            log::info!("gpu_{}", line);
-                        }
-                    }
-                }
-                drop(data);
-                dst.unmap();
-            }
+            self.pending_readback = Some(PendingGpuReadback { rx, start, end });
         }
+
         self.frame_index = self.frame_index.wrapping_add(1);
     }
 }

@@ -145,7 +145,10 @@ use crate::traits::UpdateContext;
 use camera::Camera;
 #[cfg(not(target_arch = "wasm32"))]
 use pollster::block_on;
-use render::{RectInstanceBuffer, RectStyleKey, TransformPool};
+use render::{
+    create_identity_bind_group, evict_instance_pool, reset_instance_pool_usage,
+    InstanceBufferPoolEntry, RectStyleKey, TransformPool,
+};
 use renderer::{GlowCommand, RectCommand};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -577,17 +580,22 @@ pub struct PlutoniumEngine<'a> {
     raster_font_families: HashMap<String, RasterFontFamily>,
     pending_raster_warm: VecDeque<PendingRasterWarmRequest>,
     pending_raster_warm_dedupe: HashSet<(String, u32, u32)>,
+    runtime_raster_warm_budget: HashMap<String, usize>,
+    pending_raster_warm_deferred: VecDeque<PendingRasterWarmRequest>,
     #[cfg(all(feature = "raster", target_arch = "wasm32"))]
     pending_raster_url_loads: HashMap<Uuid, PendingRasterTextureUrlLoad>,
     transform_pool: TransformPool,
     // Static geometry for rects
     rect_vertex_buffer: wgpu::Buffer,
     rect_index_buffer: wgpu::Buffer,
-    // Per-frame cached identity UBO bind group
-    rect_identity_bg: Option<wgpu::BindGroup>,
-    // Rect instance buffer pool
-    rect_instance_pool: Vec<RectInstanceBuffer>,
-    rect_pool_cursor: usize,
+    // Cached identity UBO bind group used by batched render paths.
+    identity_transform_bg: wgpu::BindGroup,
+    // Per-flush storage-buffer pools. Entries are reused across frames and never
+    // overwritten twice in the same frame while queued GPU work may still read them.
+    sprite_instance_pool: Vec<InstanceBufferPoolEntry>,
+    atlas_instance_pool: Vec<InstanceBufferPoolEntry>,
+    rect_instance_pool: Vec<InstanceBufferPoolEntry>,
+    glow_instance_pool: Vec<InstanceBufferPoolEntry>,
     frame_counter: u64,
     // GPU timing instrumentation (optional, owned by GpuTimer)
     gpu_timer: gpu_timer::GpuTimer,
@@ -940,12 +948,11 @@ impl<'a> PlutoniumEngine<'a> {
         self.process_runtime_raster_warm_queue();
         self.clear_render_queue();
         self.transform_pool.reset();
-        self.rect_identity_bg = None;
-        self.rect_pool_cursor = 0;
         self.frame_counter = self.frame_counter.wrapping_add(1);
-        for entry in &mut self.rect_instance_pool {
-            entry.used_this_frame = false;
-        }
+        reset_instance_pool_usage(&mut self.sprite_instance_pool);
+        reset_instance_pool_usage(&mut self.atlas_instance_pool);
+        reset_instance_pool_usage(&mut self.rect_instance_pool);
+        reset_instance_pool_usage(&mut self.glow_instance_pool);
         self.current_scissor = None;
         self.clip_stack.clear();
         self.rect_style_keys.clear();
@@ -961,19 +968,33 @@ impl<'a> PlutoniumEngine<'a> {
     /// `wgpu` directly.
     pub fn end_frame(&mut self) -> Result<(), wgpu::SurfaceError> {
         self.render_popup_overlay();
-        // Periodically evict least recently used rect instance buffers to cap memory
+        // Periodically evict least recently used instance buffers to cap memory.
         const MAX_POOL: usize = 32;
         const EVICT_AGE: u64 = 600; // frames
-        if self.rect_instance_pool.len() > MAX_POOL {
-            // Retain entries that are either recently used or needed
-            self.rect_instance_pool
-                .retain(|e| self.frame_counter.saturating_sub(e.last_used_frame) < EVICT_AGE);
-            if self.rect_instance_pool.len() > MAX_POOL {
-                // Sort by last_used_frame ascending and truncate
-                self.rect_instance_pool.sort_by_key(|e| e.last_used_frame);
-                self.rect_instance_pool.truncate(MAX_POOL);
-            }
-        }
+        evict_instance_pool(
+            &mut self.sprite_instance_pool,
+            self.frame_counter,
+            MAX_POOL,
+            EVICT_AGE,
+        );
+        evict_instance_pool(
+            &mut self.atlas_instance_pool,
+            self.frame_counter,
+            MAX_POOL,
+            EVICT_AGE,
+        );
+        evict_instance_pool(
+            &mut self.rect_instance_pool,
+            self.frame_counter,
+            MAX_POOL,
+            EVICT_AGE,
+        );
+        evict_instance_pool(
+            &mut self.glow_instance_pool,
+            self.frame_counter,
+            MAX_POOL,
+            EVICT_AGE,
+        );
         self.render()
     }
 
@@ -1538,6 +1559,11 @@ impl<'a> PlutoniumEngine<'a> {
         #[cfg(all(feature = "raster", target_arch = "wasm32"))]
         let pending_raster_url_loads = HashMap::new();
         let transform_pool = TransformPool::new();
+        let identity_transform_bg = create_identity_bind_group(
+            &device,
+            &transform_bind_group_layout,
+            "identity-transform-bg",
+        );
 
         // Optional GPU timestamp query setup (construction delegated to GpuTimer)
         let gpu_timer = gpu_timer::GpuTimer::new(&device, &queue);
@@ -1569,6 +1595,8 @@ impl<'a> PlutoniumEngine<'a> {
             raster_font_families,
             pending_raster_warm: VecDeque::new(),
             pending_raster_warm_dedupe: HashSet::new(),
+            runtime_raster_warm_budget: HashMap::new(),
+            pending_raster_warm_deferred: VecDeque::new(),
             #[cfg(all(feature = "raster", target_arch = "wasm32"))]
             pending_raster_url_loads,
             transform_pool,
@@ -1579,9 +1607,11 @@ impl<'a> PlutoniumEngine<'a> {
             rect_dummy_bg,
             rect_vertex_buffer,
             rect_index_buffer,
-            rect_identity_bg: None,
+            identity_transform_bg,
+            sprite_instance_pool: Vec::new(),
+            atlas_instance_pool: Vec::new(),
             rect_instance_pool: Vec::new(),
-            rect_pool_cursor: 0,
+            glow_instance_pool: Vec::new(),
             frame_counter: 0,
             instance_bind_group_layout,
             gpu_timer,

@@ -21,7 +21,7 @@ use std::cell::RefCell;
 #[cfg(all(feature = "raster", target_arch = "wasm32"))]
 use std::rc::Rc;
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     sync::Arc,
 };
 use uuid::Uuid;
@@ -639,8 +639,10 @@ impl<'a> PlutoniumEngine<'a> {
             return;
         }
 
-        let mut remaining_budget: HashMap<String, usize> = HashMap::new();
-        let mut deferred = VecDeque::new();
+        let mut remaining_budget = std::mem::take(&mut self.runtime_raster_warm_budget);
+        remaining_budget.clear();
+        let mut deferred = std::mem::take(&mut self.pending_raster_warm_deferred);
+        deferred.clear();
 
         while let Some(req) = self.pending_raster_warm.pop_front() {
             let dedupe_key = (req.family_key.clone(), req.size_q, req.dpi_q);
@@ -703,7 +705,9 @@ impl<'a> PlutoniumEngine<'a> {
             }
         }
 
-        self.pending_raster_warm = deferred;
+        self.runtime_raster_warm_budget = remaining_budget;
+        std::mem::swap(&mut self.pending_raster_warm, &mut deferred);
+        self.pending_raster_warm_deferred = deferred;
     }
 
     #[cfg(not(target_arch = "wasm32"))]

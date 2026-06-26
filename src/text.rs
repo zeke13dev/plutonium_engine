@@ -986,8 +986,8 @@ impl TextRenderer {
                         .unwrap_or(font_atlas.font_size * 0.3))
                         * scale_ratio;
 
-                    let chars: Vec<char> = text.chars().collect();
-                    for (i, c) in chars.iter().copied().enumerate() {
+                    let mut chars = text.chars().peekable();
+                    while let Some(c) = chars.next() {
                         if c == '\n' {
                             max_width = max_width.max(current_width);
                             current_width = 0.0;
@@ -1013,7 +1013,7 @@ impl TextRenderer {
                                     f.pair_kerning(scale, p, f.glyph(use_char).id()) * scale_ratio;
                             }
                             current_width += info.advance_width * scale_ratio;
-                            if i + 1 < chars.len() && chars[i + 1] != '\n' {
+                            if chars.peek().is_some_and(|next| *next != '\n') {
                                 current_width += letter_spacing.max(0.0);
                             }
                             prev = font_opt.map(|f| f.glyph(use_char).id());
@@ -1052,8 +1052,8 @@ impl TextRenderer {
                             .unwrap_or(target_font_size * 0.3)
                     };
 
-                    let chars: Vec<char> = text.chars().collect();
-                    for (i, c) in chars.iter().copied().enumerate() {
+                    let mut chars = text.chars().peekable();
+                    while let Some(c) = chars.next() {
                         if c == '\n' {
                             max_width = max_width.max(current_width);
                             current_width = 0.0;
@@ -1086,7 +1086,7 @@ impl TextRenderer {
                                 current_width +=
                                     Self::msdf_kerning(msdf, prev, use_char) * target_font_size;
                                 current_width += tiny_info.advance_width * tiny_scale_ratio;
-                                if i + 1 < chars.len() && chars[i + 1] != '\n' {
+                                if chars.peek().is_some_and(|next| *next != '\n') {
                                     current_width += letter_spacing.max(0.0);
                                 }
                                 prev = Some(use_char);
@@ -1096,7 +1096,7 @@ impl TextRenderer {
                                 current_width +=
                                     Self::msdf_kerning(msdf, prev, use_char) * target_font_size;
                                 current_width += glyph.advance_width * target_font_size;
-                                if i + 1 < chars.len() && chars[i + 1] != '\n' {
+                                if chars.peek().is_some_and(|next| *next != '\n') {
                                     current_width += letter_spacing.max(0.0);
                                 }
                                 prev = Some(use_char);
@@ -1580,10 +1580,10 @@ impl TextRenderer {
                 let line_widths: Vec<f32> = lines
                     .iter()
                     .map(|line| {
-                        let chars: Vec<char> = line.chars().collect();
+                        let char_count = line.chars().count();
                         let mut width: f32 = 0.0;
                         let mut prev: Option<GlyphId> = None;
-                        for (i, c) in chars.iter().copied().enumerate() {
+                        for (i, c) in line.chars().enumerate() {
                             if c == ' ' {
                                 width += space_width + word_spacing;
                                 prev = font_opt.map(|f| f.glyph(' ').id());
@@ -1601,7 +1601,7 @@ impl TextRenderer {
                                     .get_char_info(use_char)
                                     .map(|info| info.advance_width * scale_ratio)
                                     .unwrap_or(0.0);
-                                if i + 1 < chars.len() {
+                                if i + 1 < char_count {
                                     width += letter_spacing.max(0.0);
                                 }
                                 prev = font_opt.map(|f| f.glyph(use_char).id());
@@ -1630,7 +1630,7 @@ impl TextRenderer {
                 for (line_idx, (line, &line_width)) in
                     lines.iter().zip(line_widths.iter()).enumerate()
                 {
-                    let chars: Vec<char> = line.chars().collect();
+                    let char_count = line.chars().count();
                     let start_x = match container.h_align {
                         HorizontalAlignment::Left => container_pos.x,
                         HorizontalAlignment::Center => {
@@ -1648,7 +1648,7 @@ impl TextRenderer {
                     let mut pen_x = start_x;
                     let mut prev: Option<GlyphId> = None;
 
-                    for (i, c) in chars.iter().copied().enumerate() {
+                    for (i, c) in line.chars().enumerate() {
                         if c == ' ' {
                             pen_x += space_width + word_spacing;
                             prev = font_opt.map(|f| f.glyph(' ').id());
@@ -1692,7 +1692,7 @@ impl TextRenderer {
                             });
 
                             pen_x += char_info.advance_width * scale_ratio;
-                            if i + 1 < chars.len() {
+                            if i + 1 < char_count {
                                 pen_x += letter_spacing.max(0.0);
                             }
                             prev = font_opt.map(|f| f.glyph(use_char).id());
@@ -1720,10 +1720,10 @@ impl TextRenderer {
                     let line_widths: Vec<f32> = lines
                         .iter()
                         .map(|line| {
-                            let chars: Vec<char> = line.chars().collect();
+                            let char_count = line.chars().count();
                             let mut width = 0.0;
                             let mut prev: Option<char> = None;
-                            for (i, c) in chars.iter().copied().enumerate() {
+                            for (i, c) in line.chars().enumerate() {
                                 if c == ' ' {
                                     width += space_width + word_spacing;
                                     prev = Some(' ');
@@ -1738,7 +1738,7 @@ impl TextRenderer {
                                     width +=
                                         Self::msdf_kerning(msdf, prev, use_char) * target_font_size;
                                     width += char_info.advance_width * scale_ratio;
-                                    if i + 1 < chars.len() {
+                                    if i + 1 < char_count {
                                         width += letter_spacing.max(0.0);
                                     }
                                     prev = Some(use_char);
@@ -1768,7 +1768,7 @@ impl TextRenderer {
                     for (line_idx, (line, &line_width)) in
                         lines.iter().zip(line_widths.iter()).enumerate()
                     {
-                        let chars: Vec<char> = line.chars().collect();
+                        let char_count = line.chars().count();
                         let start_x = match container.h_align {
                             HorizontalAlignment::Left => container_pos.x,
                             HorizontalAlignment::Center => {
@@ -1782,7 +1782,7 @@ impl TextRenderer {
                         let mut pen_x = start_x;
                         let mut prev: Option<char> = None;
 
-                        for (i, c) in chars.iter().copied().enumerate() {
+                        for (i, c) in line.chars().enumerate() {
                             if c == ' ' {
                                 pen_x += space_width + word_spacing;
                                 prev = Some(' ');
@@ -1823,7 +1823,7 @@ impl TextRenderer {
                             });
 
                             pen_x += char_info.advance_width * scale_ratio;
-                            if i + 1 < chars.len() {
+                            if i + 1 < char_count {
                                 pen_x += letter_spacing.max(0.0);
                             }
                             prev = Some(use_char);
@@ -1841,10 +1841,10 @@ impl TextRenderer {
                     let line_widths: Vec<f32> = lines
                         .iter()
                         .map(|line| {
-                            let chars: Vec<char> = line.chars().collect();
+                            let char_count = line.chars().count();
                             let mut width = 0.0;
                             let mut prev: Option<char> = None;
-                            for (i, c) in chars.iter().copied().enumerate() {
+                            for (i, c) in line.chars().enumerate() {
                                 if c == ' ' {
                                     width += space_width + word_spacing;
                                     prev = Some(' ');
@@ -1855,7 +1855,7 @@ impl TextRenderer {
                                         width += Self::msdf_kerning(msdf, prev, use_char)
                                             * target_font_size;
                                         width += glyph.advance_width * target_font_size;
-                                        if i + 1 < chars.len() {
+                                        if i + 1 < char_count {
                                             width += letter_spacing.max(0.0);
                                         }
                                         prev = Some(use_char);
@@ -1886,7 +1886,7 @@ impl TextRenderer {
                     for (line_idx, (line, &line_width)) in
                         lines.iter().zip(line_widths.iter()).enumerate()
                     {
-                        let chars: Vec<char> = line.chars().collect();
+                        let char_count = line.chars().count();
                         let start_x = match container.h_align {
                             HorizontalAlignment::Left => container_pos.x,
                             HorizontalAlignment::Center => {
@@ -1900,7 +1900,7 @@ impl TextRenderer {
                         let mut pen_x = start_x;
                         let mut prev: Option<char> = None;
 
-                        for (i, c) in chars.iter().copied().enumerate() {
+                        for (i, c) in line.chars().enumerate() {
                             if c == ' ' {
                                 pen_x += space_width + word_spacing;
                                 prev = Some(' ');
@@ -1955,7 +1955,7 @@ impl TextRenderer {
                             });
 
                             pen_x += glyph.advance_width * target_font_size;
-                            if i + 1 < chars.len() {
+                            if i + 1 < char_count {
                                 pen_x += letter_spacing.max(0.0);
                             }
                             prev = Some(use_char);

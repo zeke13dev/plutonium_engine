@@ -10,12 +10,107 @@ pub(crate) struct TransformPool {
     pub(crate) cpu_mats: Vec<[[f32; 4]; 4]>,
 }
 
-pub(crate) struct RectInstanceBuffer {
+pub(crate) struct InstanceBufferPoolEntry {
     pub(crate) buffer: wgpu::Buffer,
     pub(crate) capacity: u64,
     pub(crate) bind_group: wgpu::BindGroup,
     pub(crate) used_this_frame: bool,
     pub(crate) last_used_frame: u64,
+}
+
+pub(crate) fn create_identity_bind_group(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    label: &'static str,
+) -> wgpu::BindGroup {
+    let identity = TransformUniform {
+        transform: [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ],
+    };
+    let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("identity-transform-ubo"),
+        contents: bytemuck::bytes_of(&identity),
+        usage: wgpu::BufferUsages::UNIFORM,
+    });
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
+        layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: buffer.as_entire_binding(),
+        }],
+        label: Some(label),
+    })
+}
+
+pub(crate) fn upload_instance_batch<T: bytemuck::Pod>(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    layout: &wgpu::BindGroupLayout,
+    pool: &mut Vec<InstanceBufferPoolEntry>,
+    frame_counter: u64,
+    instances: &[T],
+    buffer_label: &'static str,
+    bind_group_label: &'static str,
+) -> usize {
+    let bytes_needed = std::mem::size_of_val(instances) as u64;
+    let idx = pool
+        .iter()
+        .position(|entry| !entry.used_this_frame && entry.capacity >= bytes_needed)
+        .unwrap_or_else(|| {
+            let capacity = bytes_needed.next_power_of_two().max(256);
+            let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(buffer_label),
+                size: capacity,
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some(bind_group_label),
+                layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: buffer.as_entire_binding(),
+                }],
+            });
+            pool.push(InstanceBufferPoolEntry {
+                buffer,
+                capacity,
+                bind_group,
+                used_this_frame: false,
+                last_used_frame: frame_counter,
+            });
+            pool.len() - 1
+        });
+    let entry = &mut pool[idx];
+    queue.write_buffer(&entry.buffer, 0, bytemuck::cast_slice(instances));
+    entry.used_this_frame = true;
+    entry.last_used_frame = frame_counter;
+    idx
+}
+
+pub(crate) fn reset_instance_pool_usage(pool: &mut [InstanceBufferPoolEntry]) {
+    for entry in pool {
+        entry.used_this_frame = false;
+    }
+}
+
+pub(crate) fn evict_instance_pool(
+    pool: &mut Vec<InstanceBufferPoolEntry>,
+    frame_counter: u64,
+    max_pool: usize,
+    evict_age: u64,
+) {
+    if pool.len() > max_pool {
+        pool.retain(|entry| frame_counter.saturating_sub(entry.last_used_frame) < evict_age);
+        if pool.len() > max_pool {
+            pool.sort_by_key(|entry| entry.last_used_frame);
+            pool.truncate(max_pool);
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -102,8 +197,11 @@ impl<'a> super::PlutoniumEngine<'a> {
         // We'll write timestamps via render pass timestamp_writes when supported.
 
         {
-            // sort by z, stable to preserve submission order within same layer
-            self.render_queue.sort_by(|a, b| a.z.cmp(&b.z));
+            // Fast path for the common already-layered queue: avoid invoking
+            // stable sort (and its scratch allocation) unless z-order changed.
+            if !self.render_queue.windows(2).all(|w| w[0].z <= w[1].z) {
+                self.render_queue.sort_by(|a, b| a.z.cmp(&b.z));
+            }
 
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
@@ -148,190 +246,81 @@ impl<'a> super::PlutoniumEngine<'a> {
             let mut active_item_clip: Option<Rectangle> = None;
             let mut scissor_initialized = false;
 
-            // Helper to flush a pending sprite batch
-            let flush_batch = |rpass: &mut wgpu::RenderPass<'_>,
-                               tex_id: Option<Uuid>,
-                               indices: &mut Vec<usize>| {
-                if indices.is_empty() {
-                    return;
-                }
-                if let Some(tid) = tex_id {
-                    if let Some(texture) = self.texture_map.get(&tid) {
-                        // Build per-instance data: model + uv (full sprite)
-                        let instances: Vec<crate::utils::InstanceRaw> = indices
-                            .iter()
-                            .map(|i| crate::utils::InstanceRaw {
-                                model: self.transform_pool.cpu_mats[*i],
-                                uv_offset: [0.0, 0.0],
-                                uv_scale: [1.0, 1.0],
-                                tint: [1.0, 1.0, 1.0, 1.0],
-                                msdf_px_range: 0.0,
-                                _msdf_pad: [0.0, 0.0, 0.0],
-                            })
-                            .collect();
-                        let instance_buffer =
-                            self.device
-                                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                                    label: Some("instance data (sprite)"),
-                                    contents: bytemuck::cast_slice(&instances),
-                                    usage: wgpu::BufferUsages::STORAGE,
-                                });
-                        let instance_bg =
-                            self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                                layout: &self.instance_bind_group_layout,
-                                entries: &[wgpu::BindGroupEntry {
-                                    binding: 0,
-                                    resource: instance_buffer.as_entire_binding(),
-                                }],
-                                label: Some("instance_bind_group"),
-                            });
-
-                        // Bind texture, identity world, uv and instance buffer
-                        rpass.set_bind_group(0, texture.bind_group(), &[]);
-                        rpass.set_bind_group(3, &instance_bg, &[]);
-
-                        let identity = TransformUniform {
-                            transform: [
-                                [1.0, 0.0, 0.0, 0.0],
-                                [0.0, 1.0, 0.0, 0.0],
-                                [0.0, 0.0, 1.0, 0.0],
-                                [0.0, 0.0, 0.0, 1.0],
-                            ],
-                        };
-                        let id_buf =
-                            self.device
-                                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                                    label: Some("id-ubo"),
-                                    contents: bytemuck::bytes_of(&identity),
-                                    usage: wgpu::BufferUsages::UNIFORM,
-                                });
-                        let id_bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                            layout: &self.transform_bind_group_layout,
-                            entries: &[wgpu::BindGroupEntry {
-                                binding: 0,
-                                resource: id_buf.as_entire_binding(),
-                            }],
-                            label: Some("id-bg"),
-                        });
-                        rpass.set_bind_group(1, &id_bg, &[]);
-                        rpass.set_bind_group(2, texture.uv_bind_group(), &[]);
-                        rpass.set_vertex_buffer(0, texture.vertex_buffer_slice());
-                        rpass.set_index_buffer(
-                            texture.index_buffer_slice(),
-                            wgpu::IndexFormat::Uint16,
-                        );
-                        rpass.draw_indexed(0..texture.num_indices(), 0, 0..(indices.len() as u32));
+            macro_rules! flush_sprite_batch {
+                ($rpass:expr, $tex_id:expr, $indices:expr) => {
+                    if !$indices.is_empty() {
+                        if let Some(tid) = $tex_id {
+                            if self.texture_map.contains_key(&tid) {
+                                let instances: Vec<crate::utils::InstanceRaw> = $indices
+                                    .iter()
+                                    .map(|i| crate::utils::InstanceRaw {
+                                        model: self.transform_pool.cpu_mats[*i],
+                                        uv_offset: [0.0, 0.0],
+                                        uv_scale: [1.0, 1.0],
+                                        tint: [1.0, 1.0, 1.0, 1.0],
+                                        msdf_px_range: 0.0,
+                                        _msdf_pad: [0.0, 0.0, 0.0],
+                                    })
+                                    .collect();
+                                let pool_idx = upload_instance_batch(
+                                    &self.device,
+                                    &self.queue,
+                                    &self.instance_bind_group_layout,
+                                    &mut self.sprite_instance_pool,
+                                    self.frame_counter,
+                                    &instances,
+                                    "sprite-instance-buffer",
+                                    "sprite-instance-bg",
+                                );
+                                let texture = &self.texture_map[&tid];
+                                $rpass.set_bind_group(0, texture.bind_group(), &[]);
+                                $rpass.set_bind_group(1, &self.identity_transform_bg, &[]);
+                                $rpass.set_bind_group(2, texture.uv_bind_group(), &[]);
+                                $rpass.set_bind_group(
+                                    3,
+                                    &self.sprite_instance_pool[pool_idx].bind_group,
+                                    &[],
+                                );
+                                $rpass.set_vertex_buffer(0, texture.vertex_buffer_slice());
+                                $rpass.set_index_buffer(
+                                    texture.index_buffer_slice(),
+                                    wgpu::IndexFormat::Uint16,
+                                );
+                                $rpass.draw_indexed(
+                                    0..texture.num_indices(),
+                                    0,
+                                    0..($indices.len() as u32),
+                                );
+                            }
+                        }
+                        $indices.clear();
                     }
-                }
-                indices.clear();
-            };
+                };
+            }
 
-            // Macro to flush a pending rect batch (replaces closure to avoid borrow conflicts)
             macro_rules! flush_rect_batch {
                 ($rpass:expr, $instances:expr) => {
                     if !$instances.is_empty() {
-                        let bytes_needed = ($instances.len()
-                            * std::mem::size_of::<crate::utils::RectInstanceRaw>())
-                            as u64;
-                        let mut chosen: Option<usize> = None;
-                        for (i, entry) in self.rect_instance_pool.iter().enumerate() {
-                            if !entry.used_this_frame && entry.capacity >= bytes_needed {
-                                chosen = Some(i);
-                                break;
-                            }
-                        }
-                        let idx = if let Some(i) = chosen {
-                            i
-                        } else {
-                            let cap = bytes_needed.next_power_of_two().max(256);
-                            let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-                                label: Some("rect-instance-buffer"),
-                                size: cap,
-                                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                                mapped_at_creation: false,
-                            });
-                            let bind_group =
-                                self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                                    label: Some("rect-instance-bg"),
-                                    layout: &self.instance_bind_group_layout,
-                                    entries: &[wgpu::BindGroupEntry {
-                                        binding: 0,
-                                        resource: buffer.as_entire_binding(),
-                                    }],
-                                });
-                            self.rect_instance_pool.push(RectInstanceBuffer {
-                                buffer,
-                                capacity: cap,
-                                bind_group,
-                                used_this_frame: false,
-                                last_used_frame: self.frame_counter,
-                            });
-                            self.rect_instance_pool.len() - 1
-                        };
-                        {
-                            let entry = &mut self.rect_instance_pool[idx];
-                            if entry.capacity < bytes_needed {
-                                let cap = bytes_needed.next_power_of_two();
-                                let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-                                    label: Some("rect-instance-buffer"),
-                                    size: cap,
-                                    usage: wgpu::BufferUsages::STORAGE
-                                        | wgpu::BufferUsages::COPY_DST,
-                                    mapped_at_creation: false,
-                                });
-                                entry.buffer = buffer;
-                                entry.capacity = cap;
-                                entry.bind_group =
-                                    self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                                        label: Some("rect-instance-bg"),
-                                        layout: &self.instance_bind_group_layout,
-                                        entries: &[wgpu::BindGroupEntry {
-                                            binding: 0,
-                                            resource: entry.buffer.as_entire_binding(),
-                                        }],
-                                    });
-                            }
-                            self.queue.write_buffer(
-                                &entry.buffer,
-                                0,
-                                bytemuck::cast_slice(&$instances),
-                            );
-                            entry.used_this_frame = true;
-                            entry.last_used_frame = self.frame_counter;
-                        }
-
-                        if self.rect_identity_bg.is_none() {
-                            let identity = TransformUniform {
-                                transform: [
-                                    [1.0, 0.0, 0.0, 0.0],
-                                    [0.0, 1.0, 0.0, 0.0],
-                                    [0.0, 0.0, 1.0, 0.0],
-                                    [0.0, 0.0, 0.0, 1.0],
-                                ],
-                            };
-                            let id_buf =
-                                self.device
-                                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                                        label: Some("rect-id-ubo"),
-                                        contents: bytemuck::bytes_of(&identity),
-                                        usage: wgpu::BufferUsages::UNIFORM,
-                                    });
-                            let id_bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                                layout: &self.transform_bind_group_layout,
-                                entries: &[wgpu::BindGroupEntry {
-                                    binding: 0,
-                                    resource: id_buf.as_entire_binding(),
-                                }],
-                                label: Some("rect-id-bg"),
-                            });
-                            self.rect_identity_bg = Some(id_bg);
-                        }
+                        let pool_idx = upload_instance_batch(
+                            &self.device,
+                            &self.queue,
+                            &self.instance_bind_group_layout,
+                            &mut self.rect_instance_pool,
+                            self.frame_counter,
+                            &$instances,
+                            "rect-instance-buffer",
+                            "rect-instance-bg",
+                        );
 
                         $rpass.set_pipeline(&self.rect_pipeline);
                         $rpass.set_bind_group(0, &self.rect_dummy_bg, &[]);
-                        $rpass.set_bind_group(1, self.rect_identity_bg.as_ref().unwrap(), &[]);
+                        $rpass.set_bind_group(1, &self.identity_transform_bg, &[]);
                         $rpass.set_bind_group(2, &self.rect_dummy_bg, &[]);
-                        $rpass.set_bind_group(3, &self.rect_instance_pool[idx].bind_group, &[]);
+                        $rpass.set_bind_group(
+                            3,
+                            &self.rect_instance_pool[pool_idx].bind_group,
+                            &[],
+                        );
                         $rpass.set_vertex_buffer(0, self.rect_vertex_buffer.slice(..));
                         $rpass.set_index_buffer(
                             self.rect_index_buffer.slice(..),
@@ -344,56 +333,29 @@ impl<'a> super::PlutoniumEngine<'a> {
                 };
             }
 
-            // Macro to flush pending glow instances inline
             macro_rules! flush_glow_batch {
                 ($rpass:expr, $glow_insts:expr) => {
                     if !$glow_insts.is_empty() {
-                        let glow_buf =
-                            self.device
-                                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                                    label: Some("glow-instance-buffer"),
-                                    contents: bytemuck::cast_slice(&$glow_insts),
-                                    usage: wgpu::BufferUsages::STORAGE,
-                                });
-                        let glow_bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                            label: Some("glow-instance-bg"),
-                            layout: &self.glow_instance_bgl,
-                            entries: &[wgpu::BindGroupEntry {
-                                binding: 0,
-                                resource: glow_buf.as_entire_binding(),
-                            }],
-                        });
-                        if self.rect_identity_bg.is_none() {
-                            let identity = TransformUniform {
-                                transform: [
-                                    [1.0, 0.0, 0.0, 0.0],
-                                    [0.0, 1.0, 0.0, 0.0],
-                                    [0.0, 0.0, 1.0, 0.0],
-                                    [0.0, 0.0, 0.0, 1.0],
-                                ],
-                            };
-                            let id_buf =
-                                self.device
-                                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                                        label: Some("glow-id-ubo"),
-                                        contents: bytemuck::bytes_of(&identity),
-                                        usage: wgpu::BufferUsages::UNIFORM,
-                                    });
-                            let id_bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                                layout: &self.transform_bind_group_layout,
-                                entries: &[wgpu::BindGroupEntry {
-                                    binding: 0,
-                                    resource: id_buf.as_entire_binding(),
-                                }],
-                                label: Some("glow-id-bg"),
-                            });
-                            self.rect_identity_bg = Some(id_bg);
-                        }
+                        let pool_idx = upload_instance_batch(
+                            &self.device,
+                            &self.queue,
+                            &self.glow_instance_bgl,
+                            &mut self.glow_instance_pool,
+                            self.frame_counter,
+                            &$glow_insts,
+                            "glow-instance-buffer",
+                            "glow-instance-bg",
+                        );
+
                         $rpass.set_pipeline(&self.glow_pipeline);
                         $rpass.set_bind_group(0, &self.rect_dummy_bg, &[]);
-                        $rpass.set_bind_group(1, self.rect_identity_bg.as_ref().unwrap(), &[]);
+                        $rpass.set_bind_group(1, &self.identity_transform_bg, &[]);
                         $rpass.set_bind_group(2, &self.rect_dummy_bg, &[]);
-                        $rpass.set_bind_group(3, &glow_bg, &[]);
+                        $rpass.set_bind_group(
+                            3,
+                            &self.glow_instance_pool[pool_idx].bind_group,
+                            &[],
+                        );
                         $rpass.set_vertex_buffer(0, self.rect_vertex_buffer.slice(..));
                         $rpass.set_index_buffer(
                             self.rect_index_buffer.slice(..),
@@ -409,56 +371,31 @@ impl<'a> super::PlutoniumEngine<'a> {
                 ($rpass:expr, $instances:expr, $atlas_id:expr, $is_msdf:expr) => {
                     if !$instances.is_empty() {
                         if let Some(aid) = $atlas_id {
-                            if let Some(atlas) = self.atlas_map.get(&aid) {
-                                let instance_buffer = self.device.create_buffer_init(
-                                    &wgpu::util::BufferInitDescriptor {
-                                        label: Some("instance data (atlas)"),
-                                        contents: bytemuck::cast_slice(&$instances),
-                                        usage: wgpu::BufferUsages::STORAGE,
-                                    },
+                            if self.atlas_map.contains_key(&aid) {
+                                let pool_idx = upload_instance_batch(
+                                    &self.device,
+                                    &self.queue,
+                                    &self.instance_bind_group_layout,
+                                    &mut self.atlas_instance_pool,
+                                    self.frame_counter,
+                                    &$instances,
+                                    "atlas-instance-buffer",
+                                    "atlas-instance-bg",
                                 );
-                                let instance_bg =
-                                    self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                                        layout: &self.instance_bind_group_layout,
-                                        entries: &[wgpu::BindGroupEntry {
-                                            binding: 0,
-                                            resource: instance_buffer.as_entire_binding(),
-                                        }],
-                                        label: Some("atlas-instance-bg"),
-                                    });
-                                let identity = TransformUniform {
-                                    transform: [
-                                        [1.0, 0.0, 0.0, 0.0],
-                                        [0.0, 1.0, 0.0, 0.0],
-                                        [0.0, 0.0, 1.0, 0.0],
-                                        [0.0, 0.0, 0.0, 1.0],
-                                    ],
-                                };
-                                let id_buf = self.device.create_buffer_init(
-                                    &wgpu::util::BufferInitDescriptor {
-                                        label: Some("id-ubo"),
-                                        contents: bytemuck::bytes_of(&identity),
-                                        usage: wgpu::BufferUsages::UNIFORM,
-                                    },
-                                );
-                                let id_bg =
-                                    self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                                        layout: &self.transform_bind_group_layout,
-                                        entries: &[wgpu::BindGroupEntry {
-                                            binding: 0,
-                                            resource: id_buf.as_entire_binding(),
-                                        }],
-                                        label: Some("id-bg"),
-                                    });
+                                let atlas = &self.atlas_map[&aid];
                                 if $is_msdf {
                                     $rpass.set_pipeline(&self.msdf_render_pipeline);
                                 } else {
                                     $rpass.set_pipeline(&self.render_pipeline);
                                 }
                                 $rpass.set_bind_group(0, &atlas.bind_group, &[]);
-                                $rpass.set_bind_group(1, &id_bg, &[]);
+                                $rpass.set_bind_group(1, &self.identity_transform_bg, &[]);
                                 $rpass.set_bind_group(2, atlas.default_uv_bind_group(), &[]);
-                                $rpass.set_bind_group(3, &instance_bg, &[]);
+                                $rpass.set_bind_group(
+                                    3,
+                                    &self.atlas_instance_pool[pool_idx].bind_group,
+                                    &[],
+                                );
                                 $rpass.set_vertex_buffer(0, atlas.vertex_buffer.slice(..));
                                 $rpass.set_index_buffer(
                                     atlas.index_buffer.slice(..),
@@ -479,7 +416,7 @@ impl<'a> super::PlutoniumEngine<'a> {
             for q in &self.render_queue {
                 let effective_item_clip = self.effective_item_clip_rect(q.clip_rect);
                 if !scissor_initialized || effective_item_clip != active_item_clip {
-                    flush_batch(&mut rpass, current_tex, &mut batch_indices);
+                    flush_sprite_batch!(rpass, current_tex, batch_indices);
                     current_tex = None;
                     flush_atlas_batch!(
                         rpass,
@@ -511,7 +448,7 @@ impl<'a> super::PlutoniumEngine<'a> {
                             }
                             _ => {
                                 // different texture; flush previous
-                                flush_batch(&mut rpass, current_tex, &mut batch_indices);
+                                flush_sprite_batch!(rpass, current_tex, batch_indices);
                                 flush_atlas_batch!(
                                     rpass,
                                     atlas_instances,
@@ -535,7 +472,7 @@ impl<'a> super::PlutoniumEngine<'a> {
                         // Switch back to texture/atlas pipeline after rects
                         rpass.set_pipeline(&self.render_pipeline);
                         // flush any sprite batch first
-                        flush_batch(&mut rpass, current_tex, &mut batch_indices);
+                        flush_sprite_batch!(rpass, current_tex, batch_indices);
                         current_tex = None;
                         // switch atlas batch if needed
                         if current_atlas != Some(*texture_key) || current_atlas_is_msdf {
@@ -579,7 +516,7 @@ impl<'a> super::PlutoniumEngine<'a> {
                     } => {
                         flush_rect_batch!(rpass, rect_instances);
                         flush_glow_batch!(rpass, glow_instances);
-                        flush_batch(&mut rpass, current_tex, &mut batch_indices);
+                        flush_sprite_batch!(rpass, current_tex, batch_indices);
                         current_tex = None;
 
                         if current_atlas != Some(*texture_key) || current_atlas_is_msdf != *is_msdf
@@ -606,7 +543,7 @@ impl<'a> super::PlutoniumEngine<'a> {
                     }
                     RenderItem::Rect(cmd) => {
                         // Flush any pending sprite/atlas/glow batches before enqueueing rects
-                        flush_batch(&mut rpass, current_tex, &mut batch_indices);
+                        flush_sprite_batch!(rpass, current_tex, batch_indices);
                         current_tex = None;
                         flush_glow_batch!(rpass, glow_instances);
                         flush_atlas_batch!(
@@ -640,7 +577,7 @@ impl<'a> super::PlutoniumEngine<'a> {
                     }
                     RenderItem::Glow(cmd) => {
                         // Flush any pending sprite/atlas/rect batches
-                        flush_batch(&mut rpass, current_tex, &mut batch_indices);
+                        flush_sprite_batch!(rpass, current_tex, batch_indices);
                         current_tex = None;
                         flush_atlas_batch!(
                             rpass,
@@ -666,7 +603,7 @@ impl<'a> super::PlutoniumEngine<'a> {
                 }
             }
             // flush any remaining sprite batch
-            flush_batch(&mut rpass, current_tex, &mut batch_indices);
+            flush_sprite_batch!(rpass, current_tex, batch_indices);
             // flush any remaining atlas batch
             flush_atlas_batch!(rpass, atlas_instances, current_atlas, current_atlas_is_msdf);
             // flush any remaining rects

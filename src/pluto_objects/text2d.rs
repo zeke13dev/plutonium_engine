@@ -14,7 +14,7 @@ use crate::{
     EngineError, PlutoniumEngine,
 };
 
-use crate::text::TextRenderer;
+use crate::text::{CharacterRenderInfo, GlyphRenderMode, TextRenderer};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 /// Options for horizontal alignment.
@@ -164,6 +164,7 @@ pub(crate) struct Text2DInternal {
     max_font_size: f32,
     cached_font_size: Option<f32>,
     cached_wrapped_text: Option<String>,
+    cached_render_chars: Vec<CharacterRenderInfo>,
     last_content_hash: Option<u64>,
     last_container_dims: Option<(f32, f32)>,
     last_dpi_scale_factor: Option<f32>,
@@ -203,6 +204,7 @@ impl Text2DInternal {
             max_font_size: 128.0,
             cached_font_size: None,
             cached_wrapped_text: None,
+            cached_render_chars: Vec::new(),
             last_content_hash: None,
             last_container_dims: None,
             last_dpi_scale_factor: None,
@@ -219,6 +221,7 @@ impl Text2DInternal {
         self.last_container_dims = None;
         self.cached_font_size = None;
         self.cached_wrapped_text = None;
+        self.cached_render_chars.clear();
     }
 
     pub fn set_container(&mut self, container: TextContainer) {
@@ -226,6 +229,7 @@ impl Text2DInternal {
         self.last_container_dims = None;
         self.cached_font_size = None;
         self.cached_wrapped_text = None;
+        self.cached_render_chars.clear();
     }
 
     pub fn get_container(&self) -> &TextContainer {
@@ -344,6 +348,10 @@ impl Text2DInternal {
     }
     pub fn set_font_size(&mut self, font_size: f32) {
         self.font_size = font_size;
+        self.last_content_hash = None;
+        self.cached_font_size = None;
+        self.cached_wrapped_text = None;
+        self.cached_render_chars.clear();
     }
 
     pub fn set_content(&mut self, new_content: &str) {
@@ -351,6 +359,7 @@ impl Text2DInternal {
         self.last_content_hash = None;
         self.cached_font_size = None;
         self.cached_wrapped_text = None;
+        self.cached_render_chars.clear();
     }
 
     pub fn append_content(&mut self, new_content: &str) {
@@ -358,6 +367,7 @@ impl Text2DInternal {
         self.last_content_hash = None;
         self.cached_font_size = None;
         self.cached_wrapped_text = None;
+        self.cached_render_chars.clear();
     }
 
     pub fn pop_content(&mut self) -> bool {
@@ -366,6 +376,7 @@ impl Text2DInternal {
             self.last_content_hash = None;
             self.cached_font_size = None;
             self.cached_wrapped_text = None;
+            self.cached_render_chars.clear();
             true
         } else {
             false
@@ -530,13 +541,6 @@ impl Text2DInternal {
     }
 
     fn needs_recalculation(&self, dpi_scale_factor: f32, font_cache_version: u32) -> bool {
-        if !self.auto_size_enabled && !self.wrap_enabled {
-            // Even if auto-size/wrap is off, we might need to re-layout if DPI changed
-            // because measure_text results might change or font atlases might be rebuilt.
-            return self.last_dpi_scale_factor != Some(dpi_scale_factor)
-                || self.last_font_cache_version != font_cache_version;
-        }
-
         let mut hasher = DefaultHasher::new();
         self.content.hash(&mut hasher);
         let content_hash = hasher.finish();
@@ -599,17 +603,44 @@ impl Text2DInternal {
             &self.content
         };
 
-        // Measure using processed text
-        let (text_width, line_count) = engine.text_renderer.measure_text(
-            text_to_render,
-            &self.font_key,
-            0.0,
-            0.0,
-            Some(font_size_to_use),
-        );
+        if !self.cached_render_chars.is_empty() {
+            for char in &self.cached_render_chars {
+                match char.mode.clone() {
+                    GlyphRenderMode::AtlasTile { tile_index, scale } => {
+                        engine.queue_tile_with_tint(
+                            &char.atlas_id,
+                            tile_index,
+                            char.position,
+                            scale,
+                            z,
+                            self.color,
+                        );
+                    }
+                    GlyphRenderMode::AtlasUv {
+                        uv_offset,
+                        uv_scale,
+                        is_msdf,
+                        msdf_px_range,
+                    } => {
+                        engine.queue_atlas_uv_with_tint_internal(
+                            &char.atlas_id,
+                            char.position,
+                            char.size,
+                            uv_offset,
+                            uv_scale,
+                            z,
+                            self.color,
+                            is_msdf,
+                            msdf_px_range,
+                        );
+                    }
+                }
+            }
+            return;
+        }
 
-        let scaled_width = text_width;
-        let text_height = font_size_to_use * line_count as f32;
+        let scaled_width = self.dimensions.width;
+        let text_height = self.dimensions.height;
 
         // Compute a single alignment via container, then render with a neutral container
         let container_pos = self
@@ -657,10 +688,14 @@ impl PlutoObject for Text2DInternal {
 
     fn set_dimensions(&mut self, new_dimensions: Rectangle) {
         self.dimensions = new_dimensions;
+        self.last_container_dims = None;
+        self.cached_render_chars.clear();
     }
 
     fn set_pos(&mut self, new_position: Position) {
         self.dimensions.set_pos(new_position);
+        self.last_container_dims = None;
+        self.cached_render_chars.clear();
     }
 
     fn update(
@@ -700,22 +735,23 @@ impl PlutoObject for Text2DInternal {
             };
 
             // Step 2: Apply wrapping if enabled
+            let wrapped_text;
             let text_to_measure = if self.wrap_enabled {
-                let wrapped = self.wrap_text_to_lines(
+                wrapped_text = self.wrap_text_to_lines(
                     &self.content,
                     font_size_to_use,
                     available_width,
                     text_renderer,
                 );
-                self.cached_wrapped_text = Some(wrapped.clone());
-                wrapped
+                self.cached_wrapped_text = Some(wrapped_text);
+                self.cached_wrapped_text.as_deref().unwrap_or(&self.content)
             } else {
-                self.content.clone()
+                &self.content
             };
 
             // Step 3: Measure final dimensions
             let (text_width, line_count) = text_renderer.measure_text(
-                &text_to_measure,
+                text_to_measure,
                 &self.font_key,
                 0.0,
                 0.0,
@@ -727,6 +763,24 @@ impl PlutoObject for Text2DInternal {
             self.dimensions.width = scaled_width;
             self.dimensions.height = font_size_to_use * line_count as f32;
 
+            self.cached_render_chars = {
+                let container_pos = self
+                    .container
+                    .calculate_text_position(self.dimensions.width, self.dimensions.height);
+                let mut neutral = self.container.clone();
+                neutral.h_align = HorizontalAlignment::Left;
+                neutral.v_align = VerticalAlignment::Top;
+                text_renderer.calculate_text_layout(
+                    text_to_measure,
+                    &self.font_key,
+                    container_pos,
+                    &neutral,
+                    0.0,
+                    0.0,
+                    Some(font_size_to_use),
+                )
+            };
+
             // Update cache tracking
             let mut hasher = DefaultHasher::new();
             self.content.hash(&mut hasher);
@@ -737,19 +791,6 @@ impl PlutoObject for Text2DInternal {
             ));
             self.last_dpi_scale_factor = Some(dpi_scale_factor);
             self.last_font_cache_version = font_cache_version;
-        } else {
-            // No recalculation needed, but still update dimensions if not using adaptive features
-            if !self.auto_size_enabled && !self.wrap_enabled {
-                let (text_width, line_count) = text_renderer.measure_text(
-                    &self.content,
-                    &self.font_key,
-                    0.0,
-                    0.0,
-                    Some(self.font_size),
-                );
-                self.dimensions.width = text_width;
-                self.dimensions.height = self.font_size * line_count as f32;
-            }
         }
     }
 
