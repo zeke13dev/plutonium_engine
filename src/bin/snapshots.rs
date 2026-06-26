@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(missing_docs)]
 
 use image::ImageReader;
 use plutonium_engine::texture_atlas::TextureAtlas;

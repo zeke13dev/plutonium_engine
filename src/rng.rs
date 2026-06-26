@@ -3,11 +3,13 @@
 //! Also supports deriving streams from human-readable names via a fast FNV-1a 64-bit hash.
 
 #[derive(Debug, Clone, Copy)]
+/// RngService data.
 pub struct RngService {
     base_seed: u64,
 }
 
 #[derive(Debug, Clone, Copy)]
+/// RngStream data.
 pub struct RngStream {
     state: u64,
 }
@@ -17,10 +19,12 @@ pub struct RngStream {
 pub struct RngStreamId(pub u64);
 
 impl RngService {
+    /// Returns this value with seed configured.
     pub fn with_seed(seed: u64) -> Self {
         Self { base_seed: seed }
     }
 
+    /// Derive stream.
     pub fn derive_stream(&self, stream_id: u64) -> RngStream {
         let seed = splitmix64(self.base_seed ^ stream_id);
         RngStream { state: seed.max(1) }
@@ -40,6 +44,7 @@ impl RngService {
 
 impl RngStream {
     #[inline]
+    /// Next u64.
     pub fn next_u64(&mut self) -> u64 {
         // xorshift64*
         let mut x = self.state;
@@ -51,11 +56,13 @@ impl RngStream {
     }
 
     #[inline]
+    /// Next u32.
     pub fn next_u32(&mut self) -> u32 {
         (self.next_u64() & 0xFFFF_FFFF) as u32
     }
 
     #[inline]
+    /// Next f32 01.
     pub fn next_f32_01(&mut self) -> f32 {
         // 24-bit mantissa precision uniform in [0,1)
         let v = (self.next_u32() >> 8) as f32;
@@ -63,10 +70,12 @@ impl RngStream {
     }
 
     #[inline]
+    /// Range f32.
     pub fn range_f32(&mut self, min: f32, max: f32) -> f32 {
         min + (max - min) * self.next_f32_01()
     }
 
+    /// Shuffle.
     pub fn shuffle<T>(&mut self, data: &mut [T]) {
         for i in (1..data.len()).rev() {
             let j = (self.next_u32() as usize) % (i + 1);

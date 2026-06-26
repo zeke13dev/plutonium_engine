@@ -24,6 +24,7 @@ use std::rc::Rc;
 use uuid::Uuid;
 
 impl<'a> PlutoniumEngine<'a> {
+    /// Creates texture svg.
     pub fn create_texture_svg(
         &mut self,
         file_path: &str,
@@ -53,6 +54,7 @@ impl<'a> PlutoniumEngine<'a> {
         Ok((texture_key, dimensions))
     }
 
+    /// Creates texture svg from data.
     pub fn create_texture_svg_from_data(
         &mut self,
         svg_data: &str,
@@ -93,6 +95,7 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     #[cfg(feature = "raster")]
+    /// Creates texture raster from path.
     pub fn create_texture_raster_from_path(
         &mut self,
         path: &str,
@@ -132,6 +135,7 @@ impl<'a> PlutoniumEngine<'a> {
         Ok((texture_key, dimensions))
     }
 
+    /// Creates texture atlas.
     pub fn create_texture_atlas(
         &mut self,
         svg_path: &str,
@@ -321,6 +325,7 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     /* OBJECT CREATION FUNCTIONS */
+    /// Creates texture 2d.
     pub fn create_texture_2d(
         &mut self,
         svg_path: &str,
@@ -345,6 +350,7 @@ impl<'a> PlutoniumEngine<'a> {
         Ok(Texture2D::new(rc_internal))
     }
 
+    /// Creates text2d.
     pub fn create_text2d(
         &mut self,
         text: &str,
@@ -355,6 +361,7 @@ impl<'a> PlutoniumEngine<'a> {
         self.create_text2d_with_z(text, font_key, font_size, position, 0)
     }
 
+    /// Creates text2d with z.
     pub fn create_text2d_with_z(
         &mut self,
         text: &str,
@@ -394,6 +401,7 @@ impl<'a> PlutoniumEngine<'a> {
         Ok(Text2D::new(rc_internal))
     }
 
+    /// Creates texture atlas 2d.
     pub fn create_texture_atlas_2d(
         &mut self,
         svg_path: &str,
@@ -419,6 +427,7 @@ impl<'a> PlutoniumEngine<'a> {
 
     #[cfg(feature = "widgets")]
     #[allow(clippy::too_many_arguments)]
+    /// Creates button.
     pub fn create_button(
         &mut self,
         svg_path: &str,
@@ -455,6 +464,7 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     #[cfg(feature = "widgets")]
+    /// Creates text input.
     pub fn create_text_input(
         &mut self,
         svg_path: &str,
@@ -525,6 +535,7 @@ impl<'a> PlutoniumEngine<'a> {
         Ok(TextInput::new(rc_internal))
     }
 
+    /// Creates rect.
     pub fn create_rect(
         &mut self,
         bounds: Rectangle,
@@ -562,6 +573,7 @@ impl<'a> PlutoniumEngine<'a> {
         Ok(Shape::new(rc_internal))
     }
 
+    /// Creates circle.
     pub fn create_circle(
         &mut self,
         radius: f32,
@@ -598,6 +610,7 @@ impl<'a> PlutoniumEngine<'a> {
         Ok(Shape::new(rc_internal))
     }
 
+    /// Creates polygon.
     pub fn create_polygon(
         &mut self,
         radius: f32,

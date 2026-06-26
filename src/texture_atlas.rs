@@ -33,6 +33,7 @@ impl BufferDimensions {
 
 #[allow(dead_code)]
 #[derive(Debug)]
+/// TextureAtlas data.
 pub struct TextureAtlas {
     texture_key: Uuid,
     texture: wgpu::Texture,
@@ -239,6 +240,7 @@ impl TextureAtlas {
     }
 
     #[allow(clippy::too_many_arguments)]
+    /// Creates a new value.
     pub fn new(
         texture_key: Uuid,
         device: &wgpu::Device,
@@ -533,6 +535,7 @@ impl TextureAtlas {
         self.update_transform_uniform(device, queue, viewport_size, camera_position);
     }
 
+    /// Update transform uniform.
     pub fn update_transform_uniform(
         &mut self,
         device: &wgpu::Device,
@@ -565,6 +568,7 @@ impl TextureAtlas {
         );
     }
 
+    /// Queues this object for rendering.
     pub fn render<'a>(
         &'a self,
         rpass: &mut wgpu::RenderPass<'a>,
@@ -584,6 +588,7 @@ impl TextureAtlas {
         rpass.draw_indexed(0..self.num_indices, 0, 0..1);
     }
 
+    /// Render tile.
     pub fn render_tile<'a>(
         &'a self,
         rpass: &mut wgpu::RenderPass<'a>,
@@ -618,21 +623,27 @@ impl TextureAtlas {
     }
 
     // Accessors for snapshots/tests where direct binding is useful
+    /// Texture bind group.
     pub fn texture_bind_group(&self) -> &wgpu::BindGroup {
         &self.bind_group
     }
+    /// Default uv bind group.
     pub fn default_uv_bind_group(&self) -> &wgpu::BindGroup {
         &self.uv_bind_group
     }
+    /// Transform bind group.
     pub fn transform_bind_group(&self) -> &wgpu::BindGroup {
         &self.transform_bind_group
     }
+    /// Vertex buffer slice.
     pub fn vertex_buffer_slice(&self) -> wgpu::BufferSlice<'_> {
         self.vertex_buffer.slice(..)
     }
+    /// Index buffer slice.
     pub fn index_buffer_slice(&self) -> wgpu::BufferSlice<'_> {
         self.index_buffer.slice(..)
     }
+    /// Num indices.
     pub fn num_indices(&self) -> u32 {
         self.num_indices
     }
@@ -671,6 +682,7 @@ impl TextureAtlas {
         }
     }
 
+    /// Returns the transform matrix.
     pub fn get_transform_matrix(
         &self,
         viewport_size: Size,
@@ -718,6 +730,7 @@ impl TextureAtlas {
         }
     }
 
+    /// Compute transform matrix.
     pub fn compute_transform_matrix(
         viewport_size: Size,
         pos: Position,
@@ -757,6 +770,7 @@ impl TextureAtlas {
         ];
     }
 
+    /// Tile uv coordinates.
     pub fn tile_uv_coordinates(
         tile_index: usize,
         tile_size: Size,
@@ -904,10 +918,12 @@ impl TextureAtlas {
 
     /* higher level functions */
 
+    /// Returns whether the point lies inside this value.
     pub fn contains(&self, pos: &Position) -> bool {
         self.dimensions.contains(*pos)
     }
 
+    /// Tile contains.
     pub fn tile_contains(&self, pos: &Position, tile_index: usize) -> bool {
         Rectangle {
             x: tile_index as f32 * self.tile_size.width,
@@ -917,6 +933,7 @@ impl TextureAtlas {
         }
         .contains(*pos)
     }
+    /// Save debug png.
     pub fn save_debug_png(
         &self,
         device: &wgpu::Device,

@@ -7,6 +7,7 @@ use wgpu::util::DeviceExt;
 
 #[allow(dead_code)]
 #[derive(Debug)]
+/// TextureSVG data.
 pub struct TextureSVG {
     texture_key: Uuid,
     texture: wgpu::Texture,
@@ -27,6 +28,7 @@ pub struct TextureSVG {
 }
 
 impl TextureSVG {
+    /// Original size.
     pub fn original_size(&self) -> Size {
         self.original_size
     }
@@ -152,6 +154,7 @@ impl TextureSVG {
     }
 
     #[allow(clippy::too_many_arguments)]
+    /// New from data.
     pub fn new_from_data(
         texture_key: Uuid,
         device: &wgpu::Device,
@@ -269,6 +272,7 @@ impl TextureSVG {
 
     #[cfg(feature = "raster")]
     #[allow(clippy::too_many_arguments)]
+    /// New from rgba.
     pub fn new_from_rgba(
         texture_key: Uuid,
         device: &wgpu::Device,
@@ -656,6 +660,7 @@ impl TextureSVG {
         self.update_transform_uniform(device, queue, viewport_size, camera_position);
     }
 
+    /// Update transform uniform.
     pub fn update_transform_uniform(
         &mut self,
         device: &wgpu::Device,
@@ -688,6 +693,7 @@ impl TextureSVG {
         );
     }
 
+    /// Queues this object for rendering.
     pub fn render<'a>(
         &'a self,
         rpass: &mut wgpu::RenderPass<'a>,
@@ -707,18 +713,23 @@ impl TextureSVG {
         rpass.draw_indexed(0..self.num_indices, 0, 0..1);
     }
 
+    /// Bind group.
     pub fn bind_group(&self) -> &wgpu::BindGroup {
         &self.bind_group
     }
+    /// Uv bind group.
     pub fn uv_bind_group(&self) -> &wgpu::BindGroup {
         &self.uv_bind_group
     }
+    /// Vertex buffer slice.
     pub fn vertex_buffer_slice(&self) -> wgpu::BufferSlice<'_> {
         self.vertex_buffer.slice(..)
     }
+    /// Index buffer slice.
     pub fn index_buffer_slice(&self) -> wgpu::BufferSlice<'_> {
         self.index_buffer.slice(..)
     }
+    /// Num indices.
     pub fn num_indices(&self) -> u32 {
         self.num_indices
     }
@@ -757,6 +768,7 @@ impl TextureSVG {
         }
     }
 
+    /// Returns the transform matrix.
     pub fn get_transform_matrix(
         &self,
         viewport_size: Size,
@@ -906,6 +918,7 @@ impl TextureSVG {
 
     /* higher level functions */
 
+    /// Returns whether the point lies inside this value.
     pub fn contains(&self, pos: &Position) -> bool {
         self.dimensions.contains(*pos)
     }

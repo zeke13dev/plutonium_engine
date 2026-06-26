@@ -23,6 +23,7 @@ impl<'a> PlutoniumEngine<'a> {
             .set_quality_thresholds(tiny_raster_max_px, msdf_min_px);
     }
 
+    /// Loads msdf font.
     pub fn load_msdf_font(
         &mut self,
         atlas_image_path: &str,
@@ -216,6 +217,7 @@ impl<'a> PlutoniumEngine<'a> {
         Ok(())
     }
 
+    /// Loads msdf font with tiny raster.
     pub fn load_msdf_font_with_tiny_raster(
         &mut self,
         font_path: &str,

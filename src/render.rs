@@ -55,6 +55,7 @@ impl TransformPool {
 }
 
 impl<'a> super::PlutoniumEngine<'a> {
+    /// Queues this object for rendering.
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         if self.size.width == 0 || self.size.height == 0 {
             return Ok(());

@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 use anyhow::{anyhow, Context, Result};
 use plutonium_engine::text::{
     Bounds, MsdfAtlasInfo, MsdfFontMetadata, MsdfGlyphRecord, MsdfKerningRecord, MsdfMetrics,

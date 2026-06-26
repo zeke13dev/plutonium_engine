@@ -2,43 +2,69 @@ use crate::app::FrameContext;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// Options for button source.
 pub enum ButtonSource {
+    /// Key option.
     Key(String), // Debug-format of winit::keyboard::Key (e.g., "Character(\"A\")", "Named(Enter)")
+    /// Mouse left option.
     MouseLeft,
+    /// Mouse right option.
     MouseRight,
+    /// Mouse middle option.
     MouseMiddle,
+    /// Gamepad button option.
     GamepadButton(String), // Placeholder for future gamepad support
 }
 
 #[derive(Debug, Clone)]
+/// ButtonBinding data.
 pub struct ButtonBinding {
+    /// Source value.
     pub source: ButtonSource,
 }
 
 #[derive(Debug, Clone)]
+/// Options for axis source.
 pub enum AxisSource {
-    KeyPair { negative: String, positive: String }, // keys by Debug-format
-    GamepadAxis { name: String },                   // Placeholder
+    /// Pair of keyboard keys that drive a signed axis.
+    KeyPair {
+        /// Key that drives the negative direction.
+        negative: String,
+        /// Key that drives the positive direction.
+        positive: String,
+    },
+    /// Named gamepad axis.
+    GamepadAxis {
+        /// Gamepad axis name.
+        name: String,
+    },
 }
 
 #[derive(Debug, Clone)]
+/// AxisBinding data.
 pub struct AxisBinding {
+    /// Source value.
     pub source: AxisSource,
+    /// Uniform scale multiplier.
     pub scale: f32,
+    /// Deadzone value.
     pub deadzone: f32,
 }
 
 #[derive(Debug, Default, Clone)]
+/// ActionMap data.
 pub struct ActionMap {
     button_bindings: HashMap<String, Vec<ButtonBinding>>, // action name -> bindings
     axis_bindings: HashMap<String, Vec<AxisBinding>>,     // axis name -> bindings
 }
 
 impl ActionMap {
+    /// Creates a new value.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Bind button.
     pub fn bind_button(&mut self, action: impl Into<String>, source: ButtonSource) {
         self.button_bindings
             .entry(action.into())
@@ -46,6 +72,7 @@ impl ActionMap {
             .push(ButtonBinding { source });
     }
 
+    /// Bind axis.
     pub fn bind_axis(
         &mut self,
         axis: impl Into<String>,
@@ -66,6 +93,7 @@ impl ActionMap {
     // Resolve pressed actions and axis values for this frame using FrameContext events
     // Buttons are edge-triggered: pressed if any binding fired this frame
     // Axes from KeyPair: -1 for negative key, +1 for positive key when present in this frame
+    /// Resolve.
     pub fn resolve(&self, frame: &FrameContext) -> (HashSet<String>, HashMap<String, f32>) {
         let mut pressed: HashSet<String> = HashSet::new();
         let mut axes: HashMap<String, f32> = HashMap::new();

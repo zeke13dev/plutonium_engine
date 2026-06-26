@@ -265,6 +265,7 @@ impl<'a> PlutoniumEngine<'a> {
 
     // ── public font-loading API ────────────────────────────────────────────
 
+    /// Loads font.
     pub fn load_font(
         &mut self,
         font_path: &str,
@@ -279,6 +280,7 @@ impl<'a> PlutoniumEngine<'a> {
         )
     }
 
+    /// Loads font with options.
     pub fn load_font_with_options(
         &mut self,
         font_path: &str,
@@ -385,6 +387,7 @@ impl<'a> PlutoniumEngine<'a> {
 
     // ── warm_text_cache ────────────────────────────────────────────────────
 
+    /// Warm text cache.
     pub fn warm_text_cache(
         &mut self,
         font_key: &str,

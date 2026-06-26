@@ -3,63 +3,103 @@ use uuid::Uuid;
 use winit::keyboard::{Key, NamedKey};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Options for popup action style.
 pub enum PopupActionStyle {
+    /// Primary option.
     Primary,
+    /// Secondary option.
     Secondary,
+    /// Danger option.
     Danger,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// PopupAction data.
 pub struct PopupAction {
+    /// Stable object identifier.
     pub id: String,
+    /// Label value.
     pub label: String,
+    /// Style value.
     pub style: PopupActionStyle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Options for popup size.
 pub enum PopupSize {
+    /// Small option.
     Small,
+    /// Medium option.
     Medium,
+    /// Large option.
     Large,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// PopupConfig data.
 pub struct PopupConfig {
+    /// Stable object identifier.
     pub id: String,
+    /// Window title.
     pub title: String,
+    /// Human-readable error message.
     pub message: String,
+    /// Actions value.
     pub actions: Vec<PopupAction>,
+    /// Size value.
     pub size: PopupSize,
+    /// Dismiss on escape value.
     pub dismiss_on_escape: bool,
+    /// Dismiss on backdrop click value.
     pub dismiss_on_backdrop_click: bool,
+    /// Auto dismiss ms value.
     pub auto_dismiss_ms: Option<u64>,
+    /// Consume opening click value.
     pub consume_opening_click: bool,
+    /// Click anywhere action id value.
     pub click_anywhere_action_id: Option<String>,
+    /// Block input behind popup value.
     pub block_input_behind_popup: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Options for popup dismiss reason.
 pub enum PopupDismissReason {
+    /// Escape option.
     Escape,
+    /// Backdrop click option.
     BackdropClick,
+    /// Replaced option.
     Replaced,
+    /// Programmatic option.
     Programmatic,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Options for popup event.
 pub enum PopupEvent {
+    /// Opened option.
     Opened {
+        /// Item value.
         popup_id: String,
     },
+    /// Action selected option.
     ActionSelected {
+        /// Item value.
         popup_id: String,
+        /// Item value.
         action_id: String,
     },
+    /// Dismissed option.
     Dismissed {
+        /// Item value.
         popup_id: String,
+        /// Item value.
         reason: PopupDismissReason,
     },
+    /// Auto dismissed option.
     AutoDismissed {
+        /// Item value.
         popup_id: String,
     },
 }

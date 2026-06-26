@@ -39,9 +39,13 @@ pub struct FrameInputRecordLocal {
     pub committed_text: Vec<String>,
 }
 
+/// WindowConfig data.
 pub struct WindowConfig {
+    /// Window title.
     pub title: String,
+    /// Width in logical pixels.
     pub width: u32,
+    /// Height in logical pixels.
     pub height: u32,
 }
 
@@ -73,14 +77,24 @@ impl Default for WasmAppConfig {
 }
 
 #[derive(Clone)]
+/// Per-frame input and timing passed to the application callback.
+///
+/// Keyboard values intentionally use the `winit::keyboard::Key` type from the
+/// crate-pinned `winit` version so callback code can inspect raw logical keys.
 pub struct FrameContext {
+    /// Logical keys pressed during the current frame, as reported by `winit`.
     pub pressed_keys: Vec<winit::keyboard::Key>,
+    /// Mouse info value.
     pub mouse_info: MouseInfo,
+    /// Delta time value.
     pub delta_time: f32,
+    /// Text commits value.
     pub text_commits: Vec<String>,
+    /// Scroll delta value.
     pub scroll_delta: Position,
 }
 
+/// PlutoniumApp data.
 pub struct PlutoniumApp {
     engine: Option<super::PlutoniumEngine<'static>>,
     window: Option<Arc<Window>>,
@@ -180,6 +194,7 @@ fn sync_canvas_backing_store(canvas: &HtmlCanvasElement, preferred_scale_factor:
 }
 
 impl PlutoniumApp {
+    /// Creates a new value.
     pub fn new<F>(config: WindowConfig, frame_callback: F) -> Self
     where
         F: FnMut(&mut super::PlutoniumEngine, &FrameContext, &mut PlutoniumApp) + 'static,
@@ -248,10 +263,12 @@ impl PlutoniumApp {
         app
     }
 
+    /// Engine.
     pub fn engine(&mut self) -> Option<&mut super::PlutoniumEngine<'static>> {
         self.engine.as_mut()
     }
 
+    /// Window.
     pub fn window(&self) -> Option<&Window> {
         self.window.as_ref().map(|w| w.as_ref())
     }
@@ -267,11 +284,13 @@ impl PlutoniumApp {
         self.fixed_dt = None;
     }
 
+    /// Starts recording.
     pub fn start_recording(&mut self, path: impl Into<String>) {
         self.record_log = Some(Vec::new());
         self.record_path = Some(path.into());
     }
 
+    /// Stops recording.
     pub fn stop_recording(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if let (Some(log), Some(path)) = (self.record_log.take(), self.record_path.take()) {
             if let Some(parent) = std::path::Path::new(&path).parent() {
@@ -282,6 +301,7 @@ impl PlutoniumApp {
         Ok(())
     }
 
+    /// Starts replay.
     pub fn start_replay(&mut self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
         let json = std::fs::read_to_string(path)?;
         let frames: Vec<FrameInputRecordLocal> = serde_json::from_str(&json)?;
@@ -290,6 +310,7 @@ impl PlutoniumApp {
         Ok(())
     }
 
+    /// Stops replay.
     pub fn stop_replay(&mut self) {
         self.replay_frames = None;
         self.replay_cursor = 0;
@@ -346,7 +367,10 @@ impl PlutoniumApp {
         self.is_fullscreen
     }
 
-    /// Returns true when the logical key is currently held down.
+    /// Returns true when the given `winit` logical key is currently held down.
+    ///
+    /// This low-level helper intentionally accepts `winit::keyboard::Key` to
+    /// match values from [`FrameContext::pressed_keys`].
     pub fn is_key_down(&self, key: &winit::keyboard::Key) -> bool {
         let key_id = format!("{:?}", key);
         self.key_repeat_states
@@ -871,6 +895,7 @@ impl ApplicationHandler<()> for PlutoniumApp {
     }
 }
 
+/// Documents run app.
 pub fn run_app<F>(config: WindowConfig, frame_callback: F) -> Result<(), Box<dyn std::error::Error>>
 where
     F: FnMut(&mut super::PlutoniumEngine, &FrameContext, &mut PlutoniumApp) + 'static,

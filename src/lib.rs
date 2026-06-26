@@ -1,39 +1,135 @@
+//! A small retained/immediate 2D graphics engine built on `wgpu`.
+//!
+//! `plutonium_engine` provides a window/app runner, sprite and atlas rendering,
+//! SVG and raster texture loading, MSDF/raster text rendering, simple retained UI
+//! objects, popups, layout helpers, animation helpers, and deterministic RNG
+//! utilities for examples and tests.
+//!
+//! # Quick start
+//!
+//! ```no_run
+//! use plutonium_engine::{
+//!     app::{run_app, WindowConfig},
+//!     utils::Position,
+//! };
+//!
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let config = WindowConfig {
+//!         title: "Plutonium".to_string(),
+//!         width: 800,
+//!         height: 600,
+//!         ..Default::default()
+//!     };
+//!
+//!     let mut sprite = None;
+//!     run_app(config, move |engine, _frame, _app| {
+//!         if sprite.is_none() {
+//!             match engine.create_texture_2d("examples/media/player.svg", Position::default(), 1.0) {
+//!                 Ok(texture) => sprite = Some(texture),
+//!                 Err(err) => {
+//!                     log::warn!("failed to load sprite: {err}");
+//!                     return;
+//!                 }
+//!             }
+//!         }
+//!
+//!         engine.clear_render_queue();
+//!         if let Some(texture) = &sprite {
+//!             texture.render(engine);
+//!         }
+//!     })?;
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! # Feature flags
+//!
+//! - `widgets` (default): retained widgets such as buttons and text inputs.
+//! - `layout`: anchor/percent layout helpers.
+//! - `anim`: tweening and animation helpers.
+//! - `raster`: PNG/JPEG/raster font helper APIs.
+//! - `wasm`: WebAssembly support helpers, including JavaScript entropy support.
+//!
+//! # Coordinates and threading
+//!
+//! Positions and sizes are logical pixels with the origin at the top-left corner;
+//! `+x` points right and `+y` points down. The engine converts logical pixels to
+//! device pixels internally using the current DPI scale factor.
+//!
+//! Engine objects are single-thread affine. Most retained objects wrap
+//! `Rc<RefCell<_>>` internals and are intentionally `!Send`/`!Sync`; create and
+//! use them on the same UI/render thread that owns the `PlutoniumEngine`.
+//!
+//! # Backend type stability
+//!
+//! Low-level/manual integration APIs intentionally expose `wgpu` and `winit`
+//! types such as `wgpu::Surface`, `wgpu::SurfaceError`, `winit::dpi::PhysicalSize`,
+//! and `winit::keyboard::Key`. These signatures are the backend interop layer:
+//! callers that create their own surfaces, drive their own event loops, or handle
+//! raw keyboard state use the exact backend types pinned by this crate. Upgrading
+//! `wgpu` or `winit` is therefore a public API change and is handled as part of
+//! this crate's semver surface rather than hidden behind lossy wrapper types.
+//!
+#![warn(missing_docs)]
+
+/// Documentation and public API for camera.
 pub mod camera;
 mod draw;
+/// Documentation and public API for error.
 pub mod error;
 mod font_msdf;
 mod font_raster;
 mod objects;
 mod render;
+/// Documentation and public API for pluto objects.
 pub mod pluto_objects {
     #[cfg(feature = "widgets")]
+    /// Documentation and public API for button.
     pub mod button;
+    /// Documentation and public API for shapes.
     pub mod shapes;
+    /// Documentation and public API for text2d.
     pub mod text2d;
     #[cfg(feature = "widgets")]
+    /// Documentation and public API for text input.
     pub mod text_input;
+    /// Documentation and public API for texture 2d.
     pub mod texture_2d;
+    /// Documentation and public API for texture atlas 2d.
     pub mod texture_atlas_2d;
 }
+/// Documentation and public API for app.
 pub mod app;
 pub use app::{FrameContext, PlutoniumApp, WindowConfig};
 pub use error::EngineError;
 #[cfg(feature = "anim")]
+/// Documentation and public API for anim.
 pub mod anim;
 mod glow;
 mod gpu_timer;
+/// Documentation and public API for input.
 pub mod input;
 #[cfg(feature = "layout")]
+/// Documentation and public API for layout.
 pub mod layout;
+/// Documentation and public API for popup.
 pub mod popup;
 mod popup_render;
+/// Documentation and public API for renderer.
 pub mod renderer;
 pub mod rng;
+/// Documentation and public API for text.
 pub mod text;
+/// Documentation and public API for texture atlas.
 pub mod texture_atlas;
+/// Documentation and public API for texture svg.
 pub mod texture_svg;
+/// Documentation and public API for traits.
 pub mod traits;
+/// Documentation and public API for ui.
 pub mod ui;
+/// Documentation and public API for utils.
 pub mod utils;
 pub use popup::{
     PopupAction, PopupActionStyle, PopupConfig, PopupDismissReason, PopupEvent, PopupSize,
@@ -69,24 +165,36 @@ use winit::keyboard::Key;
 // renderer seam reserved for future use
 
 #[derive(Debug, Clone, Copy, Default)]
+/// DrawParams data.
 pub struct DrawParams {
+    /// Draw-order layer; larger values render above smaller values.
     pub z: i32,
+    /// Uniform scale multiplier.
     pub scale: f32,
+    /// Clockwise rotation in radians.
     pub rotation: f32,
+    /// RGBA tint multiplier.
     pub tint: [f32; 4],
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+/// Options for texture fit.
 pub enum TextureFit {
     #[default]
+    /// Contain option.
     Contain,
+    /// Stretch fill option.
     StretchFill,
+    /// Cover option.
     Cover,
 }
 
 #[derive(Debug, Clone)]
+/// Options for glyph set.
 pub enum GlyphSet {
+    /// Ascii core option.
     AsciiCore,
+    /// Custom option.
     Custom(Vec<char>),
 }
 
@@ -97,30 +205,44 @@ impl Default for GlyphSet {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
+/// Options for raster hinting mode.
 pub enum RasterHintingMode {
     #[default]
+    /// Auto option.
     Auto,
+    /// None option.
     None,
 }
 
 #[derive(Debug, Clone)]
+/// PrewarmConfig data.
 pub struct PrewarmConfig {
+    /// Font sizes to prewarm.
     pub sizes: Vec<f32>,
+    /// Glyphs to prepare or render.
     pub glyph_set: GlyphSet,
 }
 
 #[derive(Debug, Clone, Default)]
+/// Options for prewarm policy.
 pub enum PrewarmPolicy {
+    /// None option.
     None,
     #[default]
+    /// Light preset option.
     LightPreset,
+    /// Custom option.
     Custom(PrewarmConfig),
 }
 
 #[derive(Debug, Clone)]
+/// FontLoadOptions data.
 pub struct FontLoadOptions {
+    /// Font prewarm policy.
     pub prewarm_policy: PrewarmPolicy,
+    /// Maximum runtime glyphs to rasterize per frame.
     pub runtime_budget_glyphs_per_frame: usize,
+    /// Raster-font hinting mode.
     pub hinting: RasterHintingMode,
 }
 
@@ -135,25 +257,40 @@ impl Default for FontLoadOptions {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
+/// WarmStats data.
 pub struct WarmStats {
+    /// Requested sizes value.
     pub requested_sizes: usize,
+    /// Warmed sizes value.
     pub warmed_sizes: usize,
+    /// Already loaded sizes value.
     pub already_loaded_sizes: usize,
+    /// Glyphs rasterized value.
     pub glyphs_rasterized: usize,
 }
 
 #[cfg(feature = "raster")]
 #[derive(Debug, Clone)]
+/// Options for raster texture load error.
 pub enum RasterTextureLoadError {
+    /// Fetch failed option.
     FetchFailed(String),
+    /// Invalid response option.
     InvalidResponse(String),
+    /// Http status option.
     HttpStatus {
+        /// Item value.
         status: u16,
+        /// Item value.
         status_text: String,
+        /// Item value.
         url: String,
     },
+    /// Body read failed option.
     BodyReadFailed(String),
+    /// Image decode failed option.
     ImageDecodeFailed(String),
+    /// Texture create failed option.
     TextureCreateFailed(String),
 }
 
@@ -382,6 +519,7 @@ pub(crate) enum RenderItem {
     Glow(GlowCommand),
 }
 
+/// QueuedItem data.
 pub struct QueuedItem {
     z: i32,
     clip_rect: Option<Rectangle>,
@@ -397,7 +535,16 @@ struct SlotState {
     clip_radius: Option<f32>,
 }
 
+/// Core renderer and retained-object registry.
+///
+/// Manual integration methods on this type deliberately use `wgpu` and `winit`
+/// types so callers can pass surfaces, physical window sizes, and keyboard events
+/// directly from the backend versions selected by this crate.
 pub struct PlutoniumEngine<'a> {
+    /// Current physical surface size from `winit`.
+    ///
+    /// This is intentionally a `winit::dpi::PhysicalSize<u32>` because manual
+    /// event-loop integrations pass the value directly from window resize events.
     pub size: PhysicalSize<u32>,
     dpi_scale_factor: f32,
     surface: wgpu::Surface<'a>,
@@ -461,21 +608,26 @@ pub struct PlutoniumEngine<'a> {
 
 impl<'a> PlutoniumEngine<'a> {
     /* CAMERA STUFF */
+    /// Sets the boundary.
     pub fn set_boundary(&mut self, boundary: Rectangle) {
         self.camera.set_boundary(boundary);
     }
+    /// Clear boundary.
     pub fn clear_boundary(&mut self) {
         self.camera.clear_boundary();
     }
 
+    /// Activate camera.
     pub fn activate_camera(&mut self) {
         self.camera.activate();
     }
 
+    /// Deactivate camera.
     pub fn deactivate_camera(&mut self) {
         self.camera.deactivate();
     }
 
+    /// Sets the camera smoothing.
     pub fn set_camera_smoothing(&mut self, smoothing_strength: f32) {
         self.camera.set_smoothing_strength(smoothing_strength);
     }
@@ -607,6 +759,7 @@ impl<'a> PlutoniumEngine<'a> {
             })
     }
 
+    /// Sets the texture position.
     pub fn set_texture_position(&mut self, key: &Uuid, position: Position) {
         if let Some(texture) = self.texture_map.get_mut(key) {
             texture.set_position(
@@ -641,6 +794,9 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     /// Resize the GPU surface and viewport for manual event-loop integrations.
+    ///
+    /// The argument intentionally uses `winit::dpi::PhysicalSize` to match the
+    /// resize events emitted by the crate-pinned `winit` version.
     pub fn resize(&mut self, new_size: &PhysicalSize<u32>) {
         // MAYBE NEEDS TO TAKE INTO ACCOUNT NEW SCALE FACTOR IF RESIZE CHANGES DEVICE
         self.size = *new_size;
@@ -657,6 +813,10 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     /// Update retained Pluto objects for manual event-loop integrations.
+    ///
+    /// The `key` argument intentionally uses `winit::keyboard::Key`; applications
+    /// that need a stable abstraction can translate their input before calling
+    /// this low-level method.
     pub fn update(&mut self, mouse_info: Option<MouseInfo>, key: &Option<Key>, delta_time: f32) {
         // text doesn't seem to be getting updated
         let scaled_mouse_info = mouse_info.map(|info| MouseInfo {
@@ -738,10 +898,12 @@ impl<'a> PlutoniumEngine<'a> {
         }
     }
 
+    /// Show popup.
     pub fn show_popup(&mut self, config: PopupConfig) {
         self.popup_state.show_popup(config);
     }
 
+    /// Show popup with objects.
     pub fn show_popup_with_objects(
         &mut self,
         config: PopupConfig,
@@ -752,23 +914,28 @@ impl<'a> PlutoniumEngine<'a> {
             .show_popup_with_objects(config, panel_rect, object_ids);
     }
 
+    /// Close popup.
     pub fn close_popup(&mut self, popup_id: &str) -> bool {
         self.popup_state.close_popup(popup_id)
     }
 
+    /// Popup is open.
     pub fn popup_is_open(&self) -> bool {
         self.popup_state.is_open()
     }
 
+    /// Drain popup events.
     pub fn drain_popup_events(&mut self) -> Vec<PopupEvent> {
         self.popup_state.drain_events()
     }
 
+    /// Sets the camera target.
     pub fn set_camera_target(&mut self, texture_key: Uuid) {
         self.camera.tether_target = Some(texture_key);
     }
 
     // Frame helpers for an immediate-mode style
+    /// Begin frame.
     pub fn begin_frame(&mut self) {
         self.process_runtime_raster_warm_queue();
         self.clear_render_queue();
@@ -787,6 +954,11 @@ impl<'a> PlutoniumEngine<'a> {
         self.slot_states.clear();
     }
 
+    /// Finish the frame and present queued GPU work.
+    ///
+    /// Returns the raw `wgpu::SurfaceError` so manual render loops can make the
+    /// same lost/outdated/out-of-memory decisions they would make when using
+    /// `wgpu` directly.
     pub fn end_frame(&mut self) -> Result<(), wgpu::SurfaceError> {
         self.render_popup_overlay();
         // Periodically evict least recently used rect instance buffers to cap memory
@@ -805,6 +977,7 @@ impl<'a> PlutoniumEngine<'a> {
         self.render()
     }
 
+    /// Remove object.
     pub fn remove_object(&mut self, id: Uuid) {
         self.pluto_objects.remove(&id);
     }
@@ -817,6 +990,10 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
+    /// Creates an engine from caller-owned `wgpu` surface and instance objects.
+    ///
+    /// The `wgpu` and `winit` argument types are intentional backend interop
+    /// points and track the versions pinned by `plutonium_engine`.
     pub fn new(
         surface: wgpu::Surface<'a>,
         instance: wgpu::Instance,
@@ -854,6 +1031,7 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     #[cfg(target_arch = "wasm32")]
+    /// Returns an error on wasm; use [`Self::new_async`] for wasm initialization.
     pub fn new(
         _surface: wgpu::Surface<'a>,
         _instance: wgpu::Instance,
@@ -867,6 +1045,7 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     #[cfg(target_arch = "wasm32")]
+    /// Creates an engine asynchronously for wasm targets.
     pub async fn new_async(
         surface: wgpu::Surface<'a>,
         instance: wgpu::Instance,
@@ -1418,14 +1597,17 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     // UI clipping (logical coordinates); applies a scissor rect for the render pass of this frame
+    /// Sets the clip.
     pub fn set_clip(&mut self, rect: Rectangle) {
         self.current_scissor = Some(rect);
     }
+    /// Clear clip.
     pub fn clear_clip(&mut self) {
         self.current_scissor = None;
     }
 
     // Push a clip rectangle (intersect with prior top if present)
+    /// Push clip.
     pub fn push_clip(&mut self, rect: Rectangle) {
         if let Some(&prev) = self.clip_stack.last() {
             let x1 = prev.x.max(rect.x);
@@ -1439,6 +1621,7 @@ impl<'a> PlutoniumEngine<'a> {
             self.clip_stack.push(rect);
         }
     }
+    /// Pop clip.
     pub fn pop_clip(&mut self) {
         let _ = self.clip_stack.pop();
     }

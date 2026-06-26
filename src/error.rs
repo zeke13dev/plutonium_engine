@@ -17,7 +17,9 @@ use std::io;
 pub enum EngineError {
     /// A filesystem or stream read/write failed.
     IoError {
+        /// Item value.
         kind: io::ErrorKind,
+        /// Item value.
         message: String,
     },
     /// Font loading, metadata parsing, or atlas generation failed.

@@ -1,18 +1,26 @@
 use crate::utils::{Position, Rectangle, Size};
 
 #[derive(Clone, Copy, Debug)]
+/// Options for hanchor.
 pub enum HAnchor {
+    /// Left option.
     Left,
+    /// Center option.
     Center,
+    /// Right option.
     Right,
     /// Position the center of the element at the given percentage of container width.
     /// `0.0` = left edge, `0.5` = center, `1.0` = right edge.
     Percent(f32),
 }
 #[derive(Clone, Copy, Debug)]
+/// Options for vanchor.
 pub enum VAnchor {
+    /// Top option.
     Top,
+    /// Middle option.
     Middle,
+    /// Bottom option.
     Bottom,
     /// Position the center of the element at the given percentage of container height.
     /// `0.0` = top edge, `0.5` = middle, `1.0` = bottom edge.
@@ -20,8 +28,11 @@ pub enum VAnchor {
 }
 
 #[derive(Clone, Copy, Debug)]
+/// Anchors data.
 pub struct Anchors {
+    /// H value.
     pub h: HAnchor,
+    /// V value.
     pub v: VAnchor,
 }
 
@@ -35,30 +46,45 @@ impl Default for Anchors {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
+/// PercentSize data.
 pub struct PercentSize {
-    pub width_pct: f32,  // 0.0..=1.0
+    /// Width pct value.
+    pub width_pct: f32, // 0.0..=1.0
+    /// Height pct value.
     pub height_pct: f32, // 0.0..=1.0
 }
 
 #[derive(Clone, Copy, Debug, Default)]
+/// Margins data.
 pub struct Margins {
+    /// Left value.
     pub left: f32,
+    /// Right value.
     pub right: f32,
+    /// Top value.
     pub top: f32,
+    /// Bottom value.
     pub bottom: f32,
 }
 
 #[derive(Default)]
+/// LayoutParams data.
 pub struct LayoutParams {
+    /// Anchors value.
     pub anchors: Anchors,
+    /// Percent value.
     pub percent: Option<PercentSize>,
+    /// Margins value.
     pub margins: Margins,
 }
 
 // Default is derived above
 
+/// LayoutResult data.
 pub struct LayoutResult {
+    /// Object position in logical pixels.
     pub position: Position,
+    /// Size value.
     pub size: Size,
 }
 
@@ -80,6 +106,7 @@ pub fn window_bounds(width: f32, height: f32) -> Rectangle {
     Rectangle::new(0.0, 0.0, width, height)
 }
 
+/// Documents layout node.
 pub fn layout_node(container: Rectangle, desired: Size, params: LayoutParams) -> LayoutResult {
     // Resolve size
     let size = if let Some(p) = params.percent {

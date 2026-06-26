@@ -7,9 +7,13 @@ use std::rc::Rc;
 use uuid::Uuid;
 
 #[derive(Clone)]
+/// Options for shape type.
 pub enum ShapeType {
+    /// Rectangle option.
     Rectangle,
+    /// Circle option.
     Circle,
+    /// Polygon option.
     Polygon(u32),
 }
 
@@ -132,6 +136,7 @@ impl ShapeInternal {
     }
 }
 
+/// Shape data.
 pub struct Shape {
     internal: Rc<RefCell<ShapeInternal>>,
 }
@@ -142,72 +147,89 @@ impl Shape {
     }
 
     // Wrapper functions to match other objects
+    /// Returns the id.
     pub fn get_id(&self) -> Uuid {
         self.internal.borrow().get_id()
     }
 
+    /// Texture key.
     pub fn texture_key(&self) -> Uuid {
         self.internal.borrow().texture_key()
     }
 
+    /// Dimensions.
     pub fn dimensions(&self) -> Rectangle {
         self.internal.borrow().dimensions()
     }
 
+    /// Returns the current position.
     pub fn pos(&self) -> Position {
         self.internal.borrow().pos()
     }
 
+    /// Sets the dimensions.
     pub fn set_dimensions(&mut self, new_dimensions: Rectangle) {
         self.internal.borrow_mut().set_dimensions(new_dimensions);
     }
 
+    /// Sets the pos.
     pub fn set_pos(&mut self, new_pos: Position) {
         self.internal.borrow_mut().set_pos(new_pos);
     }
 
     // Additional shape-specific getters if needed
+    /// Fill.
     pub fn fill(&self) -> String {
         self.internal.borrow().fill.clone()
     }
 
+    /// Outline.
     pub fn outline(&self) -> String {
         self.internal.borrow().outline.clone()
     }
 
+    /// Stroke.
     pub fn stroke(&self) -> f32 {
         self.internal.borrow().stroke
     }
 
     // You might want to add setters for these as well
+    /// Sets the fill.
     pub fn set_fill(&mut self, fill: String) {
         self.internal.borrow_mut().fill = fill;
     }
 
+    /// Sets the outline.
     pub fn set_outline(&mut self, outline: String) {
         self.internal.borrow_mut().outline = outline;
     }
 
+    /// Sets the stroke.
     pub fn set_stroke(&mut self, stroke: f32) {
         self.internal.borrow_mut().stroke = stroke;
     }
 
+    /// Queues this object for rendering.
     pub fn render(&self, engine: &mut PlutoniumEngine) {
         self.internal.borrow().render(engine);
     }
 
+    /// Render with z.
     pub fn render_with_z(&self, engine: &mut PlutoniumEngine, z: i32) {
         self.internal.borrow().render_with_z(engine, z);
     }
 
+    /// Sets the z.
     pub fn set_z(&self, z: i32) {
         self.internal.borrow_mut().set_z(z);
     }
 
+    /// Returns the z.
     pub fn get_z(&self) -> i32 {
         self.internal.borrow().get_z()
     }
 
+    /// Returns this value with z configured.
     pub fn with_z(self, z: i32) -> Self {
         self.set_z(z);
         self

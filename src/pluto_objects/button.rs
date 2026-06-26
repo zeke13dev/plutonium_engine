@@ -174,6 +174,7 @@ impl PlutoObject for ButtonInternal {
 }
 
 // Wrapper Representation
+/// Button data.
 pub struct Button {
     internal: Rc<RefCell<ButtonInternal>>,
 }
@@ -183,51 +184,66 @@ impl Button {
         Self { internal }
     }
 
+    /// Sets the content.
     pub fn set_content(&self, new_content: &str) {
         self.internal.borrow_mut().set_content(new_content);
     }
 
+    /// Clear.
     pub fn clear(&self) {
         self.internal.borrow_mut().clear();
     }
 
+    /// Sets the on click.
     pub fn set_on_click(&self, callback: Option<Box<dyn Fn()>>) {
         self.internal.borrow_mut().set_on_click(callback);
     }
 
+    /// Sets the on focus.
     pub fn set_on_focus(&self, callback: Option<Box<dyn Fn()>>) {
         self.internal.borrow_mut().set_on_focus(callback);
     }
 
+    /// Sets the on unfocus.
     pub fn set_on_unfocus(&self, callback: Option<Box<dyn Fn()>>) {
         self.internal.borrow_mut().set_on_unfocus(callback);
     }
 
+    /// Queues this object for rendering.
     pub fn render(&self, engine: &mut PlutoniumEngine) {
         // Call the inherent render method directly on ButtonInternal
         ButtonInternal::render(&mut self.internal.borrow_mut(), engine);
     }
 
+    /// Updates the button from current pointer and keyboard input.
+    ///
+    /// The keyboard argument intentionally uses `winit::keyboard::Key` to match
+    /// the engine event-loop input type.
     pub fn update(&self, mouse_info: Option<MouseInfo>, key_pressed: Option<Key>) {
         self.internal.borrow_mut().update(mouse_info, &key_pressed);
     }
 
+    /// Returns the id.
     pub fn get_id(&self) -> Uuid {
         self.internal.borrow().get_id()
     }
 
+    /// Texture key.
     pub fn texture_key(&self) -> Uuid {
         self.internal.borrow().texture_key()
     }
 
+    /// Returns the dimensions.
     pub fn get_dimensions(&self) -> Rectangle {
         self.internal.borrow().dimensions()
     }
 
+    /// Sets the dimensions.
     pub fn set_dimensions(&self, dimensions: Rectangle) {
         self.internal.borrow_mut().set_dimensions(dimensions);
     }
 
+    /// Sets the pos.
     pub fn set_pos(&self, position: Position) {
         self.internal.borrow_mut().set_pos(position);
     }

@@ -73,6 +73,7 @@ impl PlutoObject for Texture2DInternal {
     }
 }
 
+/// Texture2D data.
 pub struct Texture2D {
     internal: Rc<RefCell<Texture2DInternal>>,
 }
@@ -82,42 +83,52 @@ impl Texture2D {
         Self { internal }
     }
 
+    /// Sets the dimensions.
     pub fn set_dimensions(&self, new_dimensions: Rectangle) {
         self.internal.borrow_mut().set_dimensions(new_dimensions);
     }
 
+    /// Sets the pos.
     pub fn set_pos(&self, new_position: Position) {
         self.internal.borrow_mut().set_pos(new_position);
     }
 
+    /// Returns the id.
     pub fn get_id(&self) -> Uuid {
         self.internal.borrow().get_id()
     }
 
+    /// Returns the dimensions.
     pub fn get_dimensions(&self) -> Rectangle {
         self.internal.borrow().dimensions()
     }
 
+    /// Returns the pos.
     pub fn get_pos(&self) -> Position {
         self.internal.borrow().pos()
     }
 
+    /// Queues this object for rendering.
     pub fn render(&self, engine: &mut PlutoniumEngine) {
         self.internal.borrow().render(engine);
     }
 
+    /// Render with z.
     pub fn render_with_z(&self, engine: &mut PlutoniumEngine, z: i32) {
         self.internal.borrow().render_with_z(engine, z);
     }
 
+    /// Sets the z.
     pub fn set_z(&self, z: i32) {
         self.internal.borrow_mut().set_z(z);
     }
 
+    /// Returns the z.
     pub fn get_z(&self) -> i32 {
         self.internal.borrow().get_z()
     }
 
+    /// Returns this value with z configured.
     pub fn with_z(self, z: i32) -> Self {
         self.set_z(z);
         self

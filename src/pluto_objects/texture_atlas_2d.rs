@@ -100,6 +100,7 @@ impl PlutoObject for TextureAtlas2DInternal {
 }
 
 // Wrapper Representation
+/// TextureAtlas2D data.
 pub struct TextureAtlas2D {
     internal: Rc<RefCell<TextureAtlas2DInternal>>,
 }
@@ -109,20 +110,24 @@ impl TextureAtlas2D {
         Self { internal }
     }
 
+    /// Sets the dimensions.
     pub fn set_dimensions(&self, new_dimensions: Rectangle) {
         self.internal.borrow_mut().set_dimensions(new_dimensions);
     }
 
+    /// Sets the pos.
     pub fn set_pos(&self, new_position: Position) {
         self.internal.borrow_mut().set_pos(new_position);
     }
 
+    /// Render tile.
     pub fn render_tile(&self, engine: &mut PlutoniumEngine, tile_index: usize, position: Position) {
         self.internal
             .borrow()
             .render_tile(engine, tile_index, position);
     }
 
+    /// Render tile with z.
     pub fn render_tile_with_z(
         &self,
         engine: &mut PlutoniumEngine,
@@ -135,35 +140,43 @@ impl TextureAtlas2D {
             .render_tile_with_z(engine, tile_index, position, z);
     }
 
+    /// Sets the z.
     pub fn set_z(&self, z: i32) {
         self.internal.borrow_mut().set_z(z);
     }
 
+    /// Returns the z.
     pub fn get_z(&self) -> i32 {
         self.internal.borrow().get_z()
     }
 
+    /// Returns this value with z configured.
     pub fn with_z(self, z: i32) -> Self {
         self.set_z(z);
         self
     }
 
+    /// Returns the id.
     pub fn get_id(&self) -> Uuid {
         self.internal.borrow().get_id()
     }
 
+    /// Returns the dimensions.
     pub fn get_dimensions(&self) -> Rectangle {
         self.internal.borrow().dimensions()
     }
 
+    /// Returns the pos.
     pub fn get_pos(&self) -> Position {
         self.internal.borrow().pos()
     }
 
+    /// Returns the tile size.
     pub fn get_tile_size(&self) -> Size {
         self.internal.borrow().tile_size
     }
 
+    /// Sets the scale factor.
     pub fn set_scale_factor(&mut self, factor: f32) {
         self.internal.borrow_mut().set_scale_factor(factor);
     }

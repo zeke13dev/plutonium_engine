@@ -10,10 +10,12 @@ use crate::{
 use uuid::Uuid;
 
 impl<'a> PlutoniumEngine<'a> {
+    /// Queues texture for rendering.
     pub fn queue_texture(&mut self, texture_key: &Uuid, position: Option<Position>) {
         self.queue_texture_with_layer(texture_key, position, 0);
     }
 
+    /// Queues texture with layer for rendering.
     pub fn queue_texture_with_layer(
         &mut self,
         texture_key: &Uuid,
@@ -135,6 +137,7 @@ impl<'a> PlutoniumEngine<'a> {
         });
     }
 
+    /// Queues texture stretched for rendering.
     pub fn queue_texture_stretched(&mut self, texture_key: &Uuid, dst: Rectangle) {
         self.queue_texture_stretched_with_layer_and_fit(
             texture_key,
@@ -145,6 +148,7 @@ impl<'a> PlutoniumEngine<'a> {
         );
     }
 
+    /// Queues texture stretched with fit for rendering.
     pub fn queue_texture_stretched_with_fit(
         &mut self,
         texture_key: &Uuid,
@@ -154,6 +158,7 @@ impl<'a> PlutoniumEngine<'a> {
         self.queue_texture_stretched_with_layer_and_fit(texture_key, dst, 0, fit, 0.0);
     }
 
+    /// Queues texture stretched with layer for rendering.
     pub fn queue_texture_stretched_with_layer(
         &mut self,
         texture_key: &Uuid,
@@ -169,6 +174,7 @@ impl<'a> PlutoniumEngine<'a> {
         );
     }
 
+    /// Queues texture stretched with layer and fit for rendering.
     pub fn queue_texture_stretched_with_layer_and_fit(
         &mut self,
         texture_key: &Uuid,
@@ -231,6 +237,7 @@ impl<'a> PlutoniumEngine<'a> {
         }
     }
 
+    /// Queues slot layer texture for rendering.
     pub fn queue_slot_layer_texture(
         &mut self,
         slot_id: &Uuid,
@@ -308,6 +315,7 @@ impl<'a> PlutoniumEngine<'a> {
         });
     }
 
+    /// Queues slot layer rect for rendering.
     pub fn queue_slot_layer_rect(
         &mut self,
         slot_id: &Uuid,
@@ -337,6 +345,7 @@ impl<'a> PlutoniumEngine<'a> {
         true
     }
 
+    /// Queues tile for rendering.
     pub fn queue_tile(
         &mut self,
         texture_key: &Uuid,
@@ -347,6 +356,7 @@ impl<'a> PlutoniumEngine<'a> {
         self.queue_tile_with_layer(texture_key, tile_index, position, user_scale, 0);
     }
 
+    /// Queues tile with layer for rendering.
     pub fn queue_tile_with_layer(
         &mut self,
         texture_key: &Uuid,
@@ -365,6 +375,7 @@ impl<'a> PlutoniumEngine<'a> {
         );
     }
 
+    /// Queues tile with tint for rendering.
     pub fn queue_tile_with_tint(
         &mut self,
         texture_key: &Uuid,
@@ -397,6 +408,7 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     #[allow(clippy::too_many_arguments)]
+    /// Queues atlas uv with tint for rendering.
     pub fn queue_atlas_uv_with_tint(
         &mut self,
         texture_key: &Uuid,
@@ -495,6 +507,7 @@ impl<'a> PlutoniumEngine<'a> {
         });
     }
 
+    /// Queues text for rendering.
     pub fn queue_text(
         &mut self,
         text: &str,
@@ -515,6 +528,7 @@ impl<'a> PlutoniumEngine<'a> {
         );
     }
 
+    /// Queues text with spacing for rendering.
     pub fn queue_text_with_spacing(
         &mut self,
         text: &str,
@@ -572,31 +586,38 @@ impl<'a> PlutoniumEngine<'a> {
         }
     }
 
+    /// Clear render queue.
     pub fn clear_render_queue(&mut self) {
         self.render_queue.clear();
     }
 
+    /// Debug render queue len.
     pub fn debug_render_queue_len(&self) -> usize {
         self.render_queue.len()
     }
 
+    /// Debug surface size.
     pub fn debug_surface_size(&self) -> (u32, u32) {
         (self.config.width, self.config.height)
     }
 
+    /// Debug viewport size.
     pub fn debug_viewport_size(&self) -> Size {
         self.viewport_size
     }
 
+    /// Unload texture.
     pub fn unload_texture(&mut self, texture_key: &Uuid) -> bool {
         self.texture_map.remove(texture_key).is_some()
     }
 
+    /// Unload atlas.
     pub fn unload_atlas(&mut self, atlas_key: &Uuid) -> bool {
         self.atlas_map.remove(atlas_key).is_some()
     }
 
     // Convenience immediate-mode draws for consistent naming
+    /// Queues texture for drawing.
     pub fn draw_texture(&mut self, texture_key: &Uuid, position: Position, params: DrawParams) {
         // rotation only supported by direct draw path for sprites; augment transform
         if let Some(texture) = self.texture_map.get(texture_key) {
@@ -619,10 +640,12 @@ impl<'a> PlutoniumEngine<'a> {
         }
     }
 
+    /// Queues texture stretched for drawing.
     pub fn draw_texture_stretched(&mut self, texture_key: &Uuid, dst: Rectangle) {
         self.queue_texture_stretched(texture_key, dst);
     }
 
+    /// Queues texture stretched with fit and inset for drawing.
     pub fn draw_texture_stretched_with_fit_and_inset(
         &mut self,
         texture_key: &Uuid,
@@ -634,6 +657,7 @@ impl<'a> PlutoniumEngine<'a> {
         self.queue_texture_stretched_with_layer_and_fit(texture_key, dst, z, fit, inset);
     }
 
+    /// Queues tile for drawing.
     pub fn draw_tile(
         &mut self,
         atlas_key: &Uuid,
@@ -650,6 +674,7 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     // Draw an atlas tile stretched to an arbitrary destination rectangle (non-uniform scale)
+    /// Queues atlas tile stretched for drawing.
     pub fn draw_atlas_tile_stretched(
         &mut self,
         atlas_key: &Uuid,
@@ -699,6 +724,7 @@ impl<'a> PlutoniumEngine<'a> {
     }
 
     // Immediate-mode rect draw (UI primitive)
+    /// Queues rect for drawing.
     pub fn draw_rect(
         &mut self,
         bounds: Rectangle,

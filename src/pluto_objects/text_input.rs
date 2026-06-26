@@ -328,6 +328,7 @@ impl PlutoObject for TextInputInternal {
     }
 }
 
+/// TextInput data.
 pub struct TextInput {
     internal: Rc<RefCell<TextInputInternal>>,
 }
@@ -354,22 +355,27 @@ impl TextInput {
         Self { internal }
     }
 
+    /// Sets the content.
     pub fn set_content(&self, content: &str) {
         self.internal.borrow_mut().set_content(content);
     }
 
+    /// Clear.
     pub fn clear(&self) {
         self.internal.borrow_mut().clear();
     }
 
+    /// Sets the font size.
     pub fn set_font_size(&self, font_size: f32) {
         self.internal.borrow_mut().set_font_size(font_size);
     }
 
+    /// Sets the focus.
     pub fn set_focus(&self, focus: bool) {
         self.internal.borrow_mut().set_focus(focus);
     }
 
+    /// Queues this object for rendering.
     pub fn render(&self, engine: &mut PlutoniumEngine) {
         self.internal.borrow().render(engine);
     }

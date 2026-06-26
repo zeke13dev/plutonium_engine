@@ -101,17 +101,22 @@ pub(crate) struct GlowInstanceRaw {
 }
 
 #[derive(Debug, Clone, Copy)]
+/// Size data.
 pub struct Size {
+    /// Width in logical pixels.
     pub width: f32,
+    /// Height in logical pixels.
     pub height: f32,
 }
 
 impl Size {
+    /// Creates a new value.
     pub fn new(width: f32, height: f32) -> Self {
         Self { width, height }
     }
 }
 
+/// Documents create unit quad buffers.
 pub fn create_unit_quad_buffers(device: &wgpu::Device) -> (wgpu::Buffer, wgpu::Buffer) {
     // A simple unit quad (0,0) to (1,1) with UVs matching positions
     let vertices: [Vertex; 4] = [
@@ -147,6 +152,7 @@ pub fn create_unit_quad_buffers(device: &wgpu::Device) -> (wgpu::Buffer, wgpu::B
     (vbuf, ibuf)
 }
 
+/// Documents create centered quad buffers.
 pub fn create_centered_quad_buffers(device: &wgpu::Device) -> (wgpu::Buffer, wgpu::Buffer) {
     // Quad from (-1,-1) to (1,1) for SDF-based rects; tex_coords unused
     let vertices: [Vertex; 4] = [
@@ -202,8 +208,11 @@ impl Mul<f32> for Size {
 }
 
 #[derive(Debug, Clone, Copy)]
+/// Position data.
 pub struct Position {
+    /// Horizontal position in logical pixels.
     pub x: f32,
+    /// Vertical position in logical pixels.
     pub y: f32,
 }
 
@@ -291,14 +300,20 @@ impl std::ops::Sub<Position> for Position {
 }
 
 #[derive(Debug, Clone, Copy)]
+/// Rectangle data.
 pub struct Rectangle {
+    /// Horizontal position in logical pixels.
     pub x: f32,
+    /// Vertical position in logical pixels.
     pub y: f32,
+    /// Width in logical pixels.
     pub width: f32,
+    /// Height in logical pixels.
     pub height: f32,
 }
 
 impl Rectangle {
+    /// Padded contains.
     pub fn padded_contains(&self, position: Position, padding: f32) -> bool {
         position.x >= self.x + padding
             && position.x <= self.x + self.width - padding
@@ -306,6 +321,7 @@ impl Rectangle {
             && position.y <= self.y + self.height - padding
     }
 
+    /// Returns whether the point lies inside this value.
     pub fn contains(&self, position: Position) -> bool {
         position.x >= self.x
             && position.x <= self.x + self.width
@@ -313,6 +329,7 @@ impl Rectangle {
             && position.y <= self.y + self.height
     }
 
+    /// Returns the current position.
     pub fn pos(&self) -> Position {
         Position {
             x: self.x,
@@ -320,6 +337,7 @@ impl Rectangle {
         }
     }
 
+    /// Size.
     pub fn size(&self) -> Size {
         Size {
             width: self.width,
@@ -327,11 +345,13 @@ impl Rectangle {
         }
     }
 
+    /// Sets the pos.
     pub fn set_pos(&mut self, pos: Position) {
         self.x = pos.x;
         self.y = pos.y;
     }
 
+    /// Pad.
     pub fn pad(rec: &Rectangle, padding: f32) -> Rectangle {
         Rectangle::new(
             rec.x + padding,
@@ -341,6 +361,7 @@ impl Rectangle {
         )
     }
 
+    /// Creates a new value.
     pub fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
         Self {
             x,
@@ -350,6 +371,7 @@ impl Rectangle {
         }
     }
 
+    /// New square.
     pub fn new_square(x: f32, y: f32, side_length: f32) -> Self {
         Self {
             x,
@@ -393,17 +415,25 @@ impl PartialEq for Rectangle {
 }
 
 #[derive(Copy, Clone, Debug, Default)]
+/// MouseInfo data.
 pub struct MouseInfo {
+    /// Whether the right mouse button was clicked this frame.
     pub is_rmb_clicked: bool,
+    /// Whether the left mouse button was clicked this frame.
     pub is_lmb_clicked: bool,
+    /// Whether the middle mouse button was clicked this frame.
     pub is_mmb_clicked: bool,
+    /// Current mouse position in logical pixels.
     pub mouse_pos: Position,
+    /// Horizontal scroll delta for the current frame.
     pub scroll_dx: f32,
+    /// Vertical scroll delta for the current frame.
     pub scroll_dy: f32,
 }
 
 // Simple sliding-window frame time metrics for real-time reporting
 #[derive(Debug)]
+/// FrameTimeMetrics data.
 pub struct FrameTimeMetrics {
     buffer: VecDeque<f32>, // seconds
     capacity: usize,
@@ -412,6 +442,7 @@ pub struct FrameTimeMetrics {
 }
 
 impl FrameTimeMetrics {
+    /// Creates a new value.
     pub fn new(capacity: usize, report_period_secs: f32) -> Self {
         Self {
             buffer: VecDeque::with_capacity(capacity),
@@ -421,6 +452,7 @@ impl FrameTimeMetrics {
         }
     }
 
+    /// Record.
     pub fn record(&mut self, delta_seconds: f32) {
         if self.buffer.len() == self.capacity {
             self.buffer.pop_front();
@@ -445,6 +477,7 @@ impl FrameTimeMetrics {
         }
     }
 
+    /// Stats.
     pub fn stats(&self) -> Option<(f32, f32, f32, f32)> {
         // returns (p50_ms, p95_ms, p99_ms, avg_fps)
         if self.buffer.is_empty() {
@@ -460,6 +493,7 @@ impl FrameTimeMetrics {
         Some((p50, p95, p99, avg_fps))
     }
 
+    /// Maybe report.
     pub fn maybe_report(&mut self) -> Option<String> {
         let now = monotonic_now_seconds();
         let elapsed = (now - self.last_report_secs).max(0.0) as f32;

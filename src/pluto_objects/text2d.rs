@@ -17,25 +17,39 @@ use crate::{
 use crate::text::TextRenderer;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+/// Options for horizontal alignment.
 pub enum HorizontalAlignment {
-    Left,   // Text starts from left edge
+    /// Left option.
+    Left, // Text starts from left edge
+    /// Center option.
     Center, // Text is centered horizontally
-    Right,  // Text ends at right edge
+    /// Right option.
+    Right, // Text ends at right edge
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+/// Options for vertical alignment.
 pub enum VerticalAlignment {
-    Top,    // Text starts from top edge
+    /// Top option.
+    Top, // Text starts from top edge
+    /// Middle option.
     Middle, // Text is centered vertically
+    /// Bottom option.
     Bottom, // Text starts from bottom edge (default)
 }
 
 #[derive(Debug, Clone)]
+/// TextContainer data.
 pub struct TextContainer {
+    /// Object dimensions in logical pixels.
     pub dimensions: Rectangle,
+    /// H align value.
     pub h_align: HorizontalAlignment,
+    /// V align value.
     pub v_align: VerticalAlignment,
+    /// Padding value.
     pub padding: f32,
+    /// Line height mul value.
     pub line_height_mul: f32, // extra leading multiplier
 }
 
@@ -52,6 +66,7 @@ impl Default for TextContainer {
 }
 
 impl TextContainer {
+    /// Creates a new value.
     pub fn new(dimensions: Rectangle) -> Self {
         Self {
             dimensions,
@@ -62,6 +77,7 @@ impl TextContainer {
         }
     }
 
+    /// Returns this value with alignment configured.
     pub fn with_alignment(
         mut self,
         h_align: HorizontalAlignment,
@@ -72,16 +88,19 @@ impl TextContainer {
         self
     }
 
+    /// Returns this value with padding configured.
     pub fn with_padding(mut self, padding: f32) -> Self {
         self.padding = padding;
         self
     }
 
+    /// Returns this value with line height mul configured.
     pub fn with_line_height_mul(mut self, mul: f32) -> Self {
         self.line_height_mul = mul;
         self
     }
 
+    /// Calculate text position.
     pub fn calculate_text_position(&self, text_width: f32, text_height: f32) -> Position {
         // Calculate the content area after padding
         let content_dimensions = Rectangle::new(
@@ -120,6 +139,7 @@ impl TextContainer {
 
         Position { x, y }
     }
+    /// Sets the dimensions.
     pub fn set_dimensions(&mut self, dimensions: Rectangle) {
         self.dimensions = dimensions;
     }
@@ -738,11 +758,13 @@ impl PlutoObject for Text2DInternal {
     }
 }
 
+/// Text2D data.
 pub struct Text2D {
     internal: Rc<RefCell<Text2DInternal>>,
 }
 
 impl Text2D {
+    /// Creates debug visualization.
     pub fn create_debug_visualization(
         &self,
         engine: &mut PlutoniumEngine,
@@ -782,6 +804,7 @@ impl Text2D {
         Self { internal }
     }
 
+    /// Returns the cursor position.
     pub fn get_cursor_position(
         &self,
         char_index: usize,
@@ -793,6 +816,7 @@ impl Text2D {
             .get_cursor_position(char_index, text_renderer, current_line)
     }
 
+    /// Returns the cursor position info.
     pub fn get_cursor_position_info(
         &self,
         x_pos: f32,
@@ -804,79 +828,98 @@ impl Text2D {
             .get_cursor_position_info(x_pos, y_pos, text_renderer)
     }
 
+    /// Sets the font size.
     pub fn set_font_size(&self, font_size: f32) {
         self.internal.borrow_mut().set_font_size(font_size);
     }
 
+    /// Returns the content.
     pub fn get_content(&self) -> String {
         self.internal.borrow().content.clone()
     }
 
+    /// Sets the content.
     pub fn set_content(&self, content: &str) {
         self.internal.borrow_mut().set_content(content);
     }
 
+    /// Append content.
     pub fn append_content(&self, content: &str) {
         self.internal.borrow_mut().append_content(content);
     }
 
+    /// Pop content.
     pub fn pop_content(&self) -> bool {
         self.internal.borrow_mut().pop_content()
     }
 
+    /// Returns the font size.
     pub fn get_font_size(&self) -> f32 {
         self.internal.borrow().font_size
     }
 
+    /// Returns the font key.
     pub fn get_font_key(&self) -> String {
         self.internal.borrow().font_key.clone()
     }
 
+    /// Returns the dimensions.
     pub fn get_dimensions(&self) -> Rectangle {
         self.internal.borrow().dimensions()
     }
 
+    /// Returns the pos.
     pub fn get_pos(&self) -> Position {
         self.internal.borrow().pos()
     }
 
+    /// Sets the pos.
     pub fn set_pos(&self, position: Position) {
         self.internal.borrow_mut().set_pos(position);
     }
 
+    /// Sets the dimensions.
     pub fn set_dimensions(&self, dimensions: Rectangle) {
         self.internal.borrow_mut().set_dimensions(dimensions);
     }
 
+    /// Queues this object for rendering.
     pub fn render(&self, engine: &mut PlutoniumEngine) {
         self.internal.borrow().render(engine);
     }
 
+    /// Render with z.
     pub fn render_with_z(&self, engine: &mut PlutoniumEngine, z: i32) {
         self.internal.borrow().render_with_z(engine, z);
     }
 
+    /// Sets the z.
     pub fn set_z(&self, z: i32) {
         self.internal.borrow_mut().set_z(z);
     }
 
+    /// Returns the z.
     pub fn get_z(&self) -> i32 {
         self.internal.borrow().get_z()
     }
 
+    /// Returns this value with z configured.
     pub fn with_z(self, z: i32) -> Self {
         self.set_z(z);
         self
     }
 
+    /// Sets the color.
     pub fn set_color(&self, color: [f32; 4]) {
         self.internal.borrow_mut().set_color(color);
     }
 
+    /// Returns the color.
     pub fn get_color(&self) -> [f32; 4] {
         self.internal.borrow().get_color()
     }
 
+    /// Returns this value with color configured.
     pub fn with_color(self, color: [f32; 4]) -> Self {
         self.set_color(color);
         self
@@ -916,49 +959,60 @@ impl Text2D {
         self
     }
 
+    /// Sets the auto size.
     pub fn set_auto_size(&self, enabled: bool) {
         self.internal.borrow_mut().auto_size_enabled = enabled;
         self.internal.borrow_mut().cached_font_size = None; // Invalidate cache
     }
 
+    /// Sets the wrap.
     pub fn set_wrap(&self, enabled: bool) {
         self.internal.borrow_mut().wrap_enabled = enabled;
         self.internal.borrow_mut().cached_wrapped_text = None; // Invalidate cache
     }
 
+    /// Sets the min font size.
     pub fn set_min_font_size(&self, size: f32) {
         self.internal.borrow_mut().min_font_size = size;
     }
 
+    /// Sets the max font size.
     pub fn set_max_font_size(&self, size: f32) {
         self.internal.borrow_mut().max_font_size = size;
     }
 
+    /// Returns the id.
     pub fn get_id(&self) -> Uuid {
         self.internal.borrow().get_id()
     }
 
+    /// Sets the container.
     pub fn set_container(&mut self, container: TextContainer) {
         self.internal.borrow_mut().set_container(container);
     }
 
+    /// Log container.
     pub fn log_container(&self) {
         log::info!("{:?}", self.internal.borrow().get_container());
     }
 
+    /// Container bounds.
     pub fn container_bounds(&self) -> Rectangle {
         self.internal.borrow().get_container().dimensions
     }
 
+    /// Reset container.
     pub fn reset_container(&self) {
         self.internal.borrow_mut().reset_container();
     }
 
     #[allow(clippy::len_without_is_empty)]
+    /// Len.
     pub fn len(&self) -> usize {
         self.internal.borrow().content.len()
     }
 
+    /// Insert at.
     pub fn insert_at(&mut self, index: usize, c: &str) {
         let mut internal = self.internal.borrow_mut();
         let content = &mut internal.content;
@@ -983,6 +1037,7 @@ impl Text2D {
         internal.cached_wrapped_text = None;
     }
 
+    /// Remove at.
     pub fn remove_at(&mut self, index: usize) -> bool {
         let mut internal = self.internal.borrow_mut();
         let content = &mut internal.content;

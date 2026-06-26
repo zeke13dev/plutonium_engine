@@ -10,7 +10,9 @@ use crate::utils::{RectInstanceRaw, Size};
 // Expose the queued items to the renderer backend
 // Reserved for future use
 
+/// Behavior required by renderer implementations.
 pub trait Renderer {
+    /// Item.
     fn submit<'a>(
         &mut self,
         _rpass: &mut wgpu::RenderPass<'a>,
@@ -21,6 +23,7 @@ pub trait Renderer {
     );
 }
 
+/// WgpuRenderer data.
 pub struct WgpuRenderer;
 
 impl Default for WgpuRenderer {
@@ -30,6 +33,7 @@ impl Default for WgpuRenderer {
 }
 
 impl WgpuRenderer {
+    /// Creates a new value.
     pub fn new() -> Self {
         Self
     }
@@ -37,32 +41,54 @@ impl WgpuRenderer {
 
 // UI Rect primitives API (to be used by engine front-end)
 #[derive(Debug, Clone, Copy)]
+/// RectCommand data.
 pub struct RectCommand {
+    /// Width px value.
     pub width_px: f32,
+    /// Height px value.
     pub height_px: f32,
+    /// RGBA color.
     pub color: [f32; 4],
+    /// Corner radius px value.
     pub corner_radius_px: f32,
+    /// Border thickness px value.
     pub border_thickness_px: f32,
+    /// Border color value.
     pub border_color: [f32; 4],
+    /// Transform value.
     pub transform: [[f32; 4]; 4],
+    /// Draw-order layer; larger values render above smaller values.
     pub z: i32,
 }
 
 #[derive(Debug, Clone, Copy)]
+/// GlowCommand data.
 pub struct GlowCommand {
+    /// Transform value.
     pub transform: [[f32; 4]; 4],
+    /// RGBA color.
     pub color: [f32; 4],
+    /// Width px value.
     pub width_px: f32,
+    /// Height px value.
     pub height_px: f32,
+    /// Corner radius px value.
     pub corner_radius_px: f32,
+    /// Glow radius px value.
     pub glow_radius_px: f32,
+    /// Sigma value.
     pub sigma: f32,
+    /// Max alpha value.
     pub max_alpha: f32,
+    /// Mode value.
     pub mode: f32,
+    /// Border width value.
     pub border_width: f32,
 }
 
+/// RectBatch data.
 pub struct RectBatch {
+    /// Commands value.
     pub commands: Vec<RectCommand>,
 }
 
@@ -73,17 +99,21 @@ impl Default for RectBatch {
 }
 
 impl RectBatch {
+    /// Creates a new value.
     pub fn new() -> Self {
         Self {
             commands: Vec::new(),
         }
     }
+    /// Clear.
     pub fn clear(&mut self) {
         self.commands.clear();
     }
+    /// Push.
     pub fn push(&mut self, cmd: RectCommand) {
         self.commands.push(cmd);
     }
+    /// Draw.
     pub fn draw(
         &self,
         device: &wgpu::Device,

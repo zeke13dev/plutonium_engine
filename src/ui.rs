@@ -1,21 +1,31 @@
 use crate::utils::{Rectangle, Size};
 use crate::PlutoniumEngine;
 
+/// NinePatch data.
 pub struct NinePatch {
+    /// Atlas id value.
     pub atlas_id: uuid::Uuid,
+    /// Insets px value.
     pub insets_px: [f32; 4], // left, top, right, bottom
+    /// Tile size value.
     pub tile_size: Size,
 }
 
 #[derive(Clone)]
+/// FocusRingStyle data.
 pub struct FocusRingStyle {
+    /// Thickness px value.
     pub thickness_px: f32,
+    /// RGBA color.
     pub color: [f32; 4],
+    /// Corner radius px value.
     pub corner_radius_px: f32,
+    /// Inset px value.
     pub inset_px: f32,
 }
 
 impl NinePatch {
+    /// Creates a new value.
     pub fn new(atlas_id: uuid::Uuid, tile_size: Size, insets_px: [f32; 4]) -> Self {
         Self {
             atlas_id,
@@ -24,6 +34,7 @@ impl NinePatch {
         }
     }
 
+    /// Draw.
     pub fn draw(&self, engine: &mut PlutoniumEngine, dst: Rectangle, z: i32) {
         let [l, t, r, b] = self.insets_px;
         let x = dst.x;
@@ -53,6 +64,7 @@ impl NinePatch {
     }
 }
 
+/// Documents draw focus ring.
 pub fn draw_focus_ring(
     engine: &mut crate::PlutoniumEngine,
     dst: Rectangle,
@@ -67,13 +79,21 @@ pub fn draw_focus_ring(
 }
 
 // Toggle control (track + thumb) rendered with rect SDFs
+/// ToggleStyle data.
 pub struct ToggleStyle {
+    /// Track off rgba value.
     pub track_off_rgba: [f32; 4],
+    /// Track on rgba value.
     pub track_on_rgba: [f32; 4],
+    /// Border rgba value.
     pub border_rgba: [f32; 4],
+    /// Border thickness px value.
     pub border_thickness_px: f32,
+    /// Thumb rgba value.
     pub thumb_rgba: [f32; 4],
+    /// Focus ring value.
     pub focus_ring: Option<FocusRingStyle>,
+    /// Corner radius px value.
     pub corner_radius_px: f32, // for track; circle thumb derived from height
 }
 
@@ -154,15 +174,25 @@ pub fn draw_toggle(
 }
 
 // Reusable button background helper with hover/pressed/focused overlays
+/// ButtonStyle data.
 pub struct ButtonStyle {
+    /// Base fill rgba value.
     pub base_fill_rgba: [f32; 4],
+    /// Base border rgba value.
     pub base_border_rgba: [f32; 4],
+    /// Base border thickness px value.
     pub base_border_thickness_px: f32,
+    /// Corner radius px value.
     pub corner_radius_px: f32,
+    /// Hover fill overlay rgba value.
     pub hover_fill_overlay_rgba: [f32; 4], // additive/lighten overlay
-    pub hover_border_rgba: [f32; 4],       // subtle outline on hover
+    /// Hover border rgba value.
+    pub hover_border_rgba: [f32; 4], // subtle outline on hover
+    /// Hover border thickness px value.
     pub hover_border_thickness_px: f32,
+    /// Pressed fill overlay rgba value.
     pub pressed_fill_overlay_rgba: [f32; 4], // darken overlay
+    /// Focus ring value.
     pub focus_ring: Option<FocusRingStyle>,
 }
 
@@ -187,9 +217,13 @@ impl Default for ButtonStyle {
     }
 }
 
+/// ButtonVisualState data.
 pub struct ButtonVisualState {
+    /// Hovered value.
     pub hovered: bool,
+    /// Pressed value.
     pub pressed: bool,
+    /// Focused value.
     pub focused: bool,
 }
 

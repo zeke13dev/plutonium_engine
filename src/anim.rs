@@ -1,18 +1,28 @@
 #[derive(Debug, Clone, Copy)]
+/// Options for ease.
 pub enum Ease {
+    /// Linear option.
     Linear,
+    /// Ease in option.
     EaseIn,
+    /// Ease out option.
     EaseOut,
+    /// Ease in out option.
     EaseInOut,
     /// CSS-like cubic-bezier; maps input progress t in \[0,1\] to output y by solving x(t)=progress.
     CubicBezier {
+        /// Item value.
         x1: f32,
+        /// Item value.
         y1: f32,
+        /// Item value.
         x2: f32,
+        /// Item value.
         y2: f32,
     },
 }
 
+/// Documents ease value.
 pub fn ease_value(e: Ease, t: f32) -> f32 {
     let x = t.clamp(0.0, 1.0);
     match e {
@@ -75,11 +85,17 @@ fn bezier_y(t: f32, y1: f32, y2: f32) -> f32 {
 }
 
 #[derive(Debug, Clone)]
+/// Tween data.
 pub struct Tween<T> {
+    /// Start value.
     pub start: T,
+    /// End value.
     pub end: T,
+    /// Duration value.
     pub duration: f32,
+    /// Elapsed value.
     pub elapsed: f32,
+    /// Ease value.
     pub ease: Ease,
 }
 
@@ -90,6 +106,7 @@ impl<
             + core::ops::Mul<f32, Output = T>,
     > Tween<T>
 {
+    /// Creates a new value.
     pub fn new(start: T, end: T, duration: f32, ease: Ease) -> Self {
         Self {
             start,
@@ -100,14 +117,17 @@ impl<
         }
     }
 
+    /// Reset.
     pub fn reset(&mut self) {
         self.elapsed = 0.0;
     }
 
+    /// Is finished.
     pub fn is_finished(&self) -> bool {
         self.elapsed >= self.duration
     }
 
+    /// Sample.
     pub fn sample(&self) -> T {
         if self.duration <= 0.0 {
             return self.end;
@@ -117,6 +137,7 @@ impl<
         self.start + (self.end - self.start) * w
     }
 
+    /// Step.
     pub fn step(&mut self, dt: f32) -> T {
         self.elapsed += dt;
         self.sample()
@@ -124,8 +145,11 @@ impl<
 }
 
 #[derive(Debug, Clone)]
+/// Options for track.
 pub enum Track<T> {
+    /// Sequence option.
     Sequence(Vec<Tween<T>>),
+    /// Parallel option.
     Parallel(Vec<Tween<T>>),
 }
 
@@ -136,6 +160,7 @@ where
         + core::ops::Sub<Output = T>
         + core::ops::Mul<f32, Output = T>,
 {
+    /// Step.
     pub fn step(&mut self, dt: f32) -> Vec<T> {
         match self {
             Track::Sequence(ref mut tweens) => {
@@ -168,6 +193,7 @@ where
     }
 }
 
+/// Timeline data.
 pub struct Timeline<T>
 where
     T: Copy
@@ -202,6 +228,7 @@ where
         + core::ops::Sub<Output = T>
         + core::ops::Mul<f32, Output = T>,
 {
+    /// Creates a new value.
     pub fn new() -> Self {
         Self {
             tracks: Vec::new(),
@@ -212,18 +239,23 @@ where
             callbacks: Vec::new(),
         }
     }
+    /// Push track.
     pub fn push_track(&mut self, track: Track<T>) {
         self.tracks.push(track);
     }
+    /// Sets the rate.
     pub fn set_rate(&mut self, rate: f32) {
         self.rate = rate;
     }
+    /// Play.
     pub fn play(&mut self) {
         self.playing = true;
     }
+    /// Pause.
     pub fn pause(&mut self) {
         self.playing = false;
     }
+    /// Seek.
     pub fn seek(&mut self, _t: f32) {
         // Re-simulate all tracks from t=0 to requested time using a fixed small step for determinism.
         // This is a simple implementation intended for tests/snapshots, not a high-perf runtime.
@@ -266,6 +298,7 @@ where
             rem -= step;
         }
     }
+    /// Step.
     pub fn step(&mut self, dt: f32) -> Vec<Vec<T>> {
         if !self.playing {
             return vec![];
@@ -284,14 +317,17 @@ where
     }
 
     // Labels
+    /// Add label.
     pub fn add_label(&mut self, name: impl Into<String>, at_time: f32) {
         self.labels.insert(name.into(), at_time);
     }
+    /// Label time.
     pub fn label_time(&self, name: &str) -> Option<f32> {
         self.labels.get(name).copied()
     }
 
     // Callbacks
+    /// On at.
     pub fn on_at(&mut self, at_time: f32, f: impl FnMut() + 'static) {
         self.callbacks.push(TimelineCallback {
             time: at_time,
@@ -299,6 +335,7 @@ where
             func: Box::new(f),
         });
     }
+    /// On label.
     pub fn on_label(&mut self, name: &str, f: impl FnMut() + 'static) {
         if let Some(t) = self.labels.get(name).copied() {
             self.on_at(t, f);

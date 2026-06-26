@@ -2,32 +2,39 @@ use crate::{Position, Rectangle, Size};
 use uuid::Uuid;
 
 #[derive(Debug)]
+/// Camera data.
 pub struct Camera {
     position: Position,
     boundary: Option<Rectangle>,
     activated: bool,
+    /// Tether target value.
     pub tether_target: Option<Uuid>,
     tether_size: Option<Size>,
     smoothing_strength: f32,
 }
 
 impl Camera {
+    /// Sets the boundary.
     pub fn set_boundary(&mut self, boundary: Rectangle) {
         self.boundary = Some(boundary);
     }
 
+    /// Clear boundary.
     pub fn clear_boundary(&mut self) {
         self.boundary = None;
     }
 
+    /// Activate.
     pub fn activate(&mut self) {
         self.activated = true;
     }
 
+    /// Deactivate.
     pub fn deactivate(&mut self) {
         self.activated = false;
     }
 
+    /// Returns the pos.
     pub fn get_pos(&self, scale_factor: f32) -> Position {
         if self.activated {
             Position {
@@ -39,13 +46,16 @@ impl Camera {
         }
     }
 
+    /// Logical pos.
     pub fn logical_pos(&self) -> Position {
         self.position
     }
+    /// Sets the pos.
     pub fn set_pos(&mut self, new_pos: Position) {
         self.position = self.desired_position(new_pos);
     }
 
+    /// Sets the pos with dt.
     pub fn set_pos_with_dt(&mut self, new_pos: Position, delta_time: f32) {
         let desired = self.desired_position(new_pos);
         if self.smoothing_strength > 0.0 && delta_time > 0.0 {
@@ -111,6 +121,7 @@ impl Camera {
         }
     }
 
+    /// Creates a new value.
     pub fn new(position: Position) -> Self {
         Self {
             position,
@@ -122,18 +133,22 @@ impl Camera {
         }
     }
 
+    /// Sets the tether target.
     pub fn set_tether_target(&mut self, target: Option<Uuid>) {
         self.tether_target = target;
     }
 
+    /// Sets the tether size.
     pub fn set_tether_size(&mut self, size: Option<Size>) {
         self.tether_size = size;
     }
 
+    /// Sets the smoothing strength.
     pub fn set_smoothing_strength(&mut self, smoothing_strength: f32) {
         self.smoothing_strength = smoothing_strength.max(0.0);
     }
 
+    /// Smoothing strength.
     pub fn smoothing_strength(&self) -> f32 {
         self.smoothing_strength
     }

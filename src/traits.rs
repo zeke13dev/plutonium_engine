@@ -5,25 +5,46 @@ use crate::PlutoniumEngine;
 use std::collections::HashMap;
 use uuid::Uuid;
 use winit::keyboard::Key;
+/// GPU and camera state supplied to object update hooks.
+///
+/// This context intentionally exposes `wgpu` device and queue references because
+/// custom objects that allocate or update GPU resources must use the same backend
+/// instances owned by the engine.
 pub struct UpdateContext<'a> {
+    /// Engine-owned `wgpu` device.
     pub device: &'a wgpu::Device,
+    /// Engine-owned `wgpu` queue.
     pub queue: &'a wgpu::Queue,
+    /// Current logical viewport size.
     pub viewport_size: &'a Size,
+    /// Current logical camera position.
     pub camera_position: &'a Position,
+    /// Monotonic font-cache version for invalidating text-dependent caches.
     pub font_cache_version: u32,
 }
 
+/// Behavior required by pluto object implementations.
 pub trait PlutoObject {
     // getters
+    /// Item.
     fn texture_key(&self) -> Uuid;
+    /// Item.
     fn get_id(&self) -> Uuid;
+    /// Item.
     fn dimensions(&self) -> Rectangle;
+    /// Item.
     fn pos(&self) -> Position;
 
     // setters
+    /// Item.
     fn set_dimensions(&mut self, new_dimensions: Rectangle);
+    /// Item.
     fn set_pos(&mut self, new_pos: Position);
 
+    /// Updates object state for the current frame.
+    ///
+    /// The key argument intentionally uses `winit::keyboard::Key` because object
+    /// updates consume raw logical keys from the engine's event loop.
     fn update(
         &mut self,
         _mouse_info: Option<MouseInfo>,
@@ -37,10 +58,12 @@ pub trait PlutoObject {
         // engine.update_texture(self.texture_key());
     }
 
+    /// Item.
     fn render(&self, engine: &mut PlutoniumEngine) {
         engine.queue_texture(&self.texture_key(), Some(self.pos()));
     }
 
+    /// Item.
     fn delete(&self, engine: &mut PlutoniumEngine) {
         engine.remove_object(self.get_id());
     }

@@ -8,8 +8,11 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, ops::Deref, sync::Arc};
 use uuid::Uuid;
 
+/// Documents item.
 pub const DEFAULT_MSDF_PX_RANGE: f32 = 8.0;
+/// Documents item.
 pub const DEFAULT_TINY_RASTER_MAX_PX: f32 = 15.0;
+/// Documents item.
 pub const DEFAULT_MSDF_MIN_PX: f32 = 18.0;
 
 // Character information for the font atlas
@@ -32,53 +35,90 @@ pub(crate) struct MsdfGlyphInfo {
 }
 
 #[derive(Clone, Debug)]
+/// Options for glyph render mode.
 pub enum GlyphRenderMode {
+    /// Atlas tile option.
     AtlasTile {
+        /// Item value.
         tile_index: usize,
+        /// Item value.
         scale: f32,
     },
+    /// Atlas uv option.
     AtlasUv {
+        /// Item value.
         uv_offset: [f32; 2],
+        /// Item value.
         uv_scale: [f32; 2],
+        /// Item value.
         is_msdf: bool,
+        /// Item value.
         msdf_px_range: f32,
     },
 }
 
+/// CharacterRenderInfo data.
 pub struct CharacterRenderInfo {
+    /// Atlas id value.
     pub atlas_id: Uuid,
+    /// Object position in logical pixels.
     pub position: Position,
+    /// Size value.
     pub size: Size,
+    /// Mode value.
     pub mode: GlyphRenderMode,
 }
 
 #[derive(Clone, Debug)]
+/// GlyphLayoutDebugRecord data.
 pub struct GlyphLayoutDebugRecord {
+    /// Index value.
     pub index: usize,
+    /// Input char value.
     pub input_char: char,
+    /// Resolved char value.
     pub resolved_char: char,
+    /// Mode value.
     pub mode: &'static str,
+    /// Pen x before value.
     pub pen_x_before: f32,
+    /// Kerning px value.
     pub kerning_px: f32,
+    /// Glyph left px value.
     pub glyph_left_px: f32,
+    /// Glyph right px value.
     pub glyph_right_px: f32,
+    /// Advance px value.
     pub advance_px: f32,
+    /// Letter spacing px value.
     pub letter_spacing_px: f32,
+    /// Pen x after value.
     pub pen_x_after: f32,
 }
 
 #[derive(Clone, Debug)]
+/// Options for font error.
 pub enum FontError {
+    /// Io error option.
     IoError {
+        /// Item value.
         kind: std::io::ErrorKind,
+        /// Item value.
         message: String,
     },
+    /// Invalid font data option.
     InvalidFontData,
+    /// Atlas render error option.
     AtlasRenderError,
+    /// Metadata parse error option.
     MetadataParseError(String),
+    /// Unsupported atlas format option.
     UnsupportedAtlasFormat(String),
+    /// Missing glyph data option.
     MissingGlyphData(char),
+    /// Image decode error option.
     ImageDecodeError(String),
+    /// Free type error option.
     FreeTypeError(String),
 }
 
@@ -433,29 +473,45 @@ fn point_inside_winding(p: MsdfVec2, contours: &[Vec<MsdfVec2>]) -> bool {
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq)]
+/// Bounds data.
 pub struct Bounds {
+    /// Left value.
     pub left: f32,
+    /// Top value.
     pub top: f32,
+    /// Right value.
     pub right: f32,
+    /// Bottom value.
     pub bottom: f32,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+/// MsdfAtlasInfo data.
 pub struct MsdfAtlasInfo {
+    /// Width in logical pixels.
     pub width: f32,
+    /// Height in logical pixels.
     pub height: f32,
+    /// Underlying error category.
     pub kind: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+/// MsdfMetrics data.
 pub struct MsdfMetrics {
+    /// Font size in logical pixels.
     pub font_size: f32,
+    /// Ascender value.
     pub ascender: f32,
+    /// Descender value.
     pub descender: f32,
+    /// Line height value.
     pub line_height: f32,
     #[serde(default)]
+    /// Padding em value.
     pub padding_em: f32, // atlas tile padding in em units
     #[serde(default = "default_msdf_px_range")]
+    /// Px range value.
     pub px_range: f32,
 }
 
@@ -464,26 +520,40 @@ fn default_msdf_px_range() -> f32 {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+/// MsdfGlyphRecord data.
 pub struct MsdfGlyphRecord {
+    /// Unicode value.
     pub unicode: u32,
+    /// Advance value.
     pub advance: f32,
+    /// Plane bounds value.
     pub plane_bounds: Bounds,
+    /// Atlas bounds value.
     pub atlas_bounds: Bounds,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+/// MsdfKerningRecord data.
 pub struct MsdfKerningRecord {
+    /// Left unicode value.
     pub left_unicode: u32,
+    /// Right unicode value.
     pub right_unicode: u32,
+    /// Advance value.
     pub advance: f32,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+/// MsdfFontMetadata data.
 pub struct MsdfFontMetadata {
+    /// Atlas value.
     pub atlas: MsdfAtlasInfo,
+    /// Metrics value.
     pub metrics: MsdfMetrics,
+    /// Glyphs value.
     pub glyphs: Vec<MsdfGlyphRecord>,
     #[serde(default, alias = "kernings")]
+    /// Kerning value.
     pub kerning: Vec<MsdfKerningRecord>,
 }
 
@@ -507,6 +577,7 @@ enum FontAtlasData {
     Msdf(MsdfAtlasData),
 }
 
+/// FontAtlas data.
 pub struct FontAtlas {
     atlas: TextureAtlas2D,
     char_map: HashMap<char, CharacterInfo>,
@@ -532,8 +603,11 @@ struct TinyRasterFallback {
 }
 
 #[derive(Debug, Clone, Copy)]
+/// TextQualitySettings data.
 pub struct TextQualitySettings {
+    /// Tiny raster max px value.
     pub tiny_raster_max_px: f32,
+    /// Msdf min px value.
     pub msdf_min_px: f32,
 }
 
@@ -548,6 +622,7 @@ impl Default for TextQualitySettings {
 
 impl FontAtlas {
     // for debugging
+    /// Returns the tile dimensions.
     pub fn get_tile_dimensions(&self) -> Size {
         self.max_tile_size
     }
@@ -556,18 +631,22 @@ impl FontAtlas {
         self.char_map.get(&c)
     }
 
+    /// Atlas id.
     pub fn atlas_id(&self) -> Uuid {
         self.atlas.get_id()
     }
 
+    /// Is msdf.
     pub fn is_msdf(&self) -> bool {
         matches!(self.data, FontAtlasData::Msdf(_))
     }
 
+    /// Font size.
     pub fn font_size(&self) -> f32 {
         self.font_size
     }
 
+    /// Debug save atlas.
     pub fn debug_save_atlas(&self) -> Result<(), std::io::Error> {
         match &self.data {
             FontAtlasData::Raster(_) => {
@@ -598,6 +677,7 @@ impl FontAtlas {
     }
 }
 #[derive(Default)]
+/// TextRenderer data.
 pub struct TextRenderer {
     pub(crate) font_atlases: HashMap<String, FontAtlas>,
     pub(crate) fonts: HashMap<String, OwnedFont>,
@@ -610,6 +690,7 @@ impl TextRenderer {
         ((value * s).round()) / s
     }
 
+    /// Creates a new value.
     pub fn new() -> Self {
         Self {
             font_atlases: HashMap::new(),
@@ -618,6 +699,7 @@ impl TextRenderer {
         }
     }
 
+    /// Sets the quality thresholds.
     pub fn set_quality_thresholds(&mut self, tiny_raster_max_px: f32, msdf_min_px: f32) {
         // Keep thresholds ordered and sane so mode switches remain predictable.
         let tiny = tiny_raster_max_px.max(1.0);
@@ -628,11 +710,13 @@ impl TextRenderer {
         };
     }
 
+    /// Parse msdf metadata.
     pub fn parse_msdf_metadata(json: &str) -> Result<MsdfFontMetadata, FontError> {
         serde_json::from_str::<MsdfFontMetadata>(json)
             .map_err(|e| FontError::MetadataParseError(e.to_string()))
     }
 
+    /// Calculate atlas size.
     pub fn calculate_atlas_size(
         font: &Font,
         scale: Scale,
@@ -642,6 +726,7 @@ impl TextRenderer {
         Self::calculate_atlas_size_for_chars(font, scale, padding, &glyphs)
     }
 
+    /// Calculate atlas size for chars.
     pub fn calculate_atlas_size_for_chars(
         font: &Font,
         scale: Scale,
@@ -712,6 +797,7 @@ impl TextRenderer {
         }
     }
 
+    /// Build ascii shaping metrics.
     pub fn build_ascii_shaping_metrics(
         font_data: &[u8],
     ) -> Option<(HashMap<char, f32>, Vec<MsdfKerningRecord>)> {
@@ -786,6 +872,7 @@ impl TextRenderer {
         Some((single_advances, kerning))
     }
 
+    /// Build ascii kerning from font data.
     pub fn build_ascii_kerning_from_font_data(font_data: &[u8]) -> Option<Vec<MsdfKerningRecord>> {
         Self::build_ascii_shaping_metrics(font_data).map(|(_, k)| k)
     }
@@ -872,6 +959,7 @@ impl TextRenderer {
         target_font_size <= midpoint
     }
 
+    /// Measure text.
     pub fn measure_text(
         &self,
         text: &str,
@@ -1283,6 +1371,7 @@ impl TextRenderer {
     }
 
     #[allow(clippy::too_many_arguments)]
+    /// Clear raster atlases.
     pub fn clear_raster_atlases(&mut self) -> Vec<Uuid> {
         let mut removed_ids = Vec::new();
         self.font_atlases.retain(|_, atlas| {
@@ -1444,6 +1533,7 @@ impl TextRenderer {
         Ok(())
     }
 
+    /// Calculate text layout.
     pub fn calculate_text_layout(
         &self,
         text: &str,

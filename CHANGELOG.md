@@ -11,6 +11,7 @@
 - **WASM raster URL loading (raster feature)** - Added `create_texture_raster_from_url(url, position) -> async Result<(Uuid, Size), RasterTextureLoadError>` for runtime image loading from browser URLs (for example `/assets/*.png`) without rebuilding wasm bundles.
 - **WASM pollable raster URL loading (raster feature)** - Added `begin_texture_raster_from_url(url, position) -> RasterTextureUrlLoadHandle` and `poll_texture_raster_from_url(handle) -> Option<Result<(Uuid, Size), RasterTextureLoadError>>` for synchronous frame loops that cannot `await`.
 
+- **Public backend type contract** - Documented that low-level/manual integration APIs intentionally expose crate-pinned `wgpu` and `winit` types (`Surface`, `SurfaceError`, `PhysicalSize`, `Key`) as part of the public semver surface.
 ### Fixed
 - **Engine: Missing self context** - Fixed pre-existing compilation errors in `src/lib.rs` where `dpi_scale_factor` was missing `self.` context in `load_font` and `load_msdf_font_from_ttf`.
 - **Snapshots: API alignment** - Fixed `src/bin/snapshots.rs` compilation by adding the missing `scale` argument to `get_transform_uniform` calls.
