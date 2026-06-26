@@ -85,7 +85,7 @@ fi
 
 echo ""
 echo "=== Checking wasm32 public API ==="
-if ! diff <("${CARGO_PUBLIC_API}" --simplified --target wasm32-unknown-unknown --features wasm 2>/dev/null | normalize) "${BASELINE_WASM}"; then
+if ! diff <("${CARGO_PUBLIC_API}" --simplified --target wasm32-unknown-unknown --all-features 2>/dev/null | normalize) "${BASELINE_WASM}"; then
     echo "FAIL: wasm32 public API has changed from baseline (${BASELINE_WASM})" >&2
     fail=1
 else

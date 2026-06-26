@@ -14,7 +14,7 @@ use crate::{
     WarmStats,
 };
 #[cfg(all(feature = "raster", target_arch = "wasm32"))]
-use crate::RasterTextureLoadError;
+use crate::{RasterTextureLoadError, RasterTextureUrlLoadHandle};
 use rusttype::{Font, Scale};
 use std::collections::{HashMap, HashSet, VecDeque};
 #[cfg(all(feature = "raster", target_arch = "wasm32"))]

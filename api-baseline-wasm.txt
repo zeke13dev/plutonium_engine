@@ -87,8 +87,11 @@ impl core::clone::Clone for plutonium_engine::HaloStyle
 impl core::clone::Clone for plutonium_engine::PrewarmConfig
 impl core::clone::Clone for plutonium_engine::PrewarmPolicy
 impl core::clone::Clone for plutonium_engine::RasterHintingMode
+impl core::clone::Clone for plutonium_engine::RasterTextureLoadError
+impl core::clone::Clone for plutonium_engine::RasterTextureUrlLoadHandle
 impl core::clone::Clone for plutonium_engine::TextureFit
 impl core::clone::Clone for plutonium_engine::WarmStats
+impl core::clone::Clone for plutonium_engine::anim::Ease
 impl core::clone::Clone for plutonium_engine::app::FrameInputRecordLocal
 impl core::clone::Clone for plutonium_engine::app::WasmAppConfig
 impl core::clone::Clone for plutonium_engine::input::ActionMap
@@ -96,6 +99,11 @@ impl core::clone::Clone for plutonium_engine::input::AxisBinding
 impl core::clone::Clone for plutonium_engine::input::AxisSource
 impl core::clone::Clone for plutonium_engine::input::ButtonBinding
 impl core::clone::Clone for plutonium_engine::input::ButtonSource
+impl core::clone::Clone for plutonium_engine::layout::Anchors
+impl core::clone::Clone for plutonium_engine::layout::HAnchor
+impl core::clone::Clone for plutonium_engine::layout::Margins
+impl core::clone::Clone for plutonium_engine::layout::PercentSize
+impl core::clone::Clone for plutonium_engine::layout::VAnchor
 impl core::clone::Clone for plutonium_engine::pluto_objects::shapes::ShapeType
 impl core::clone::Clone for plutonium_engine::pluto_objects::text2d::HorizontalAlignment
 impl core::clone::Clone for plutonium_engine::pluto_objects::text2d::TextContainer
@@ -134,6 +142,7 @@ impl core::clone::Clone for plutonium_engine::utils::TransformUniform
 impl core::clone::Clone for plutonium_engine::utils::UVTransform
 impl core::clone::Clone for plutonium_engine::utils::Vertex
 impl core::cmp::Eq for plutonium_engine::HaloPreset
+impl core::cmp::Eq for plutonium_engine::RasterTextureUrlLoadHandle
 impl core::cmp::Eq for plutonium_engine::TextureFit
 impl core::cmp::Eq for plutonium_engine::input::ButtonSource
 impl core::cmp::Eq for plutonium_engine::popup::PopupAction
@@ -147,6 +156,7 @@ impl core::cmp::Eq for plutonium_engine::utils::Position
 impl core::cmp::PartialEq for plutonium_engine::HaloFalloff
 impl core::cmp::PartialEq for plutonium_engine::HaloMode
 impl core::cmp::PartialEq for plutonium_engine::HaloPreset
+impl core::cmp::PartialEq for plutonium_engine::RasterTextureUrlLoadHandle
 impl core::cmp::PartialEq for plutonium_engine::TextureFit
 impl core::cmp::PartialEq for plutonium_engine::input::ButtonSource
 impl core::cmp::PartialEq for plutonium_engine::pluto_objects::text2d::HorizontalAlignment
@@ -174,6 +184,10 @@ impl core::default::Default for plutonium_engine::app::FrameInputRecordLocal
 impl core::default::Default for plutonium_engine::app::WasmAppConfig
 impl core::default::Default for plutonium_engine::app::WindowConfig
 impl core::default::Default for plutonium_engine::input::ActionMap
+impl core::default::Default for plutonium_engine::layout::Anchors
+impl core::default::Default for plutonium_engine::layout::LayoutParams
+impl core::default::Default for plutonium_engine::layout::Margins
+impl core::default::Default for plutonium_engine::layout::PercentSize
 impl core::default::Default for plutonium_engine::pluto_objects::text2d::TextContainer
 impl core::default::Default for plutonium_engine::renderer::RectBatch
 impl core::default::Default for plutonium_engine::renderer::WgpuRenderer
@@ -183,6 +197,7 @@ impl core::default::Default for plutonium_engine::ui::ButtonStyle
 impl core::default::Default for plutonium_engine::ui::ToggleStyle
 impl core::default::Default for plutonium_engine::utils::MouseInfo
 impl core::default::Default for plutonium_engine::utils::Position
+impl core::error::Error for plutonium_engine::RasterTextureLoadError
 impl core::fmt::Debug for plutonium_engine::DrawParams
 impl core::fmt::Debug for plutonium_engine::FontLoadOptions
 impl core::fmt::Debug for plutonium_engine::GlyphSet
@@ -193,8 +208,11 @@ impl core::fmt::Debug for plutonium_engine::HaloStyle
 impl core::fmt::Debug for plutonium_engine::PrewarmConfig
 impl core::fmt::Debug for plutonium_engine::PrewarmPolicy
 impl core::fmt::Debug for plutonium_engine::RasterHintingMode
+impl core::fmt::Debug for plutonium_engine::RasterTextureLoadError
+impl core::fmt::Debug for plutonium_engine::RasterTextureUrlLoadHandle
 impl core::fmt::Debug for plutonium_engine::TextureFit
 impl core::fmt::Debug for plutonium_engine::WarmStats
+impl core::fmt::Debug for plutonium_engine::anim::Ease
 impl core::fmt::Debug for plutonium_engine::app::FrameInputRecordLocal
 impl core::fmt::Debug for plutonium_engine::app::WasmAppConfig
 impl core::fmt::Debug for plutonium_engine::camera::Camera
@@ -203,6 +221,11 @@ impl core::fmt::Debug for plutonium_engine::input::AxisBinding
 impl core::fmt::Debug for plutonium_engine::input::AxisSource
 impl core::fmt::Debug for plutonium_engine::input::ButtonBinding
 impl core::fmt::Debug for plutonium_engine::input::ButtonSource
+impl core::fmt::Debug for plutonium_engine::layout::Anchors
+impl core::fmt::Debug for plutonium_engine::layout::HAnchor
+impl core::fmt::Debug for plutonium_engine::layout::Margins
+impl core::fmt::Debug for plutonium_engine::layout::PercentSize
+impl core::fmt::Debug for plutonium_engine::layout::VAnchor
 impl core::fmt::Debug for plutonium_engine::pluto_objects::text2d::HorizontalAlignment
 impl core::fmt::Debug for plutonium_engine::pluto_objects::text2d::TextContainer
 impl core::fmt::Debug for plutonium_engine::pluto_objects::text2d::VerticalAlignment
@@ -242,6 +265,8 @@ impl core::fmt::Debug for plutonium_engine::utils::Size
 impl core::fmt::Debug for plutonium_engine::utils::TransformUniform
 impl core::fmt::Debug for plutonium_engine::utils::UVTransform
 impl core::fmt::Debug for plutonium_engine::utils::Vertex
+impl core::fmt::Display for plutonium_engine::RasterTextureLoadError
+impl core::hash::Hash for plutonium_engine::RasterTextureUrlLoadHandle
 impl core::hash::Hash for plutonium_engine::input::ButtonSource
 impl core::hash::Hash for plutonium_engine::rng::RngStreamId
 impl core::hash::Hash for plutonium_engine::utils::Position
@@ -251,9 +276,16 @@ impl core::marker::Copy for plutonium_engine::HaloMode
 impl core::marker::Copy for plutonium_engine::HaloPreset
 impl core::marker::Copy for plutonium_engine::HaloStyle
 impl core::marker::Copy for plutonium_engine::RasterHintingMode
+impl core::marker::Copy for plutonium_engine::RasterTextureUrlLoadHandle
 impl core::marker::Copy for plutonium_engine::TextureFit
 impl core::marker::Copy for plutonium_engine::WarmStats
+impl core::marker::Copy for plutonium_engine::anim::Ease
 impl core::marker::Copy for plutonium_engine::app::WasmAppConfig
+impl core::marker::Copy for plutonium_engine::layout::Anchors
+impl core::marker::Copy for plutonium_engine::layout::HAnchor
+impl core::marker::Copy for plutonium_engine::layout::Margins
+impl core::marker::Copy for plutonium_engine::layout::PercentSize
+impl core::marker::Copy for plutonium_engine::layout::VAnchor
 impl core::marker::Copy for plutonium_engine::pluto_objects::text2d::HorizontalAlignment
 impl core::marker::Copy for plutonium_engine::pluto_objects::text2d::VerticalAlignment
 impl core::marker::Copy for plutonium_engine::popup::PopupActionStyle
@@ -287,8 +319,11 @@ impl core::marker::Freeze for plutonium_engine::PrewarmConfig
 impl core::marker::Freeze for plutonium_engine::PrewarmPolicy
 impl core::marker::Freeze for plutonium_engine::QueuedItem
 impl core::marker::Freeze for plutonium_engine::RasterHintingMode
+impl core::marker::Freeze for plutonium_engine::RasterTextureLoadError
+impl core::marker::Freeze for plutonium_engine::RasterTextureUrlLoadHandle
 impl core::marker::Freeze for plutonium_engine::TextureFit
 impl core::marker::Freeze for plutonium_engine::WarmStats
+impl core::marker::Freeze for plutonium_engine::anim::Ease
 impl core::marker::Freeze for plutonium_engine::app::FrameContext
 impl core::marker::Freeze for plutonium_engine::app::FrameInputRecordLocal
 impl core::marker::Freeze for plutonium_engine::app::WasmAppConfig
@@ -299,6 +334,13 @@ impl core::marker::Freeze for plutonium_engine::input::AxisBinding
 impl core::marker::Freeze for plutonium_engine::input::AxisSource
 impl core::marker::Freeze for plutonium_engine::input::ButtonBinding
 impl core::marker::Freeze for plutonium_engine::input::ButtonSource
+impl core::marker::Freeze for plutonium_engine::layout::Anchors
+impl core::marker::Freeze for plutonium_engine::layout::HAnchor
+impl core::marker::Freeze for plutonium_engine::layout::LayoutParams
+impl core::marker::Freeze for plutonium_engine::layout::LayoutResult
+impl core::marker::Freeze for plutonium_engine::layout::Margins
+impl core::marker::Freeze for plutonium_engine::layout::PercentSize
+impl core::marker::Freeze for plutonium_engine::layout::VAnchor
 impl core::marker::Freeze for plutonium_engine::pluto_objects::button::Button
 impl core::marker::Freeze for plutonium_engine::pluto_objects::button::ButtonInternal
 impl core::marker::Freeze for plutonium_engine::pluto_objects::shapes::Shape
@@ -371,8 +413,11 @@ impl core::marker::Send for plutonium_engine::PrewarmConfig
 impl core::marker::Send for plutonium_engine::PrewarmPolicy
 impl core::marker::Send for plutonium_engine::QueuedItem
 impl core::marker::Send for plutonium_engine::RasterHintingMode
+impl core::marker::Send for plutonium_engine::RasterTextureLoadError
+impl core::marker::Send for plutonium_engine::RasterTextureUrlLoadHandle
 impl core::marker::Send for plutonium_engine::TextureFit
 impl core::marker::Send for plutonium_engine::WarmStats
+impl core::marker::Send for plutonium_engine::anim::Ease
 impl core::marker::Send for plutonium_engine::app::FrameContext
 impl core::marker::Send for plutonium_engine::app::FrameInputRecordLocal
 impl core::marker::Send for plutonium_engine::app::WasmAppConfig
@@ -383,6 +428,13 @@ impl core::marker::Send for plutonium_engine::input::AxisBinding
 impl core::marker::Send for plutonium_engine::input::AxisSource
 impl core::marker::Send for plutonium_engine::input::ButtonBinding
 impl core::marker::Send for plutonium_engine::input::ButtonSource
+impl core::marker::Send for plutonium_engine::layout::Anchors
+impl core::marker::Send for plutonium_engine::layout::HAnchor
+impl core::marker::Send for plutonium_engine::layout::LayoutParams
+impl core::marker::Send for plutonium_engine::layout::LayoutResult
+impl core::marker::Send for plutonium_engine::layout::Margins
+impl core::marker::Send for plutonium_engine::layout::PercentSize
+impl core::marker::Send for plutonium_engine::layout::VAnchor
 impl core::marker::Send for plutonium_engine::pluto_objects::shapes::ShapeInternal
 impl core::marker::Send for plutonium_engine::pluto_objects::shapes::ShapeType
 impl core::marker::Send for plutonium_engine::pluto_objects::text2d::HorizontalAlignment
@@ -436,6 +488,7 @@ impl core::marker::Send for plutonium_engine::utils::Vertex
 impl core::marker::StructuralPartialEq for plutonium_engine::HaloFalloff
 impl core::marker::StructuralPartialEq for plutonium_engine::HaloMode
 impl core::marker::StructuralPartialEq for plutonium_engine::HaloPreset
+impl core::marker::StructuralPartialEq for plutonium_engine::RasterTextureUrlLoadHandle
 impl core::marker::StructuralPartialEq for plutonium_engine::TextureFit
 impl core::marker::StructuralPartialEq for plutonium_engine::input::ButtonSource
 impl core::marker::StructuralPartialEq for plutonium_engine::pluto_objects::text2d::HorizontalAlignment
@@ -459,8 +512,11 @@ impl core::marker::Sync for plutonium_engine::PrewarmConfig
 impl core::marker::Sync for plutonium_engine::PrewarmPolicy
 impl core::marker::Sync for plutonium_engine::QueuedItem
 impl core::marker::Sync for plutonium_engine::RasterHintingMode
+impl core::marker::Sync for plutonium_engine::RasterTextureLoadError
+impl core::marker::Sync for plutonium_engine::RasterTextureUrlLoadHandle
 impl core::marker::Sync for plutonium_engine::TextureFit
 impl core::marker::Sync for plutonium_engine::WarmStats
+impl core::marker::Sync for plutonium_engine::anim::Ease
 impl core::marker::Sync for plutonium_engine::app::FrameContext
 impl core::marker::Sync for plutonium_engine::app::FrameInputRecordLocal
 impl core::marker::Sync for plutonium_engine::app::WasmAppConfig
@@ -471,6 +527,13 @@ impl core::marker::Sync for plutonium_engine::input::AxisBinding
 impl core::marker::Sync for plutonium_engine::input::AxisSource
 impl core::marker::Sync for plutonium_engine::input::ButtonBinding
 impl core::marker::Sync for plutonium_engine::input::ButtonSource
+impl core::marker::Sync for plutonium_engine::layout::Anchors
+impl core::marker::Sync for plutonium_engine::layout::HAnchor
+impl core::marker::Sync for plutonium_engine::layout::LayoutParams
+impl core::marker::Sync for plutonium_engine::layout::LayoutResult
+impl core::marker::Sync for plutonium_engine::layout::Margins
+impl core::marker::Sync for plutonium_engine::layout::PercentSize
+impl core::marker::Sync for plutonium_engine::layout::VAnchor
 impl core::marker::Sync for plutonium_engine::pluto_objects::shapes::ShapeInternal
 impl core::marker::Sync for plutonium_engine::pluto_objects::shapes::ShapeType
 impl core::marker::Sync for plutonium_engine::pluto_objects::text2d::HorizontalAlignment
@@ -532,8 +595,11 @@ impl core::marker::Unpin for plutonium_engine::PrewarmConfig
 impl core::marker::Unpin for plutonium_engine::PrewarmPolicy
 impl core::marker::Unpin for plutonium_engine::QueuedItem
 impl core::marker::Unpin for plutonium_engine::RasterHintingMode
+impl core::marker::Unpin for plutonium_engine::RasterTextureLoadError
+impl core::marker::Unpin for plutonium_engine::RasterTextureUrlLoadHandle
 impl core::marker::Unpin for plutonium_engine::TextureFit
 impl core::marker::Unpin for plutonium_engine::WarmStats
+impl core::marker::Unpin for plutonium_engine::anim::Ease
 impl core::marker::Unpin for plutonium_engine::app::FrameContext
 impl core::marker::Unpin for plutonium_engine::app::FrameInputRecordLocal
 impl core::marker::Unpin for plutonium_engine::app::PlutoniumApp
@@ -545,6 +611,13 @@ impl core::marker::Unpin for plutonium_engine::input::AxisBinding
 impl core::marker::Unpin for plutonium_engine::input::AxisSource
 impl core::marker::Unpin for plutonium_engine::input::ButtonBinding
 impl core::marker::Unpin for plutonium_engine::input::ButtonSource
+impl core::marker::Unpin for plutonium_engine::layout::Anchors
+impl core::marker::Unpin for plutonium_engine::layout::HAnchor
+impl core::marker::Unpin for plutonium_engine::layout::LayoutParams
+impl core::marker::Unpin for plutonium_engine::layout::LayoutResult
+impl core::marker::Unpin for plutonium_engine::layout::Margins
+impl core::marker::Unpin for plutonium_engine::layout::PercentSize
+impl core::marker::Unpin for plutonium_engine::layout::VAnchor
 impl core::marker::Unpin for plutonium_engine::pluto_objects::button::Button
 impl core::marker::Unpin for plutonium_engine::pluto_objects::button::ButtonInternal
 impl core::marker::Unpin for plutonium_engine::pluto_objects::shapes::Shape
@@ -630,8 +703,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::PrewarmConfig
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::PrewarmPolicy
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::QueuedItem
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::RasterHintingMode
+impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::RasterTextureLoadError
+impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::RasterTextureUrlLoadHandle
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::TextureFit
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::WarmStats
+impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::anim::Ease
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::app::FrameContext
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::app::FrameInputRecordLocal
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::app::WasmAppConfig
@@ -642,6 +718,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::input::AxisBi
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::input::AxisSource
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::input::ButtonBinding
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::input::ButtonSource
+impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::layout::Anchors
+impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::layout::HAnchor
+impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::layout::LayoutParams
+impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::layout::LayoutResult
+impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::layout::Margins
+impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::layout::PercentSize
+impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::layout::VAnchor
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::shapes::ShapeInternal
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::shapes::ShapeType
 impl core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::pluto_objects::text2d::HorizontalAlignment
@@ -702,8 +785,11 @@ impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::PrewarmConfig
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::PrewarmPolicy
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::QueuedItem
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::RasterHintingMode
+impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::RasterTextureLoadError
+impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::RasterTextureUrlLoadHandle
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::TextureFit
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::WarmStats
+impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::anim::Ease
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::app::FrameContext
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::app::FrameInputRecordLocal
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::app::WasmAppConfig
@@ -714,6 +800,13 @@ impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::input::AxisBindi
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::input::AxisSource
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::input::ButtonBinding
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::input::ButtonSource
+impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::layout::Anchors
+impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::layout::HAnchor
+impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::layout::LayoutParams
+impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::layout::LayoutResult
+impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::layout::Margins
+impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::layout::PercentSize
+impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::layout::VAnchor
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::shapes::ShapeInternal
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::shapes::ShapeType
 impl core::panic::unwind_safe::UnwindSafe for plutonium_engine::pluto_objects::text2d::HorizontalAlignment
@@ -834,6 +927,33 @@ impl<'de> serde::de::Deserialize<'de> for plutonium_engine::text::MsdfFontMetada
 impl<'de> serde::de::Deserialize<'de> for plutonium_engine::text::MsdfGlyphRecord
 impl<'de> serde::de::Deserialize<'de> for plutonium_engine::text::MsdfKerningRecord
 impl<'de> serde::de::Deserialize<'de> for plutonium_engine::text::MsdfMetrics
+impl<T: core::clone::Clone> core::clone::Clone for plutonium_engine::anim::Track<T>
+impl<T: core::clone::Clone> core::clone::Clone for plutonium_engine::anim::Tween<T>
+impl<T: core::fmt::Debug> core::fmt::Debug for plutonium_engine::anim::Track<T>
+impl<T: core::fmt::Debug> core::fmt::Debug for plutonium_engine::anim::Tween<T>
+impl<T: core::marker::Copy + core::ops::arith::Add<Output = T> + core::ops::arith::Sub<Output = T> + core::ops::arith::Mul<f32, Output = T>> plutonium_engine::anim::Tween<T>
+impl<T> !core::marker::Send for plutonium_engine::anim::Timeline<T>
+impl<T> !core::marker::Sync for plutonium_engine::anim::Timeline<T>
+impl<T> !core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::anim::Timeline<T>
+impl<T> !core::panic::unwind_safe::UnwindSafe for plutonium_engine::anim::Timeline<T>
+impl<T> core::default::Default for plutonium_engine::anim::Timeline<T> where T: core::marker::Copy + core::ops::arith::Add<Output = T> + core::ops::arith::Sub<Output = T> + core::ops::arith::Mul<f32, Output = T>
+impl<T> core::marker::Freeze for plutonium_engine::anim::Timeline<T>
+impl<T> core::marker::Freeze for plutonium_engine::anim::Track<T>
+impl<T> core::marker::Freeze for plutonium_engine::anim::Tween<T> where T: core::marker::Freeze
+impl<T> core::marker::Send for plutonium_engine::anim::Track<T> where T: core::marker::Send
+impl<T> core::marker::Send for plutonium_engine::anim::Tween<T> where T: core::marker::Send
+impl<T> core::marker::Sync for plutonium_engine::anim::Track<T> where T: core::marker::Sync
+impl<T> core::marker::Sync for plutonium_engine::anim::Tween<T> where T: core::marker::Sync
+impl<T> core::marker::Unpin for plutonium_engine::anim::Timeline<T> where T: core::marker::Unpin
+impl<T> core::marker::Unpin for plutonium_engine::anim::Track<T> where T: core::marker::Unpin
+impl<T> core::marker::Unpin for plutonium_engine::anim::Tween<T> where T: core::marker::Unpin
+impl<T> core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::anim::Track<T> where T: core::panic::unwind_safe::RefUnwindSafe
+impl<T> core::panic::unwind_safe::RefUnwindSafe for plutonium_engine::anim::Tween<T> where T: core::panic::unwind_safe::RefUnwindSafe
+impl<T> core::panic::unwind_safe::UnwindSafe for plutonium_engine::anim::Track<T> where T: core::panic::unwind_safe::UnwindSafe
+impl<T> core::panic::unwind_safe::UnwindSafe for plutonium_engine::anim::Tween<T> where T: core::panic::unwind_safe::UnwindSafe
+impl<T> plutonium_engine::anim::Timeline<T> where T: core::marker::Copy + core::ops::arith::Add<Output = T> + core::ops::arith::Sub<Output = T> + core::ops::arith::Mul<f32, Output = T>
+impl<T> plutonium_engine::anim::Track<T> where T: core::marker::Copy + core::ops::arith::Add<Output = T> + core::ops::arith::Sub<Output = T> + core::ops::arith::Mul<f32, Output = T>
+pub async fn plutonium_engine::PlutoniumEngine<'a>::create_texture_raster_from_url(&mut self, &str, plutonium_engine::utils::Position) -> core::result::Result<(uuid::Uuid, plutonium_engine::utils::Size), plutonium_engine::RasterTextureLoadError>
 pub async fn plutonium_engine::PlutoniumEngine<'a>::new_async(wgpu::api::surface::Surface<'a>, wgpu::api::instance::Instance, dpi::PhysicalSize<u32>, f32) -> core::result::Result<Self, alloc::string::String>
 pub async fn plutonium_engine::app::run_app_wasm<F>(plutonium_engine::app::WindowConfig, &str, F) -> core::result::Result<(), wasm_bindgen::JsValue> where F: core::ops::function::FnMut(&mut plutonium_engine::PlutoniumEngine<'_>, &plutonium_engine::app::FrameContext, &mut plutonium_engine::app::PlutoniumApp) + 'static
 pub async fn plutonium_engine::app::run_app_wasm_with_options<F>(plutonium_engine::app::WindowConfig, &str, plutonium_engine::app::WasmAppConfig, F) -> core::result::Result<(), wasm_bindgen::JsValue> where F: core::ops::function::FnMut(&mut plutonium_engine::PlutoniumEngine<'_>, &plutonium_engine::app::FrameContext, &mut plutonium_engine::app::PlutoniumApp) + 'static
@@ -850,9 +970,14 @@ pub enum plutonium_engine::PopupEvent
 pub enum plutonium_engine::PopupSize
 pub enum plutonium_engine::PrewarmPolicy
 pub enum plutonium_engine::RasterHintingMode
+pub enum plutonium_engine::RasterTextureLoadError
 pub enum plutonium_engine::TextureFit
+pub enum plutonium_engine::anim::Ease
+pub enum plutonium_engine::anim::Track<T>
 pub enum plutonium_engine::input::AxisSource
 pub enum plutonium_engine::input::ButtonSource
+pub enum plutonium_engine::layout::HAnchor
+pub enum plutonium_engine::layout::VAnchor
 pub enum plutonium_engine::pluto_objects::shapes::ShapeType
 pub enum plutonium_engine::pluto_objects::text2d::HorizontalAlignment
 pub enum plutonium_engine::pluto_objects::text2d::VerticalAlignment
@@ -890,6 +1015,7 @@ pub fn plutonium_engine::HaloStyle::from_preset(plutonium_engine::HaloPreset) ->
 pub fn plutonium_engine::PlutoniumEngine<'a>::activate_camera(&mut self)
 pub fn plutonium_engine::PlutoniumEngine<'a>::begin_frame(&mut self)
 pub fn plutonium_engine::PlutoniumEngine<'a>::begin_slot(&mut self, uuid::Uuid, plutonium_engine::utils::Rectangle, i32)
+pub fn plutonium_engine::PlutoniumEngine<'a>::begin_texture_raster_from_url(&mut self, &str, plutonium_engine::utils::Position) -> plutonium_engine::RasterTextureUrlLoadHandle
 pub fn plutonium_engine::PlutoniumEngine<'a>::clear_boundary(&mut self)
 pub fn plutonium_engine::PlutoniumEngine<'a>::clear_clip(&mut self)
 pub fn plutonium_engine::PlutoniumEngine<'a>::clear_render_queue(&mut self)
@@ -905,6 +1031,7 @@ pub fn plutonium_engine::PlutoniumEngine<'a>::create_text_input(&mut self, &str,
 pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_2d(&mut self, &str, plutonium_engine::utils::Position, f32) -> plutonium_engine::pluto_objects::texture_2d::Texture2D
 pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_atlas(&mut self, &str, plutonium_engine::utils::Position, plutonium_engine::utils::Size) -> (uuid::Uuid, plutonium_engine::utils::Rectangle)
 pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_atlas_2d(&mut self, &str, plutonium_engine::utils::Position, f32, plutonium_engine::utils::Size) -> plutonium_engine::pluto_objects::texture_atlas_2d::TextureAtlas2D
+pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_raster_from_path(&mut self, &str, plutonium_engine::utils::Position) -> (uuid::Uuid, plutonium_engine::utils::Rectangle)
 pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_svg(&mut self, &str, plutonium_engine::utils::Position, f32) -> (uuid::Uuid, plutonium_engine::utils::Rectangle)
 pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_svg_from_data(&mut self, &str, plutonium_engine::utils::Position, f32) -> (uuid::Uuid, plutonium_engine::utils::Rectangle)
 pub fn plutonium_engine::PlutoniumEngine<'a>::create_texture_svg_from_str(&mut self, &str, plutonium_engine::utils::Position, f32) -> (uuid::Uuid, plutonium_engine::utils::Rectangle)
@@ -939,6 +1066,7 @@ pub fn plutonium_engine::PlutoniumEngine<'a>::logical_window_size(&self) -> plut
 pub fn plutonium_engine::PlutoniumEngine<'a>::measure_text(&self, &str, &str, f32, f32, core::option::Option<f32>) -> (f32, usize)
 pub fn plutonium_engine::PlutoniumEngine<'a>::new(wgpu::api::surface::Surface<'a>, wgpu::api::instance::Instance, dpi::PhysicalSize<u32>, f32) -> Self
 pub fn plutonium_engine::PlutoniumEngine<'a>::object_bounds(&self, &uuid::Uuid) -> core::option::Option<plutonium_engine::utils::Rectangle>
+pub fn plutonium_engine::PlutoniumEngine<'a>::poll_texture_raster_from_url(&mut self, plutonium_engine::RasterTextureUrlLoadHandle) -> core::option::Option<core::result::Result<(uuid::Uuid, plutonium_engine::utils::Size), plutonium_engine::RasterTextureLoadError>>
 pub fn plutonium_engine::PlutoniumEngine<'a>::pop_clip(&mut self)
 pub fn plutonium_engine::PlutoniumEngine<'a>::popup_is_open(&self) -> bool
 pub fn plutonium_engine::PlutoniumEngine<'a>::push_clip(&mut self, plutonium_engine::utils::Rectangle)
@@ -974,6 +1102,7 @@ pub fn plutonium_engine::PlutoniumEngine<'a>::unload_atlas(&mut self, &uuid::Uui
 pub fn plutonium_engine::PlutoniumEngine<'a>::unload_texture(&mut self, &uuid::Uuid) -> bool
 pub fn plutonium_engine::PlutoniumEngine<'a>::update(&mut self, core::option::Option<plutonium_engine::utils::MouseInfo>, &core::option::Option<winit::keyboard::Key>, f32)
 pub fn plutonium_engine::PlutoniumEngine<'a>::warm_text_cache(&mut self, &str, plutonium_engine::PrewarmConfig) -> core::result::Result<plutonium_engine::WarmStats, alloc::string::String>
+pub fn plutonium_engine::PlutoniumEngine<'a>::window_bounds(&self) -> plutonium_engine::utils::Rectangle
 pub fn plutonium_engine::PrewarmConfig::clone(&self) -> plutonium_engine::PrewarmConfig
 pub fn plutonium_engine::PrewarmConfig::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub fn plutonium_engine::PrewarmPolicy::clone(&self) -> plutonium_engine::PrewarmPolicy
@@ -982,6 +1111,12 @@ pub fn plutonium_engine::PrewarmPolicy::fmt(&self, &mut core::fmt::Formatter<'_>
 pub fn plutonium_engine::RasterHintingMode::clone(&self) -> plutonium_engine::RasterHintingMode
 pub fn plutonium_engine::RasterHintingMode::default() -> plutonium_engine::RasterHintingMode
 pub fn plutonium_engine::RasterHintingMode::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn plutonium_engine::RasterTextureLoadError::clone(&self) -> plutonium_engine::RasterTextureLoadError
+pub fn plutonium_engine::RasterTextureLoadError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn plutonium_engine::RasterTextureUrlLoadHandle::clone(&self) -> plutonium_engine::RasterTextureUrlLoadHandle
+pub fn plutonium_engine::RasterTextureUrlLoadHandle::eq(&self, &plutonium_engine::RasterTextureUrlLoadHandle) -> bool
+pub fn plutonium_engine::RasterTextureUrlLoadHandle::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn plutonium_engine::RasterTextureUrlLoadHandle::hash<__H: core::hash::Hasher>(&self, &mut __H)
 pub fn plutonium_engine::TextureFit::clone(&self) -> plutonium_engine::TextureFit
 pub fn plutonium_engine::TextureFit::default() -> plutonium_engine::TextureFit
 pub fn plutonium_engine::TextureFit::eq(&self, &plutonium_engine::TextureFit) -> bool
@@ -989,6 +1124,31 @@ pub fn plutonium_engine::TextureFit::fmt(&self, &mut core::fmt::Formatter<'_>) -
 pub fn plutonium_engine::WarmStats::clone(&self) -> plutonium_engine::WarmStats
 pub fn plutonium_engine::WarmStats::default() -> plutonium_engine::WarmStats
 pub fn plutonium_engine::WarmStats::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn plutonium_engine::anim::Ease::clone(&self) -> plutonium_engine::anim::Ease
+pub fn plutonium_engine::anim::Ease::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn plutonium_engine::anim::Timeline<T>::add_label(&mut self, impl core::convert::Into<alloc::string::String>, f32)
+pub fn plutonium_engine::anim::Timeline<T>::default() -> Self
+pub fn plutonium_engine::anim::Timeline<T>::label_time(&self, &str) -> core::option::Option<f32>
+pub fn plutonium_engine::anim::Timeline<T>::new() -> Self
+pub fn plutonium_engine::anim::Timeline<T>::on_at(&mut self, f32, impl core::ops::function::FnMut() + 'static)
+pub fn plutonium_engine::anim::Timeline<T>::on_label(&mut self, &str, impl core::ops::function::FnMut() + 'static)
+pub fn plutonium_engine::anim::Timeline<T>::pause(&mut self)
+pub fn plutonium_engine::anim::Timeline<T>::play(&mut self)
+pub fn plutonium_engine::anim::Timeline<T>::push_track(&mut self, plutonium_engine::anim::Track<T>)
+pub fn plutonium_engine::anim::Timeline<T>::seek(&mut self, f32)
+pub fn plutonium_engine::anim::Timeline<T>::set_rate(&mut self, f32)
+pub fn plutonium_engine::anim::Timeline<T>::step(&mut self, f32) -> alloc::vec::Vec<alloc::vec::Vec<T>>
+pub fn plutonium_engine::anim::Track<T>::clone(&self) -> plutonium_engine::anim::Track<T>
+pub fn plutonium_engine::anim::Track<T>::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn plutonium_engine::anim::Track<T>::step(&mut self, f32) -> alloc::vec::Vec<T>
+pub fn plutonium_engine::anim::Tween<T>::clone(&self) -> plutonium_engine::anim::Tween<T>
+pub fn plutonium_engine::anim::Tween<T>::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn plutonium_engine::anim::Tween<T>::is_finished(&self) -> bool
+pub fn plutonium_engine::anim::Tween<T>::new(T, T, f32, plutonium_engine::anim::Ease) -> Self
+pub fn plutonium_engine::anim::Tween<T>::reset(&mut self)
+pub fn plutonium_engine::anim::Tween<T>::sample(&self) -> T
+pub fn plutonium_engine::anim::Tween<T>::step(&mut self, f32) -> T
+pub fn plutonium_engine::anim::ease_value(plutonium_engine::anim::Ease, f32) -> f32
 pub fn plutonium_engine::app::FrameInputRecordLocal::clone(&self) -> plutonium_engine::app::FrameInputRecordLocal
 pub fn plutonium_engine::app::FrameInputRecordLocal::default() -> plutonium_engine::app::FrameInputRecordLocal
 pub fn plutonium_engine::app::FrameInputRecordLocal::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde::de::Deserializer>::Error> where __D: serde::de::Deserializer<'de>
@@ -1048,6 +1208,22 @@ pub fn plutonium_engine::input::ButtonSource::clone(&self) -> plutonium_engine::
 pub fn plutonium_engine::input::ButtonSource::eq(&self, &plutonium_engine::input::ButtonSource) -> bool
 pub fn plutonium_engine::input::ButtonSource::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub fn plutonium_engine::input::ButtonSource::hash<__H: core::hash::Hasher>(&self, &mut __H)
+pub fn plutonium_engine::layout::Anchors::clone(&self) -> plutonium_engine::layout::Anchors
+pub fn plutonium_engine::layout::Anchors::default() -> Self
+pub fn plutonium_engine::layout::Anchors::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn plutonium_engine::layout::HAnchor::clone(&self) -> plutonium_engine::layout::HAnchor
+pub fn plutonium_engine::layout::HAnchor::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn plutonium_engine::layout::LayoutParams::default() -> plutonium_engine::layout::LayoutParams
+pub fn plutonium_engine::layout::Margins::clone(&self) -> plutonium_engine::layout::Margins
+pub fn plutonium_engine::layout::Margins::default() -> plutonium_engine::layout::Margins
+pub fn plutonium_engine::layout::Margins::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn plutonium_engine::layout::PercentSize::clone(&self) -> plutonium_engine::layout::PercentSize
+pub fn plutonium_engine::layout::PercentSize::default() -> plutonium_engine::layout::PercentSize
+pub fn plutonium_engine::layout::PercentSize::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn plutonium_engine::layout::VAnchor::clone(&self) -> plutonium_engine::layout::VAnchor
+pub fn plutonium_engine::layout::VAnchor::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn plutonium_engine::layout::layout_node(plutonium_engine::utils::Rectangle, plutonium_engine::utils::Size, plutonium_engine::layout::LayoutParams) -> plutonium_engine::layout::LayoutResult
+pub fn plutonium_engine::layout::window_bounds(f32, f32) -> plutonium_engine::utils::Rectangle
 pub fn plutonium_engine::pluto_objects::button::Button::clear(&self)
 pub fn plutonium_engine::pluto_objects::button::Button::get_dimensions(&self) -> plutonium_engine::utils::Rectangle
 pub fn plutonium_engine::pluto_objects::button::Button::get_id(&self) -> uuid::Uuid
@@ -1417,6 +1593,7 @@ pub fn plutonium_engine::texture_svg::TextureSVG::get_transform_uniform(&self, p
 pub fn plutonium_engine::texture_svg::TextureSVG::index_buffer_slice(&self) -> wgpu::api::buffer::BufferSlice<'_>
 pub fn plutonium_engine::texture_svg::TextureSVG::new(uuid::Uuid, &wgpu::api::device::Device, &wgpu::api::queue::Queue, &str, &wgpu::api::bind_group_layout::BindGroupLayout, &wgpu::api::bind_group_layout::BindGroupLayout, plutonium_engine::utils::Position, f32) -> core::option::Option<Self>
 pub fn plutonium_engine::texture_svg::TextureSVG::new_from_data(uuid::Uuid, &wgpu::api::device::Device, &wgpu::api::queue::Queue, &str, &wgpu::api::bind_group_layout::BindGroupLayout, &wgpu::api::bind_group_layout::BindGroupLayout, plutonium_engine::utils::Position, f32) -> core::option::Option<Self>
+pub fn plutonium_engine::texture_svg::TextureSVG::new_from_rgba(uuid::Uuid, &wgpu::api::device::Device, &wgpu::api::queue::Queue, u32, u32, &[u8], &wgpu::api::bind_group_layout::BindGroupLayout, &wgpu::api::bind_group_layout::BindGroupLayout, plutonium_engine::utils::Position) -> core::option::Option<Self>
 pub fn plutonium_engine::texture_svg::TextureSVG::num_indices(&self) -> u32
 pub fn plutonium_engine::texture_svg::TextureSVG::original_size(&self) -> plutonium_engine::utils::Size
 pub fn plutonium_engine::texture_svg::TextureSVG::pos(&self) -> plutonium_engine::utils::Position
@@ -1500,9 +1677,11 @@ pub fn plutonium_engine::utils::Vertex::fmt(&self, &mut core::fmt::Formatter<'_>
 pub fn plutonium_engine::utils::create_centered_quad_buffers(&wgpu::api::device::Device) -> (wgpu::api::buffer::Buffer, wgpu::api::buffer::Buffer)
 pub fn plutonium_engine::utils::create_unit_quad_buffers(&wgpu::api::device::Device) -> (wgpu::api::buffer::Buffer, wgpu::api::buffer::Buffer)
 pub mod plutonium_engine
+pub mod plutonium_engine::anim
 pub mod plutonium_engine::app
 pub mod plutonium_engine::camera
 pub mod plutonium_engine::input
+pub mod plutonium_engine::layout
 pub mod plutonium_engine::pluto_objects
 pub mod plutonium_engine::pluto_objects::button
 pub mod plutonium_engine::pluto_objects::shapes
@@ -1599,6 +1778,15 @@ pub plutonium_engine::PrewarmPolicy::LightPreset
 pub plutonium_engine::PrewarmPolicy::None
 pub plutonium_engine::RasterHintingMode::Auto
 pub plutonium_engine::RasterHintingMode::None
+pub plutonium_engine::RasterTextureLoadError::BodyReadFailed(alloc::string::String)
+pub plutonium_engine::RasterTextureLoadError::FetchFailed(alloc::string::String)
+pub plutonium_engine::RasterTextureLoadError::HttpStatus
+pub plutonium_engine::RasterTextureLoadError::HttpStatus::status: u16
+pub plutonium_engine::RasterTextureLoadError::HttpStatus::status_text: alloc::string::String
+pub plutonium_engine::RasterTextureLoadError::HttpStatus::url: alloc::string::String
+pub plutonium_engine::RasterTextureLoadError::ImageDecodeFailed(alloc::string::String)
+pub plutonium_engine::RasterTextureLoadError::InvalidResponse(alloc::string::String)
+pub plutonium_engine::RasterTextureLoadError::TextureCreateFailed(alloc::string::String)
 pub plutonium_engine::TextureFit::Contain
 pub plutonium_engine::TextureFit::Cover
 pub plutonium_engine::TextureFit::StretchFill
@@ -1609,6 +1797,22 @@ pub plutonium_engine::WarmStats::warmed_sizes: usize
 pub plutonium_engine::WindowConfig::height: u32
 pub plutonium_engine::WindowConfig::title: alloc::string::String
 pub plutonium_engine::WindowConfig::width: u32
+pub plutonium_engine::anim::Ease::CubicBezier
+pub plutonium_engine::anim::Ease::CubicBezier::x1: f32
+pub plutonium_engine::anim::Ease::CubicBezier::x2: f32
+pub plutonium_engine::anim::Ease::CubicBezier::y1: f32
+pub plutonium_engine::anim::Ease::CubicBezier::y2: f32
+pub plutonium_engine::anim::Ease::EaseIn
+pub plutonium_engine::anim::Ease::EaseInOut
+pub plutonium_engine::anim::Ease::EaseOut
+pub plutonium_engine::anim::Ease::Linear
+pub plutonium_engine::anim::Track::Parallel(alloc::vec::Vec<plutonium_engine::anim::Tween<T>>)
+pub plutonium_engine::anim::Track::Sequence(alloc::vec::Vec<plutonium_engine::anim::Tween<T>>)
+pub plutonium_engine::anim::Tween::duration: f32
+pub plutonium_engine::anim::Tween::ease: plutonium_engine::anim::Ease
+pub plutonium_engine::anim::Tween::elapsed: f32
+pub plutonium_engine::anim::Tween::end: T
+pub plutonium_engine::anim::Tween::start: T
 pub plutonium_engine::app::FrameContext::delta_time: f32
 pub plutonium_engine::app::FrameContext::mouse_info: plutonium_engine::utils::MouseInfo
 pub plutonium_engine::app::FrameContext::pressed_keys: alloc::vec::Vec<winit::keyboard::Key>
@@ -1643,6 +1847,27 @@ pub plutonium_engine::input::ButtonSource::Key(alloc::string::String)
 pub plutonium_engine::input::ButtonSource::MouseLeft
 pub plutonium_engine::input::ButtonSource::MouseMiddle
 pub plutonium_engine::input::ButtonSource::MouseRight
+pub plutonium_engine::layout::Anchors::h: plutonium_engine::layout::HAnchor
+pub plutonium_engine::layout::Anchors::v: plutonium_engine::layout::VAnchor
+pub plutonium_engine::layout::HAnchor::Center
+pub plutonium_engine::layout::HAnchor::Left
+pub plutonium_engine::layout::HAnchor::Percent(f32)
+pub plutonium_engine::layout::HAnchor::Right
+pub plutonium_engine::layout::LayoutParams::anchors: plutonium_engine::layout::Anchors
+pub plutonium_engine::layout::LayoutParams::margins: plutonium_engine::layout::Margins
+pub plutonium_engine::layout::LayoutParams::percent: core::option::Option<plutonium_engine::layout::PercentSize>
+pub plutonium_engine::layout::LayoutResult::position: plutonium_engine::utils::Position
+pub plutonium_engine::layout::LayoutResult::size: plutonium_engine::utils::Size
+pub plutonium_engine::layout::Margins::bottom: f32
+pub plutonium_engine::layout::Margins::left: f32
+pub plutonium_engine::layout::Margins::right: f32
+pub plutonium_engine::layout::Margins::top: f32
+pub plutonium_engine::layout::PercentSize::height_pct: f32
+pub plutonium_engine::layout::PercentSize::width_pct: f32
+pub plutonium_engine::layout::VAnchor::Bottom
+pub plutonium_engine::layout::VAnchor::Middle
+pub plutonium_engine::layout::VAnchor::Percent(f32)
+pub plutonium_engine::layout::VAnchor::Top
 pub plutonium_engine::pluto_objects::shapes::ShapeType::Circle
 pub plutonium_engine::pluto_objects::shapes::ShapeType::Polygon(u32)
 pub plutonium_engine::pluto_objects::shapes::ShapeType::Rectangle
@@ -1870,8 +2095,11 @@ pub struct plutonium_engine::PopupAction
 pub struct plutonium_engine::PopupConfig
 pub struct plutonium_engine::PrewarmConfig
 pub struct plutonium_engine::QueuedItem
+pub struct plutonium_engine::RasterTextureUrlLoadHandle(_)
 pub struct plutonium_engine::WarmStats
 pub struct plutonium_engine::WindowConfig
+pub struct plutonium_engine::anim::Timeline<T> where T: core::marker::Copy + core::ops::arith::Add<Output = T> + core::ops::arith::Sub<Output = T> + core::ops::arith::Mul<f32, Output = T>
+pub struct plutonium_engine::anim::Tween<T>
 pub struct plutonium_engine::app::FrameContext
 pub struct plutonium_engine::app::FrameInputRecordLocal
 pub struct plutonium_engine::app::PlutoniumApp
@@ -1881,6 +2109,11 @@ pub struct plutonium_engine::camera::Camera
 pub struct plutonium_engine::input::ActionMap
 pub struct plutonium_engine::input::AxisBinding
 pub struct plutonium_engine::input::ButtonBinding
+pub struct plutonium_engine::layout::Anchors
+pub struct plutonium_engine::layout::LayoutParams
+pub struct plutonium_engine::layout::LayoutResult
+pub struct plutonium_engine::layout::Margins
+pub struct plutonium_engine::layout::PercentSize
 pub struct plutonium_engine::pluto_objects::button::Button
 pub struct plutonium_engine::pluto_objects::button::ButtonInternal
 pub struct plutonium_engine::pluto_objects::shapes::Shape
