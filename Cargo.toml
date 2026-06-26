@@ -19,6 +19,12 @@ exclude = [
     "debug_*.png",
     "snapshots/**",
     "plutonium_game/**",
+    "z-harness/**",
+    "response.md",
+    "TODO.md",
+    "GAME_ENGINE_TODO.md",
+    "AGENTS.md",
+    "*.mds",
 ]
 
 [dependencies]
