@@ -1,4 +1,9 @@
 //! Immediate-mode draw and queue methods for `PlutoniumEngine`.
+//!
+//! `queue_*` methods are the canonical render-queue API: they append a draw
+//! item with explicit coordinates, layer, fit, or clipping choices. `draw_*`
+//! methods are compatibility/convenience wrappers for immediate-mode examples;
+//! they still append to the same render queue and are flushed by `render()`.
 
 use crate::pluto_objects::text2d::TextContainer;
 use crate::renderer::RectCommand;
@@ -616,8 +621,10 @@ impl<'a> PlutoniumEngine<'a> {
         self.atlas_map.remove(atlas_key).is_some()
     }
 
-    // Convenience immediate-mode draws for consistent naming
-    /// Queues texture for drawing.
+    /// Convenience immediate-mode sprite draw.
+    ///
+    /// This appends the same render-queue item as the `queue_*` methods, while
+    /// accepting [`DrawParams`] for rotation, scale, and z ordering.
     pub fn draw_texture(&mut self, texture_key: &Uuid, position: Position, params: DrawParams) {
         // rotation only supported by direct draw path for sprites; augment transform
         if let Some(texture) = self.texture_map.get(texture_key) {
@@ -640,12 +647,12 @@ impl<'a> PlutoniumEngine<'a> {
         }
     }
 
-    /// Queues texture stretched for drawing.
+    /// Convenience wrapper for [`Self::queue_texture_stretched`].
     pub fn draw_texture_stretched(&mut self, texture_key: &Uuid, dst: Rectangle) {
         self.queue_texture_stretched(texture_key, dst);
     }
 
-    /// Queues texture stretched with fit and inset for drawing.
+    /// Convenience wrapper for [`Self::queue_texture_stretched_with_layer_and_fit`].
     pub fn draw_texture_stretched_with_fit_and_inset(
         &mut self,
         texture_key: &Uuid,
@@ -657,7 +664,7 @@ impl<'a> PlutoniumEngine<'a> {
         self.queue_texture_stretched_with_layer_and_fit(texture_key, dst, z, fit, inset);
     }
 
-    /// Queues tile for drawing.
+    /// Convenience wrapper for [`Self::queue_tile_with_layer`] using [`DrawParams`].
     pub fn draw_tile(
         &mut self,
         atlas_key: &Uuid,
@@ -673,8 +680,7 @@ impl<'a> PlutoniumEngine<'a> {
         self.queue_tile_with_layer(atlas_key, tile_index, position, user_scale, params.z);
     }
 
-    // Draw an atlas tile stretched to an arbitrary destination rectangle (non-uniform scale)
-    /// Queues atlas tile stretched for drawing.
+    /// Convenience wrapper that queues an atlas tile stretched to `dst`.
     pub fn draw_atlas_tile_stretched(
         &mut self,
         atlas_key: &Uuid,
@@ -723,8 +729,7 @@ impl<'a> PlutoniumEngine<'a> {
         });
     }
 
-    // Immediate-mode rect draw (UI primitive)
-    /// Queues rect for drawing.
+    /// Convenience wrapper that queues an immediate-mode rectangle primitive.
     pub fn draw_rect(
         &mut self,
         bounds: Rectangle,
