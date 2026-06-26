@@ -1085,19 +1085,6 @@ impl<'a> PlutoniumEngine<'a> {
         ))
     }
 
-    #[cfg(target_arch = "wasm32")]
-    /// Returns an error on wasm; use [`Self::new_async`] for wasm initialization.
-    pub fn new(
-        _surface: wgpu::Surface<'a>,
-        _instance: wgpu::Instance,
-        _size: PhysicalSize<u32>,
-        _dpi_scale_factor: f32,
-    ) -> Result<Self, EngineError> {
-        Err(EngineError::SurfaceError(
-            "PlutoniumEngine::new is not available on wasm32; use PlutoniumEngine::new_async"
-                .to_string(),
-        ))
-    }
 
     #[cfg(target_arch = "wasm32")]
     /// Creates an engine asynchronously for wasm targets.
