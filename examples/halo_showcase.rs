@@ -2,17 +2,6 @@ use plutonium_engine::app::run_app;
 use plutonium_engine::pluto_objects::text2d::TextContainer;
 use plutonium_engine::utils::{Position, Rectangle};
 use plutonium_engine::{HaloPreset, HaloStyle, PlutoniumEngine, WindowConfig};
-use winit::keyboard::{Key, NamedKey};
-
-fn key_char_down(keys: &[Key], value: &str) -> bool {
-    keys.iter()
-        .any(|k| matches!(k.as_ref(), Key::Character(s) if s.eq_ignore_ascii_case(value)))
-}
-
-fn key_named_down(keys: &[Key], value: NamedKey) -> bool {
-    keys.iter()
-        .any(|k| matches!(k.as_ref(), Key::Named(named) if named == value))
-}
 
 fn queue_label(engine: &mut PlutoniumEngine, text: &str, pos: Position, color: [f32; 4]) {
     let container = TextContainer::new(Rectangle::new(pos.x, pos.y, 880.0, 24.0)).with_padding(0.0);
@@ -85,36 +74,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let move_speed = 260.0 * frame.delta_time.max(1.0 / 120.0);
-        if key_named_down(&frame.pressed_keys, NamedKey::ArrowLeft)
-            || key_char_down(&frame.pressed_keys, "a")
+        if frame.pressed_keys.contains_named("ArrowLeft")
+            || frame.pressed_keys.contains_character_ignore_ascii_case("a")
         {
             focus_pos.x -= move_speed;
         }
-        if key_named_down(&frame.pressed_keys, NamedKey::ArrowRight)
-            || key_char_down(&frame.pressed_keys, "d")
+        if frame.pressed_keys.contains_named("ArrowRight")
+            || frame.pressed_keys.contains_character_ignore_ascii_case("d")
         {
             focus_pos.x += move_speed;
         }
-        if key_named_down(&frame.pressed_keys, NamedKey::ArrowUp)
-            || key_char_down(&frame.pressed_keys, "w")
+        if frame.pressed_keys.contains_named("ArrowUp")
+            || frame.pressed_keys.contains_character_ignore_ascii_case("w")
         {
             focus_pos.y -= move_speed;
         }
-        if key_named_down(&frame.pressed_keys, NamedKey::ArrowDown)
-            || key_char_down(&frame.pressed_keys, "s")
+        if frame.pressed_keys.contains_named("ArrowDown")
+            || frame.pressed_keys.contains_character_ignore_ascii_case("s")
         {
             focus_pos.y += move_speed;
         }
         focus_pos.x = focus_pos.x.clamp(40.0, 460.0);
         focus_pos.y = focus_pos.y.clamp(140.0, 420.0);
 
-        let toggle_offscreen_down = key_char_down(&frame.pressed_keys, "o");
+        let toggle_offscreen_down = frame.pressed_keys.contains_character_ignore_ascii_case("o");
         if toggle_offscreen_down && !toggle_offscreen_prev {
             offscreen_visible = !offscreen_visible;
         }
         toggle_offscreen_prev = toggle_offscreen_down;
 
-        let cycle_preset_down = key_char_down(&frame.pressed_keys, "p");
+        let cycle_preset_down = frame.pressed_keys.contains_character_ignore_ascii_case("p");
         if cycle_preset_down && !cycle_preset_prev {
             active_preset = match active_preset {
                 HaloPreset::TutorialPrimary => HaloPreset::TutorialSubtle,

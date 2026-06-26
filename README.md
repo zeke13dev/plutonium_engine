@@ -58,13 +58,13 @@ WASM compile check:
 cargo check --workspace --target wasm32-unknown-unknown --features wasm
 ```
 
-WASM runtime entrypoint (existing canvas required):
+WASM runtime entrypoint (existing `#game-canvas` canvas required):
 ```rust
 // cfg(target_arch = "wasm32")
-plutonium_engine::app::run_app_wasm(config, "game-canvas", frame_callback).await?;
+plutonium_engine::app::run_app(config, frame_callback)?;
 ```
-For browser-debug workflows, use:
-`run_app_wasm_with_options(config, canvas_id, WasmAppConfig { prevent_default: false, ..Default::default() }, frame_callback)`.
+For custom canvas ids or browser-debug workflows, use:
+`run_app_wasm_with_options(config, canvas_id, WasmAppConfig { prevent_default: false, ..Default::default() }, frame_callback).await`.
 
 WASM-safe loading hooks (wasm32 only):
 - `load_font_from_bytes(...)`

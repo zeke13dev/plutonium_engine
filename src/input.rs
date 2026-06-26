@@ -102,7 +102,7 @@ impl ActionMap {
         let key_strs: Vec<String> = frame
             .pressed_keys
             .iter()
-            .map(|k| format!("{:?}", k))
+            .map(|key| key.debug_name())
             .collect();
 
         // Buttons

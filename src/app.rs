@@ -2,10 +2,10 @@ use crate::{
     utils::{monotonic_now_seconds, FrameTimeMetrics, MouseInfo, Position},
     PlutoniumEngine,
 };
-use std::collections::HashMap;
 #[cfg(target_arch = "wasm32")]
 use std::sync::mpsc::{self, TryRecvError};
 use std::sync::Arc;
+use std::{collections::HashMap, fmt};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
 #[cfg(target_arch = "wasm32")]
@@ -37,6 +37,115 @@ pub struct FrameInputRecordLocal {
     pub scroll_dx: f32,
     pub scroll_dy: f32,
     pub committed_text: Vec<String>,
+}
+
+/// Logical keyboard key reported to frame callbacks.
+///
+/// This crate-owned wrapper keeps [`FrameContext`] independent from the exact
+/// `winit::keyboard::Key` type while preserving the common character/named-key
+/// queries used by applications.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Key {
+    logical: winit::keyboard::Key,
+}
+
+impl fmt::Debug for Key {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.logical.fmt(f)
+    }
+}
+
+impl Key {
+    pub(crate) fn from_winit(logical: winit::keyboard::Key) -> Self {
+        Self { logical }
+    }
+
+    /// Returns the Unicode character for character keys.
+    pub fn character(&self) -> Option<&str> {
+        match &self.logical {
+            winit::keyboard::Key::Character(value) => Some(value.as_str()),
+            _ => None,
+        }
+    }
+
+    /// Returns true when this key is a character equal to `value`, ignoring ASCII case.
+    pub fn is_character_ignore_ascii_case(&self, value: &str) -> bool {
+        self.character()
+            .map(|character| character.eq_ignore_ascii_case(value))
+            .unwrap_or(false)
+    }
+
+    /// Returns true when this key is a named key with the given `Debug` name.
+    ///
+    /// Names match `winit`'s `NamedKey` debug spelling, such as `"Enter"`,
+    /// `"Escape"`, or `"ArrowLeft"`.
+    pub fn is_named(&self, name: &str) -> bool {
+        match &self.logical {
+            winit::keyboard::Key::Named(named) => format!("{named:?}") == name,
+            _ => false,
+        }
+    }
+
+    /// Returns the stable debug spelling recorded by replay/snapshot tooling.
+    pub fn debug_name(&self) -> String {
+        format!("{:?}", self.logical)
+    }
+}
+
+/// Frame-local collection of logical keyboard keys.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Keys {
+    inner: Vec<Key>,
+}
+
+impl Keys {
+    /// Returns the number of key presses in this frame.
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    /// Returns true when no key presses were reported for this frame.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    /// Iterates over frame-local key presses.
+    pub fn iter(&self) -> std::slice::Iter<'_, Key> {
+        self.inner.iter()
+    }
+
+    /// Returns true when any key is a character equal to `value`, ignoring ASCII case.
+    pub fn contains_character_ignore_ascii_case(&self, value: &str) -> bool {
+        self.inner
+            .iter()
+            .any(|key| key.is_character_ignore_ascii_case(value))
+    }
+
+    /// Returns true when any key is a named key with the given `Debug` name.
+    pub fn contains_named(&self, name: &str) -> bool {
+        self.inner.iter().any(|key| key.is_named(name))
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.inner.clear();
+    }
+
+    pub(crate) fn push_winit(&mut self, logical: winit::keyboard::Key) {
+        self.inner.push(Key::from_winit(logical));
+    }
+
+    pub(crate) fn last_winit_cloned(&self) -> Option<winit::keyboard::Key> {
+        self.inner.last().map(|key| key.logical.clone())
+    }
+}
+
+impl<'a> IntoIterator for &'a Keys {
+    type Item = &'a Key;
+    type IntoIter = std::slice::Iter<'a, Key>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
 }
 
 /// WindowConfig data.
@@ -78,12 +187,9 @@ impl Default for WasmAppConfig {
 
 #[derive(Clone)]
 /// Per-frame input and timing passed to the application callback.
-///
-/// Keyboard values intentionally use the `winit::keyboard::Key` type from the
-/// crate-pinned `winit` version so callback code can inspect raw logical keys.
 pub struct FrameContext {
-    /// Logical keys pressed during the current frame, as reported by `winit`.
-    pub pressed_keys: Vec<winit::keyboard::Key>,
+    /// Logical keys pressed during the current frame.
+    pub pressed_keys: Keys,
     /// Mouse info value.
     pub mouse_info: MouseInfo,
     /// Delta time value.
@@ -205,7 +311,7 @@ impl PlutoniumApp {
             last_frame_secs: monotonic_now_seconds(),
             frame_callback: Some(Box::new(frame_callback)),
             frame_context: FrameContext {
-                pressed_keys: Vec::new(),
+                pressed_keys: Keys::default(),
                 mouse_info: MouseInfo {
                     is_rmb_clicked: false,
                     is_lmb_clicked: false,
@@ -374,8 +480,8 @@ impl PlutoniumApp {
 
     /// Returns true when the given `winit` logical key is currently held down.
     ///
-    /// This low-level helper intentionally accepts `winit::keyboard::Key` to
-    /// match values from [`FrameContext::pressed_keys`].
+    /// This low-level helper is for manual integrations that already consume
+    /// `winit`; frame callbacks should prefer [`FrameContext::pressed_keys`].
     pub fn is_key_down(&self, key: &winit::keyboard::Key) -> bool {
         let key_id = format!("{:?}", key);
         self.key_repeat_states
@@ -578,7 +684,7 @@ impl ApplicationHandler<()> for PlutoniumApp {
                     // Record immediate press
                     self.frame_context
                         .pressed_keys
-                        .push(event.logical_key.clone());
+                        .push_winit(event.logical_key.clone());
                     // Initialize key repeat state
                     let key_id = format!("{:?}", event.logical_key);
                     self.key_repeat_states.insert(
@@ -763,7 +869,7 @@ impl ApplicationHandler<()> for PlutoniumApp {
                             if st.is_down {
                                 st.elapsed += dt;
                                 if st.elapsed >= st.next_fire {
-                                    self.frame_context.pressed_keys.push(k.clone());
+                                    self.frame_context.pressed_keys.push_winit(k.clone());
                                     st.next_fire += rate_dt;
                                 }
                             }
@@ -773,7 +879,7 @@ impl ApplicationHandler<()> for PlutoniumApp {
                     if let Some(frames) = self.replay_frames.as_ref() {
                         if self.replay_cursor < frames.len() {
                             let fr = &frames[self.replay_cursor];
-                            self.frame_context.pressed_keys.clear(); // skip key reconstruction
+                            self.frame_context.pressed_keys.clear(); // key reconstruction is intentionally unsupported
                             self.frame_context.mouse_info.mouse_pos = Position {
                                 x: fr.mouse_x,
                                 y: fr.mouse_y,
@@ -802,7 +908,7 @@ impl ApplicationHandler<()> for PlutoniumApp {
                                 .frame_context
                                 .pressed_keys
                                 .iter()
-                                .map(|k| format!("{:?}", k))
+                                .map(Key::debug_name)
                                 .collect(),
                             mouse_x: self.frame_context.mouse_info.mouse_pos.x,
                             mouse_y: self.frame_context.mouse_info.mouse_pos.y,
@@ -829,7 +935,7 @@ impl ApplicationHandler<()> for PlutoniumApp {
 
                     // Update engine-side items (pluto objects and their textures)
                     // Pass the last pressed key this frame so interactive widgets receive input
-                    let last_key = self.frame_context.pressed_keys.last().cloned();
+                    let last_key = self.frame_context.pressed_keys.last_winit_cloned();
                     engine.update(
                         Some(self.frame_context.mouse_info),
                         &last_key,
@@ -900,73 +1006,118 @@ impl ApplicationHandler<()> for PlutoniumApp {
     }
 }
 
-/// Documents run app.
+#[cfg(target_arch = "wasm32")]
+const DEFAULT_WASM_CANVAS_ID: &str = "game-canvas";
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Debug)]
+struct WasmRunAppError(String);
+
+#[cfg(target_arch = "wasm32")]
+impl fmt::Display for WasmRunAppError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl std::error::Error for WasmRunAppError {}
+
+#[cfg(target_arch = "wasm32")]
+fn js_value_to_string(value: wasm_bindgen::JsValue) -> String {
+    value
+        .as_string()
+        .unwrap_or_else(|| format!("JavaScript error: {value:?}"))
+}
+
+/// Runs a Plutonium application on the current platform.
+///
+/// Native targets create a `winit` window and block until the event loop exits.
+/// WASM targets attach to an existing canvas with id `"game-canvas"`, spawn the
+/// browser event loop, and return after startup. Use [`run_app_wasm_with_options`]
+/// on WASM when a different canvas id or browser event option is needed.
 pub fn run_app<F>(config: WindowConfig, frame_callback: F) -> Result<(), Box<dyn std::error::Error>>
 where
     F: FnMut(&mut super::PlutoniumEngine, &FrameContext, &mut PlutoniumApp) + 'static,
 {
-    let event_loop = EventLoop::new()?;
-    let mut app = PlutoniumApp::new(config, frame_callback);
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let event_loop = EventLoop::new()?;
+        let mut app = PlutoniumApp::new(config, frame_callback);
 
-    // Parse simple CLI flags: --record <path>, --replay <path>, --dt <seconds>, --fps <hz>, --keyrepeat on|off, --keydelay <s>, --keyrate <hz>
-    let mut it = std::env::args().skip(1);
-    while let Some(arg) = it.next() {
-        match arg.as_str() {
-            "--record" => {
-                if let Some(p) = it.next() {
-                    app.startup_record_path = Some(p);
-                }
-            }
-            "--replay" => {
-                if let Some(p) = it.next() {
-                    app.startup_replay_path = Some(p);
-                }
-            }
-            "--dt" => {
-                if let Some(v) = it.next() {
-                    if let Ok(dt) = v.parse::<f32>() {
-                        app.set_fixed_timestep(dt);
+        // Parse simple CLI flags: --record <path>, --replay <path>, --dt <seconds>, --fps <hz>, --keyrepeat on|off, --keydelay <s>, --keyrate <hz>
+        let mut it = std::env::args().skip(1);
+        while let Some(arg) = it.next() {
+            match arg.as_str() {
+                "--record" => {
+                    if let Some(p) = it.next() {
+                        app.startup_record_path = Some(p);
                     }
                 }
-            }
-            "--fps" => {
-                if let Some(v) = it.next() {
-                    if let Ok(fps) = v.parse::<f32>() {
-                        if fps > 0.0 {
-                            app.set_fixed_timestep(1.0 / fps);
+                "--replay" => {
+                    if let Some(p) = it.next() {
+                        app.startup_replay_path = Some(p);
+                    }
+                }
+                "--dt" => {
+                    if let Some(v) = it.next() {
+                        if let Ok(dt) = v.parse::<f32>() {
+                            app.set_fixed_timestep(dt);
                         }
                     }
                 }
-            }
-            "--keyrepeat" => {
-                if let Some(v) = it.next() {
-                    app.key_repeat_enabled =
-                        matches!(v.to_ascii_lowercase().as_str(), "on" | "1" | "true");
-                }
-            }
-            "--keydelay" => {
-                if let Some(v) = it.next() {
-                    if let Ok(d) = v.parse::<f32>() {
-                        app.key_repeat_delay = d.max(0.0);
+                "--fps" => {
+                    if let Some(v) = it.next() {
+                        if let Ok(fps) = v.parse::<f32>() {
+                            if fps > 0.0 {
+                                app.set_fixed_timestep(1.0 / fps);
+                            }
+                        }
                     }
                 }
-            }
-            "--keyrate" => {
-                if let Some(v) = it.next() {
-                    if let Ok(hz) = v.parse::<f32>() {
-                        app.key_repeat_rate_hz = hz.max(0.0);
+                "--keyrepeat" => {
+                    if let Some(v) = it.next() {
+                        app.key_repeat_enabled =
+                            matches!(v.to_ascii_lowercase().as_str(), "on" | "1" | "true");
                     }
                 }
+                "--keydelay" => {
+                    if let Some(v) = it.next() {
+                        if let Ok(d) = v.parse::<f32>() {
+                            app.key_repeat_delay = d.max(0.0);
+                        }
+                    }
+                }
+                "--keyrate" => {
+                    if let Some(v) = it.next() {
+                        if let Ok(hz) = v.parse::<f32>() {
+                            app.key_repeat_rate_hz = hz.max(0.0);
+                        }
+                    }
+                }
+                _ => {}
             }
-            _ => {}
         }
+
+        event_loop.run_app(&mut app)?;
+        Ok(())
     }
 
-    event_loop.run_app(&mut app)?;
-    Ok(())
+    #[cfg(target_arch = "wasm32")]
+    {
+        run_app_wasm_with_options_sync(
+            config,
+            DEFAULT_WASM_CANVAS_ID,
+            WasmAppConfig::default(),
+            frame_callback,
+        )
+        .map_err(js_value_to_string)
+        .map_err(|message| Box::new(WasmRunAppError(message)) as Box<dyn std::error::Error>)
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
+/// Runs a WASM app on the canvas identified by `canvas_id`.
 pub async fn run_app_wasm<F>(
     config: WindowConfig,
     canvas_id: &str,
@@ -979,7 +1130,21 @@ where
 }
 
 #[cfg(target_arch = "wasm32")]
+/// Runs a WASM app with explicit browser event options.
 pub async fn run_app_wasm_with_options<F>(
+    config: WindowConfig,
+    canvas_id: &str,
+    wasm_config: WasmAppConfig,
+    frame_callback: F,
+) -> Result<(), wasm_bindgen::JsValue>
+where
+    F: FnMut(&mut super::PlutoniumEngine, &FrameContext, &mut PlutoniumApp) + 'static,
+{
+    run_app_wasm_with_options_sync(config, canvas_id, wasm_config, frame_callback)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn run_app_wasm_with_options_sync<F>(
     config: WindowConfig,
     canvas_id: &str,
     wasm_config: WasmAppConfig,

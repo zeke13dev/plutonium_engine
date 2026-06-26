@@ -66,29 +66,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             dragging = false;
         }
 
-        // Keyboard: toggle focus with Tab; clear focus with Escape
-        for k in &frame.pressed_keys {
-            match k {
-                winit::keyboard::Key::Named(winit::keyboard::NamedKey::Tab) => {
-                    focused = !focused;
-                }
-                winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape) => {
-                    focused = false;
-                    dragging = false;
-                }
-                winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowLeft) if focused => {
-                    value = (value - 0.02).clamp(0.0, 1.0);
-                }
-                winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowRight) if focused => {
-                    value = (value + 0.02).clamp(0.0, 1.0);
-                }
-                winit::keyboard::Key::Named(winit::keyboard::NamedKey::Home) if focused => {
-                    value = 0.0;
-                }
-                winit::keyboard::Key::Named(winit::keyboard::NamedKey::End) if focused => {
-                    value = 1.0;
-                }
-                _ => {}
+        // Keyboard: toggle focus with Tab; clear focus with Escape.
+        if frame.pressed_keys.contains_named("Tab") {
+            focused = !focused;
+        }
+        if frame.pressed_keys.contains_named("Escape") {
+            focused = false;
+            dragging = false;
+        }
+        if focused {
+            if frame.pressed_keys.contains_named("ArrowLeft") {
+                value = (value - 0.02).clamp(0.0, 1.0);
+            }
+            if frame.pressed_keys.contains_named("ArrowRight") {
+                value = (value + 0.02).clamp(0.0, 1.0);
+            }
+            if frame.pressed_keys.contains_named("Home") {
+                value = 0.0;
+            }
+            if frame.pressed_keys.contains_named("End") {
+                value = 1.0;
             }
         }
 

@@ -55,19 +55,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // (Demo only; real integration should wire to the widget's content.)
         if let Ok(mut clipboard) = arboard::Clipboard::new() {
             // Primitive key detection: check last pressed key text commits or key list
-            if frame
-                .pressed_keys
-                .iter()
-                .any(|k| format!("{:?}", k).contains("KeyC"))
-            {
+            if frame.pressed_keys.contains_character_ignore_ascii_case("c") {
                 let to_copy = frame.text_commits.join("");
                 let _ = clipboard.set_text(to_copy);
             }
-            if frame
-                .pressed_keys
-                .iter()
-                .any(|k| format!("{:?}", k).contains("KeyV"))
-            {
+            if frame.pressed_keys.contains_character_ignore_ascii_case("v") {
                 if let Ok(pasted) = clipboard.get_text() {
                     eprintln!("pasted: {}", pasted);
                 }

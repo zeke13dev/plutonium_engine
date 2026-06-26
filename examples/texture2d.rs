@@ -1,5 +1,4 @@
 use plutonium_engine::{app::run_app, utils::Position, WindowConfig};
-use winit::keyboard::Key;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = WindowConfig {
@@ -24,14 +23,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // Handle input
-        for key in &frame.pressed_keys {
-            match key.as_ref() {
-                Key::Character("w") => player_pos.y -= 10.0,
-                Key::Character("s") => player_pos.y += 10.0,
-                Key::Character("a") => player_pos.x -= 10.0,
-                Key::Character("d") => player_pos.x += 10.0,
-                _ => (),
-            }
+        if frame.pressed_keys.contains_character_ignore_ascii_case("w") {
+            player_pos.y -= 10.0;
+        }
+        if frame.pressed_keys.contains_character_ignore_ascii_case("s") {
+            player_pos.y += 10.0;
+        }
+        if frame.pressed_keys.contains_character_ignore_ascii_case("a") {
+            player_pos.x -= 10.0;
+        }
+        if frame.pressed_keys.contains_character_ignore_ascii_case("d") {
+            player_pos.x += 10.0;
         }
 
         if let Some(player) = &mut player {

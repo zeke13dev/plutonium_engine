@@ -64,8 +64,8 @@
 //! # Backend type stability
 //!
 //! Low-level/manual integration APIs intentionally expose `wgpu` and `winit`
-//! types such as `wgpu::Surface`, `wgpu::SurfaceError`, `winit::dpi::PhysicalSize`,
-//! and `winit::keyboard::Key`. These signatures are the backend interop layer:
+//! types such as `wgpu::Surface`, `wgpu::SurfaceError`, and
+//! `winit::dpi::PhysicalSize`. These signatures are the backend interop layer:
 //! callers that create their own surfaces, drive their own event loops, or handle
 //! raw keyboard state use the exact backend types pinned by this crate. Upgrading
 //! `wgpu` or `winit` is therefore a public API change and is handled as part of
@@ -108,7 +108,7 @@ pub mod pluto_objects {
 }
 /// Documentation and public API for app.
 pub mod app;
-pub use app::{FrameContext, PlutoniumApp, WindowConfig};
+pub use app::{FrameContext, Key, Keys, PlutoniumApp, WindowConfig};
 pub use error::EngineError;
 #[cfg(feature = "anim")]
 /// Documentation and public API for anim.
@@ -197,7 +197,6 @@ use traits::PlutoObject;
 use utils::*;
 use uuid::Uuid;
 use winit::dpi::PhysicalSize;
-use winit::keyboard::Key;
 
 // renderer seam reserved for future use
 
@@ -859,7 +858,12 @@ impl<'a> PlutoniumEngine<'a> {
     /// The `key` argument intentionally uses `winit::keyboard::Key`; applications
     /// that need a stable abstraction can translate their input before calling
     /// this low-level method.
-    pub fn update(&mut self, mouse_info: Option<MouseInfo>, key: &Option<Key>, delta_time: f32) {
+    pub fn update(
+        &mut self,
+        mouse_info: Option<MouseInfo>,
+        key: &Option<winit::keyboard::Key>,
+        delta_time: f32,
+    ) {
         // text doesn't seem to be getting updated
         let scaled_mouse_info = mouse_info.map(|info| MouseInfo {
             is_rmb_clicked: info.is_rmb_clicked,
@@ -1084,7 +1088,6 @@ impl<'a> PlutoniumEngine<'a> {
             queue,
         ))
     }
-
 
     #[cfg(target_arch = "wasm32")]
     /// Creates an engine asynchronously for wasm targets.
