@@ -11,6 +11,7 @@ readme = "README.md"
 keywords = ["wgpu", "rendering", "svg"]
 categories = ["graphics", "rendering"]
 edition = "2021"
+rust-version = "1.79"
 exclude = [
     ".DS_Store",
     "**/.DS_Store",
