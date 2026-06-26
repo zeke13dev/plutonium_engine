@@ -165,16 +165,21 @@ impl PlutoObject for ButtonInternal {
     }
 
     fn render(&self, engine: &mut PlutoniumEngine) {
-        // We need &mut self for our custom render, but trait requires &self
-        // This is a workaround - we'll need to refactor or use interior mutability
-        // For now, fallback to the simple texture queue
+        // Trait rendering queues the button background texture only. The label
+        // Text2D is retained for sizing/state, but callers that need visible
+        // labels should render their own text object next to the button.
         engine.queue_texture_with_layer(&self.texture_key, Some(self.dimensions.pos()), 1);
-        // TODO: Render text properly here
     }
 }
 
 // Wrapper Representation
 /// Button data.
+///
+/// The retained [`PlutoObject`] render path queues
+/// only the button background texture. Button label text is stored for state and
+/// sizing helpers, but must currently be rendered explicitly by the caller.
+/// This documents the current limitation instead of silently implying that
+/// [`Self::set_content`] changes rendered text.
 pub struct Button {
     internal: Rc<RefCell<ButtonInternal>>,
 }
