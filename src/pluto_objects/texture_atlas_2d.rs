@@ -106,9 +106,7 @@ pub struct TextureAtlas2D {
 }
 
 impl TextureAtlas2D {
-    pub(crate) fn new(internal: Rc<RefCell<TextureAtlas2DInternal>>) -> Self {
-        Self { internal }
-    }
+    impl_wrapper_new!(TextureAtlas2D, TextureAtlas2DInternal);
 
     /// Sets the dimensions.
     pub fn set_dimensions(&self, new_dimensions: Rectangle) {

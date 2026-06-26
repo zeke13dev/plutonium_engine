@@ -84,6 +84,13 @@ mod objects;
 mod render;
 /// Documentation and public API for pluto objects.
 pub mod pluto_objects {
+    macro_rules! impl_wrapper_new {
+        ($wrapper:ident, $internal:ty) => {
+            pub(crate) fn new(internal: std::rc::Rc<std::cell::RefCell<$internal>>) -> Self {
+                Self { internal }
+            }
+        };
+    }
     #[cfg(feature = "widgets")]
     /// Documentation and public API for button.
     pub mod button;

@@ -142,9 +142,7 @@ pub struct Shape {
 }
 
 impl Shape {
-    pub(crate) fn new(internal: Rc<RefCell<ShapeInternal>>) -> Self {
-        Self { internal }
-    }
+    impl_wrapper_new!(Shape, ShapeInternal);
 
     // Wrapper functions to match other objects
     /// Returns the id.

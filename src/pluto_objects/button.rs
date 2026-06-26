@@ -180,9 +180,7 @@ pub struct Button {
 }
 
 impl Button {
-    pub(crate) fn new(internal: Rc<RefCell<ButtonInternal>>) -> Self {
-        Self { internal }
-    }
+    impl_wrapper_new!(Button, ButtonInternal);
 
     /// Sets the content.
     pub fn set_content(&self, new_content: &str) {

@@ -79,9 +79,7 @@ pub struct Texture2D {
 }
 
 impl Texture2D {
-    pub(crate) fn new(internal: Rc<RefCell<Texture2DInternal>>) -> Self {
-        Self { internal }
-    }
+    impl_wrapper_new!(Texture2D, Texture2DInternal);
 
     /// Sets the dimensions.
     pub fn set_dimensions(&self, new_dimensions: Rectangle) {

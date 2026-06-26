@@ -841,9 +841,7 @@ impl Text2D {
         Ok(rect)
     }
 
-    pub(crate) fn new(internal: Rc<RefCell<Text2DInternal>>) -> Self {
-        Self { internal }
-    }
+    impl_wrapper_new!(Text2D, Text2DInternal);
 
     /// Returns the cursor position.
     pub fn get_cursor_position(
