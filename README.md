@@ -1,5 +1,9 @@
 # plutonium_engine
 
+[![CI](https://github.com/zeke13dev/plutonium_engine/actions/workflows/ci.yml/badge.svg)](https://github.com/zeke13dev/plutonium_engine/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/plutonium_engine.svg)](https://crates.io/crates/plutonium_engine)
+[![docs.rs](https://docs.rs/plutonium_engine/badge.svg)](https://docs.rs/plutonium_engine)
+
 A pure Rust 2D graphics engine built on wgpu. SVG-first, DPI-aware, with text and optional widgets.
 
 Features:
@@ -9,7 +13,7 @@ Features:
 - Optional retained-mode widgets: Texture2D, TextureAtlas2D, Text2D, Button, TextInput (feature: `widgets`)
 - Camera with boundary and tether
 - Tweening helpers (feature: `anim`): `Tween`, `Track::{Sequence,Parallel}`, `Timeline` with labels/callbacks and CSS-like cubic-bezier easing
-- Deterministic RNG streams and basic record/replay plumbing (feature: `replay`)
+- Deterministic RNG streams and basic record/replay plumbing
 
 Coordinate system:
 - Logical pixels; origin top-left, +x right, +y down. DPI scaling handled internally.
@@ -19,23 +23,32 @@ API styles:
 - Optional retained widgets (feature `widgets`): higher-level objects that render via the same draw path
 - `DrawParams` supports `z`, `scale`, `rotation`, and `tint` (RGBA) for sprites
 
+Install:
+```bash
+cargo add plutonium_engine
+```
+
+Or add it manually:
+```toml
+[dependencies]
+plutonium_engine = "0.8"
+```
+
+For local development against a checkout:
+```toml
+[dependencies]
+plutonium_engine = { path = "../path/to/plutonium_engine", features = ["layout", "anim"] }
+```
+
 Cargo features:
 ```toml
 [features]
-default = ["backend-wgpu", "widgets"]
-backend-wgpu = []           # WGPU backend (always enabled by default)
+default = ["widgets"]
 widgets = []                # Retained-mode widgets (enabled by default)
 raster = []                 # PNG/JPEG helpers (opt-in)
 layout = []                 # Simple layout helpers (anchors/percent) (opt-in)
 anim = []                   # Tweening/animation helpers (opt-in)
-replay = []                 # RNG streams and record/replay helpers (opt-in)
-wasm = []                   # Opt-in wasm32 compile support (target wasm32-unknown-unknown)
-```
-
-To enable optional features in your project:
-```toml
-[dependencies]
-plutonium_engine = { path = "../path/to/plutonium_engine", features = ["layout", "anim"] }
+wasm = ["dep:getrandom"]    # Opt-in wasm32 compile support (target wasm32-unknown-unknown)
 ```
 
 See `docs/features-and-modules.md` for details.
@@ -105,4 +118,3 @@ Examples:
 - `actions_demo`: input action map (buttons/axes) and button hover/press/focus visuals.
 - `halo_showcase`: demonstrates `draw_halo` (screen-space) and `draw_halo_for_object` (including offscreen false behavior), plus preset cycling.
 - `halo_text_container`: minimal halo/glow example around text rendered inside a `TextContainer`.
-# CI Test Comment

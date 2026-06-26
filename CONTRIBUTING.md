@@ -27,6 +27,10 @@ Optional API checks use `cargo-public-api`:
 cargo install cargo-public-api --locked
 ```
 
+## Cargo.lock policy
+
+`Cargo.lock` is tracked. Update it with dependency changes and keep it committed so CI, release packaging, examples, and snapshot tooling use the same dependency resolution.
+
 ## Local verification
 
 Before opening a pull request, run the checks that match your change. For broad engine changes, run the full gate:

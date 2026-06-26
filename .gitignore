@@ -1,6 +1,5 @@
 /target
 run.sh
-Cargo.lock
 GAME_ENGINE_TODO.md
 debug_atlas.png
 .cursor
@@ -14,3 +13,4 @@ TODO.md
 **/target/
 debug_*.png
 *.mds
+snapshots/actual/
