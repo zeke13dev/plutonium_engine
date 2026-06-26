@@ -185,7 +185,7 @@ impl<'a> PlutoniumEngine<'a> {
             height,
             tile_size,
             char_positions,
-            wgpu::TextureFormat::Rgba8UnormSrgb,
+            crate::COLOR_TEXTURE_FORMAT,
             wgpu::FilterMode::Nearest,
             wgpu::FilterMode::Nearest,
             false,
@@ -299,7 +299,7 @@ impl<'a> PlutoniumEngine<'a> {
             char_positions,
         ) {
             #[cfg(not(target_arch = "wasm32"))]
-            if texture_format == wgpu::TextureFormat::Rgba8UnormSrgb {
+            if texture_format == crate::COLOR_TEXTURE_FORMAT {
                 let _ = atlas.save_debug_png(&self.device, &self.queue, "debug_atlas.png");
             }
             // Add to atlas_map

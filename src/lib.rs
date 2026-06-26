@@ -131,6 +131,33 @@ pub mod traits;
 pub mod ui;
 /// Documentation and public API for utils.
 pub mod utils;
+
+// Color-bearing textures are stored and sampled as sRGB. Encoded data textures
+// such as MSDF atlases intentionally use linear formats at their call sites.
+pub(crate) const COLOR_TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
+pub(crate) const FALLBACK_SURFACE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8UnormSrgb;
+
+fn choose_surface_format(formats: &[wgpu::TextureFormat]) -> wgpu::TextureFormat {
+    formats
+        .iter()
+        .copied()
+        .find(|f| {
+            matches!(
+                f,
+                wgpu::TextureFormat::Bgra8UnormSrgb | wgpu::TextureFormat::Rgba8UnormSrgb
+            )
+        })
+        .or_else(|| {
+            formats.iter().copied().find(|f| {
+                matches!(
+                    f,
+                    wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Rgba8Unorm
+                )
+            })
+        })
+        .or_else(|| formats.first().copied())
+        .unwrap_or(FALLBACK_SURFACE_FORMAT)
+}
 pub use popup::{
     PopupAction, PopupActionStyle, PopupConfig, PopupDismissReason, PopupEvent, PopupSize,
 };
@@ -1163,21 +1190,7 @@ impl<'a> PlutoniumEngine<'a> {
             surface_caps.present_modes.len(),
             surface_caps.alpha_modes.len()
         )));
-        let surface_format = surface_caps
-            .formats
-            .iter()
-            .copied()
-            .find(|f| {
-                matches!(
-                    f,
-                    wgpu::TextureFormat::Bgra8UnormSrgb
-                        | wgpu::TextureFormat::Rgba8UnormSrgb
-                        | wgpu::TextureFormat::Bgra8Unorm
-                        | wgpu::TextureFormat::Rgba8Unorm
-                )
-            })
-            .or_else(|| surface_caps.formats.first().copied())
-            .unwrap_or(wgpu::TextureFormat::Bgra8Unorm);
+        let surface_format = choose_surface_format(&surface_caps.formats);
         let present_mode = if surface_caps
             .present_modes
             .contains(&wgpu::PresentMode::Fifo)
@@ -1654,5 +1667,37 @@ impl<'a> PlutoniumEngine<'a> {
     /// Pop clip.
     pub fn pop_clip(&mut self) {
         let _ = self.clip_stack.pop();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::choose_surface_format;
+
+    #[test]
+    fn surface_format_prefers_srgb_even_if_linear_appears_first() {
+        let formats = [
+            wgpu::TextureFormat::Bgra8Unorm,
+            wgpu::TextureFormat::Rgba8Unorm,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+        ];
+
+        assert_eq!(
+            choose_surface_format(&formats),
+            wgpu::TextureFormat::Rgba8UnormSrgb
+        );
+    }
+
+    #[test]
+    fn surface_format_falls_back_to_linear_when_srgb_is_unavailable() {
+        let formats = [
+            wgpu::TextureFormat::Rgba8Unorm,
+            wgpu::TextureFormat::Bgra8Unorm,
+        ];
+
+        assert_eq!(
+            choose_surface_format(&formats),
+            wgpu::TextureFormat::Rgba8Unorm
+        );
     }
 }

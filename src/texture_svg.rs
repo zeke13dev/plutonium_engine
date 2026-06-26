@@ -295,8 +295,8 @@ impl TextureSVG {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            view_formats: &[wgpu::TextureFormat::Rgba8UnormSrgb],
+            format: crate::COLOR_TEXTURE_FORMAT,
+            view_formats: &[crate::COLOR_TEXTURE_FORMAT],
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         });
 
@@ -846,8 +846,8 @@ impl TextureSVG {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Bgra8UnormSrgb,
-            view_formats: &[wgpu::TextureFormat::Bgra8UnormSrgb],
+            format: crate::COLOR_TEXTURE_FORMAT,
+            view_formats: &[crate::COLOR_TEXTURE_FORMAT],
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         });
 
