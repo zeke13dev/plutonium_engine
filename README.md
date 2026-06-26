@@ -118,3 +118,6 @@ Examples:
 - `actions_demo`: input action map (buttons/axes) and button hover/press/focus visuals.
 - `halo_showcase`: demonstrates `draw_halo` (screen-space) and `draw_halo_for_object` (including offscreen false behavior), plus preset cycling.
 - `halo_text_container`: minimal halo/glow example around text rendered inside a `TextContainer`.
+
+Workspace note:
+- `plutonium_game/` is an in-repository companion workspace used to exercise engine integrations. It is intentionally excluded from the published crate package.

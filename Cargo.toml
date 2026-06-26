@@ -12,19 +12,11 @@ keywords = ["wgpu", "rendering", "svg"]
 categories = ["graphics", "rendering"]
 edition = "2021"
 rust-version = "1.79"
-exclude = [
-    ".DS_Store",
-    "**/.DS_Store",
-    ".github/**",
-    "debug_*.png",
-    "snapshots/**",
-    "plutonium_game/**",
-    "z-harness/**",
-    "response.md",
-    "TODO.md",
-    "GAME_ENGINE_TODO.md",
-    "AGENTS.md",
-    "*.mds",
+include = [
+    "/src/**",
+    "/shaders/**",
+    "/README.md",
+    "/LICENSE",
 ]
 
 [dependencies]
