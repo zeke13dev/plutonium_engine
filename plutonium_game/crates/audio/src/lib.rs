@@ -57,11 +57,13 @@ impl Audio {
         }
     }
 
+    #[allow(dead_code)] // part of the in-progress mixer API
     fn effective_bgm_volume(&self) -> f32 {
         let master = self.master_volume.lock().map(|g| *g).unwrap_or(1.0);
         let bgm = self.bgm_volume.lock().map(|g| *g).unwrap_or(1.0);
         (master * bgm).clamp(0.0, 1.0)
     }
+    #[allow(dead_code)] // part of the in-progress mixer API
     fn effective_sfx_volume(&self) -> f32 {
         let master = self.master_volume.lock().map(|g| *g).unwrap_or(1.0);
         let sfx = self.sfx_volume.lock().map(|g| *g).unwrap_or(1.0);
@@ -124,6 +126,7 @@ mod rodio_impl {
     use rodio::{Decoder, OutputStream, Sink, Source};
     use std::fs::File;
     use std::io::BufReader;
+    use std::path::Path;
 
     pub struct AudioInner {
         _stream: OutputStream,
@@ -142,7 +145,7 @@ mod rodio_impl {
         }
 
         pub fn set_bgm_volume(&self, vol: f32) {
-            if let Ok(mut sink_opt) = self.bgm_sink.lock() {
+            if let Ok(sink_opt) = self.bgm_sink.lock() {
                 if let Some(sink) = sink_opt.as_ref() {
                     sink.set_volume(vol.max(0.0));
                 }

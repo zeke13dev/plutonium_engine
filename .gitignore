@@ -13,4 +13,4 @@ TODO.md
 **/target/
 debug_*.png
 *.mds
-snapshots/actual/
+**/snapshots/actual/

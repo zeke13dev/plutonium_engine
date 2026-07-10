@@ -1,3 +1,7 @@
+// Demo/example code: scene scaffolding and per-frame init statics are kept
+// intentionally simple, so silence the scaffolding-only lints here.
+#![allow(dead_code, static_mut_refs)]
+
 use plutonium_engine::utils::Position;
 use plutonium_engine::{
     app::{run_app, FrameContext, WindowConfig},
