@@ -1199,10 +1199,8 @@ impl TextRenderer {
                         }
                     }
                 });
-            } else {
-                if next_tile_index < 5 {
-                    log::info!("[FONT DEBUG] Char '{}': NO BOUNDING BOX", c);
-                }
+            } else if next_tile_index < 5 {
+                log::info!("[FONT DEBUG] Char '{}': NO BOUNDING BOX", c);
             }
 
             let h_metrics = base_glyph.clone().h_metrics();

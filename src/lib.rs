@@ -72,6 +72,10 @@
 //! this crate's semver surface rather than hidden behind lossy wrapper types.
 //!
 #![warn(missing_docs)]
+// Low-level draw/render/text entry points take many positional parameters
+// (position, size, color, rotation, scale, layer, ...) by design; grouping them
+// into structs would obscure the hot-path call sites rather than clarify them.
+#![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
 /// Documentation and public API for camera.
 pub mod camera;
@@ -227,18 +231,15 @@ pub enum TextureFit {
 
 #[derive(Debug, Clone)]
 /// Options for glyph set.
+#[derive(Default)]
 pub enum GlyphSet {
     /// Ascii core option.
+    #[default]
     AsciiCore,
     /// Custom option.
     Custom(Vec<char>),
 }
 
-impl Default for GlyphSet {
-    fn default() -> Self {
-        Self::AsciiCore
-    }
-}
 
 #[derive(Debug, Clone, Copy, Default)]
 /// Options for raster hinting mode.
@@ -402,18 +403,15 @@ impl HaloFalloff {
 
 /// Halo rendering mode.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Default)]
 pub enum HaloMode {
     /// Soft outside glow (default).
+    #[default]
     Glow,
     /// Border-only highlight.
     Border,
 }
 
-impl Default for HaloMode {
-    fn default() -> Self {
-        HaloMode::Glow
-    }
-}
 
 /// Predefined halo styles for common tutorial/highlight scenarios.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
