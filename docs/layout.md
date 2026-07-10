@@ -18,7 +18,7 @@ plutonium_engine = { path = "../path/to/plutonium_engine", features = ["layout"]
 Or if using from crates.io:
 ```toml
 [dependencies]
-plutonium_engine = { version = "0.7.0", features = ["layout"] }
+plutonium_engine = { version = "0.8", features = ["layout"] }
 ```
 
 ## API

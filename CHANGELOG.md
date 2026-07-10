@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.8.0] - Unreleased
+## [0.8.0] - 2026-07-09
 
 ### Added
 - **Perimeter Glow API** - New `draw_rect_glow` method for neon-style perimeter effects around rounded rectangles. Uses SDF-based rendering for sharp core lines and exponential soft-glow falloff (both inward and outward).
@@ -12,6 +12,11 @@
 - **WASM pollable raster URL loading (raster feature)** - Added `begin_texture_raster_from_url(url, position) -> RasterTextureUrlLoadHandle` and `poll_texture_raster_from_url(handle) -> Option<Result<(Uuid, Size), RasterTextureLoadError>>` for synchronous frame loops that cannot `await`.
 
 - **Public backend type contract** - Documented that low-level/manual integration APIs intentionally expose crate-pinned `wgpu` and `winit` types (`Surface`, `SurfaceError`, `PhysicalSize`, `Key`) as part of the public semver surface.
+- **Platform-agnostic input keys** - `FrameContext` now exposes per-frame input through backend-neutral `Key`/`Keys` types (`pressed_keys`), with helpers such as `contains_character_ignore_ascii_case` and `contains_named`, so frame callbacks no longer depend on `winit` key types directly.
+
+### Changed
+- **WASM engine construction** - Removed the synchronous wasm engine constructor; wasm apps now construct the engine through the async `run_app`/`run_app_wasm` entrypoints only.
+
 ### Fixed
 - **Engine: Missing self context** - Fixed pre-existing compilation errors in `src/lib.rs` where `dpi_scale_factor` was missing `self.` context in `load_font` and `load_msdf_font_from_ttf`.
 - **Snapshots: API alignment** - Fixed `src/bin/snapshots.rs` compilation by adding the missing `scale` argument to `get_transform_uniform` calls.

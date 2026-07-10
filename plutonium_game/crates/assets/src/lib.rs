@@ -349,13 +349,14 @@ impl AssetsRegistry {
                     {
                         // reload
                         let _ = engine.unload_texture(&uuid);
-                        let (new_uuid, _dims) = engine.create_texture_svg(
+                        if let Ok((new_uuid, _dims)) = engine.create_texture_svg(
                             &path,
                             plutonium_engine::utils::Position { x: 0.0, y: 0.0 },
                             1.0,
-                        );
-                        self.texture_handles.insert(handle, new_uuid);
-                        self.file_mtimes.insert(path.clone(), mtime);
+                        ) {
+                            self.texture_handles.insert(handle, new_uuid);
+                            self.file_mtimes.insert(path.clone(), mtime);
+                        }
                     }
                 }
             }

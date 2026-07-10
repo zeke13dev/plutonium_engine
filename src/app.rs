@@ -1034,7 +1034,7 @@ fn js_value_to_string(value: wasm_bindgen::JsValue) -> String {
 ///
 /// Native targets create a `winit` window and block until the event loop exits.
 /// WASM targets attach to an existing canvas with id `"game-canvas"`, spawn the
-/// browser event loop, and return after startup. Use [`run_app_wasm_with_options`]
+/// browser event loop, and return after startup. Use `run_app_wasm_with_options`
 /// on WASM when a different canvas id or browser event option is needed.
 pub fn run_app<F>(config: WindowConfig, frame_callback: F) -> Result<(), Box<dyn std::error::Error>>
 where
