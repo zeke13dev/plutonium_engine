@@ -84,7 +84,7 @@ walk-through.
 | **Texture atlases** | Per-tile UV addressing for sprite sheets and tilemaps. |
 | **Text** | Font-atlas rendering with a raster path and an MSDF (crisp-at-any-scale) path, alignment, and auto-sizing. |
 | **Widgets** (`widgets`, default) | Retained-mode `Button`, `TextInput`, `Text2D`, plus slider/toggle patterns, with hover/press/focus states. |
-| **Shapes** | `Rectangle`, `Circle`, `Polygon` vector primitives. |
+| **Shapes** | `Shape` vector primitives — rectangle, circle, polygon (via `ShapeType`). |
 | **Effects** | Perimeter glow (`draw_rect_glow`) and tutorial halos (`draw_halo`, `HaloPreset`). |
 | **Camera** | Follow-target with boundary clamping and frame-rate-independent smoothing. |
 | **Layout** (`layout`) | Anchor/percent/margin helpers for building UIs. |
@@ -108,7 +108,7 @@ default = ["widgets"]   # retained-mode widgets (Button, TextInput, ...)
 raster  = []            # PNG/JPEG texture + raster-font helpers (opt-in)
 layout  = []            # anchor/percent layout helpers (opt-in)
 anim    = []            # tweening/animation helpers (opt-in)
-wasm    = []            # wasm32-unknown-unknown support (opt-in)
+wasm    = ["dep:getrandom"] # wasm32-unknown-unknown support, JS entropy (opt-in)
 ```
 
 RNG and record/replay are always available and are not behind a feature flag.
@@ -135,7 +135,7 @@ feature are marked; run those with the listed `--features` (or `--all-features`)
 | `grid` | Tilemap-style atlas grid | |
 | `camera` | Camera follow, boundaries, smoothing | |
 | `text2d` / `text_alignment` / `text_autosize_demo` | Text rendering, alignment, auto-size | |
-| `msdf_visual_test` | Crisp MSDF text at scale | `layout,raster` |
+| `msdf_visual_test` | Crisp MSDF text at scale | |
 | `ui_primitives` | Buttons, labels, panels | |
 | `button_debug` / `slider` / `toggle` | Widget states and interaction | |
 | `text_input` | Focusable text field | |

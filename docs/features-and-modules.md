@@ -21,7 +21,7 @@ feature flags exposed by `plutonium_engine`. For a runnable introduction see
 | `utils` | Core value types: `Position`, `Size`, `Rectangle`, `DrawParams`, color helpers. |
 | `error` | `EngineError` and result types. |
 | `rng` | Deterministic, seedable RNG streams for reproducible scenes and tests. |
-| `ui` | Immediate-mode UI helpers (`halo_rect`, `halo_response`, and friends). |
+| `ui` | Immediate-mode UI helpers (`draw_focus_ring`, `draw_toggle`, `draw_button_background`). |
 | `pluto_objects` | Retained-mode objects — see below. |
 | `anim` *(feature `anim`)* | Tweening/animation: `Tween`, `Track`, `Timeline`, easing. |
 | `layout` *(feature `layout`)* | Anchor/percent layout helpers. |
@@ -33,7 +33,7 @@ feature flags exposed by `plutonium_engine`. For a runnable introduction see
 | `Texture2D` | always | A positioned SVG/raster sprite. |
 | `TextureAtlas2D` | always | An atlas-backed sprite addressing tiles by index/UV. |
 | `Text2D` | always | A retained text object. |
-| Shapes (`Rectangle`, `Circle`, `Polygon`) | always | Vector primitives. |
+| `Shape` (rectangle / circle / polygon via `ShapeType`) | always | Vector primitives. |
 | `Button` | `widgets` | Clickable button with hover/press/focus states. |
 | `TextInput` | `widgets` | Focusable single-line text field. |
 
@@ -48,9 +48,9 @@ let atlas   = engine.create_texture_atlas_2d(/* ... */)?;
 let label   = engine.create_text2d(/* ... */)?;
 let button  = engine.create_button(/* ... */)?;   // feature = "widgets"
 let input   = engine.create_text_input(/* ... */)?; // feature = "widgets"
-let rect    = engine.create_rect(/* ... */);
-let circle  = engine.create_circle(/* ... */);
-let poly    = engine.create_polygon(/* ... */);
+let rect    = engine.create_rect(/* ... */)?;      // all three return Shape
+let circle  = engine.create_circle(/* ... */)?;
+let poly    = engine.create_polygon(/* ... */)?;
 ```
 
 Lower-level texture/font loaders are also available:
