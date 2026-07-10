@@ -122,100 +122,128 @@ impl Audio {
 
 #[cfg(feature = "rodio-backend")]
 mod rodio_impl {
-    use super::*;
     use rodio::{Decoder, OutputStream, Sink, Source};
     use std::fs::File;
     use std::io::BufReader;
     use std::path::Path;
+    use std::sync::mpsc::{self, Sender};
+    use std::sync::Mutex;
+    use std::thread;
+
+    // rodio's `OutputStream`/`Sink` wrap a thread-affine `cpal` stream and are
+    // therefore `!Send`/`!Sync`. The ECS `World` stores resources under a
+    // `Send + Sync` bound, so we keep the audio handles entirely on a dedicated
+    // thread and expose only a `Send + Sync` command channel.
+    enum Cmd {
+        SetBgmVolume(f32),
+        PlayBgmLoop { path: String, vol: f32 },
+        StopBgm,
+        PlaySfx { path: String, vol: f32 },
+    }
 
     pub struct AudioInner {
-        _stream: OutputStream,
-        stream_handle: rodio::OutputStreamHandle,
-        bgm_sink: Arc<Mutex<Option<Sink>>>,
+        tx: Mutex<Sender<Cmd>>,
+    }
+
+    fn decode(path: &str) -> Option<Decoder<BufReader<File>>> {
+        if !Path::new(path).exists() {
+            eprintln!("[audio] file not found: {}", path);
+            return None;
+        }
+        match File::open(path) {
+            Ok(file) => match Decoder::new(BufReader::new(file)) {
+                Ok(src) => Some(src),
+                Err(e) => {
+                    eprintln!("[audio] decode failed for {}: {}", path, e);
+                    None
+                }
+            },
+            Err(e) => {
+                eprintln!("[audio] open failed for {}: {}", path, e);
+                None
+            }
+        }
     }
 
     impl AudioInner {
         pub fn new() -> Self {
-            let (stream, handle) = OutputStream::try_default().expect("rodio output stream");
-            Self {
-                _stream: stream,
-                stream_handle: handle,
-                bgm_sink: Arc::new(Mutex::new(None)),
+            let (tx, rx) = mpsc::channel::<Cmd>();
+            thread::spawn(move || {
+                // The `!Send` rodio handles live and die on this thread only.
+                let (_stream, handle) = match OutputStream::try_default() {
+                    Ok(pair) => pair,
+                    Err(e) => {
+                        eprintln!("[audio] rodio output stream unavailable: {}", e);
+                        return;
+                    }
+                };
+                let mut bgm_sink: Option<Sink> = None;
+                while let Ok(cmd) = rx.recv() {
+                    match cmd {
+                        Cmd::SetBgmVolume(vol) => {
+                            if let Some(sink) = bgm_sink.as_ref() {
+                                sink.set_volume(vol.max(0.0));
+                            }
+                        }
+                        Cmd::StopBgm => {
+                            if let Some(sink) = bgm_sink.take() {
+                                sink.stop();
+                            }
+                        }
+                        Cmd::PlayBgmLoop { path, vol } => {
+                            if let Some(sink) = bgm_sink.take() {
+                                sink.stop();
+                            }
+                            if let Some(src) = decode(&path) {
+                                if let Ok(sink) = Sink::try_new(&handle) {
+                                    sink.set_volume(vol.max(0.0));
+                                    sink.append(src.repeat_infinite());
+                                    sink.play();
+                                    bgm_sink = Some(sink);
+                                }
+                            }
+                        }
+                        Cmd::PlaySfx { path, vol } => {
+                            if let Some(src) = decode(&path) {
+                                if let Ok(sink) = Sink::try_new(&handle) {
+                                    sink.set_volume(vol.max(0.0));
+                                    sink.append(src);
+                                    sink.detach(); // play out without holding the handle
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            Self { tx: Mutex::new(tx) }
+        }
+
+        fn send(&self, cmd: Cmd) {
+            if let Ok(tx) = self.tx.lock() {
+                let _ = tx.send(cmd);
             }
         }
 
         pub fn set_bgm_volume(&self, vol: f32) {
-            if let Ok(sink_opt) = self.bgm_sink.lock() {
-                if let Some(sink) = sink_opt.as_ref() {
-                    sink.set_volume(vol.max(0.0));
-                }
-            }
+            self.send(Cmd::SetBgmVolume(vol));
         }
 
         pub fn play_bgm_loop(&self, path: &str, vol: f32) {
-            // Stop existing
-            self.stop_bgm();
-            if !Path::new(path).exists() {
-                eprintln!("[audio] bgm not found: {}", path);
-                return;
-            }
-            match File::open(path) {
-                Ok(file) => {
-                    let reader = BufReader::new(file);
-                    match Decoder::new(reader) {
-                        Ok(src) => {
-                            let sink = Sink::try_new(&self.stream_handle).ok();
-                            if let Some(sink) = sink {
-                                sink.set_volume(vol.max(0.0));
-                                sink.append(src.repeat_infinite());
-                                sink.play();
-                                if let Ok(mut guard) = self.bgm_sink.lock() {
-                                    *guard = Some(sink);
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            eprintln!("[audio] decode bgm failed: {}", e);
-                        }
-                    }
-                }
-                Err(e) => eprintln!("[audio] open bgm failed: {}", e),
-            }
+            self.send(Cmd::PlayBgmLoop {
+                path: path.to_string(),
+                vol,
+            });
         }
 
         pub fn stop_bgm(&self) {
-            if let Ok(mut sink_opt) = self.bgm_sink.lock() {
-                if let Some(sink) = sink_opt.take() {
-                    sink.stop();
-                }
-            }
+            self.send(Cmd::StopBgm);
         }
 
         pub fn play_sfx(&self, path: &str, vol: f32) {
-            if !Path::new(path).exists() {
-                eprintln!("[audio] sfx not found: {}", path);
-                return;
-            }
-            let file = match File::open(path) {
-                Ok(f) => f,
-                Err(e) => {
-                    eprintln!("[audio] open sfx failed: {}", e);
-                    return;
-                }
-            };
-            let reader = BufReader::new(file);
-            let src = match Decoder::new(reader) {
-                Ok(s) => s,
-                Err(e) => {
-                    eprintln!("[audio] decode sfx failed: {}", e);
-                    return;
-                }
-            };
-            if let Ok(sink) = Sink::try_new(&self.stream_handle) {
-                sink.set_volume(vol.max(0.0));
-                sink.append(src);
-                sink.detach(); // allow to play out without holding handle
-            }
+            self.send(Cmd::PlaySfx {
+                path: path.to_string(),
+                vol,
+            });
         }
     }
 }
