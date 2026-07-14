@@ -56,6 +56,9 @@ cd "${REPO_ROOT}"
 # under it — reshuffling lines and duplicating the impl header, even though the
 # actual public surface is the same set of items.
 #
+# rustdoc's canonical paths and internal auto-trait spelling can change between compiler versions
+# without changing the callable API. Normalize the known equivalents before comparing snapshots.
+#
 # `sort -u` makes the comparison set-based:
 #   - duplicated `impl<..> Type` header lines collapse to one (byte-identical),
 #   - methods sort into a canonical order regardless of which file emitted them,
@@ -64,13 +67,19 @@ cd "${REPO_ROOT}"
 # This trades line-order sensitivity (not meaningful for an API surface) for
 # immunity to the multi-file impl-grouping artifact.
 normalize() {
-    grep -v '^[[:space:]]*$' | sort -u
+    sed \
+        -e 's/core::marker::UnsafeUnpin/core::marker::Unpin/g' \
+        -e 's/std::io::/core::io::/g' \
+        | grep -v '^[[:space:]]*$' \
+        | sort -u
 }
 
 fail=0
 
 echo "=== Checking host public API ==="
-if ! diff <("${CARGO_PUBLIC_API}" --simplified --all-features 2>/dev/null | normalize) "${BASELINE_HOST}"; then
+if ! diff \
+    <("${CARGO_PUBLIC_API}" --simplified --all-features 2>/dev/null | normalize) \
+    <(normalize < "${BASELINE_HOST}"); then
     echo "FAIL: host public API has changed from baseline (${BASELINE_HOST})" >&2
     fail=1
 else
@@ -79,7 +88,9 @@ fi
 
 echo ""
 echo "=== Checking wasm32 public API ==="
-if ! diff <("${CARGO_PUBLIC_API}" --simplified --target wasm32-unknown-unknown --all-features 2>/dev/null | normalize) "${BASELINE_WASM}"; then
+if ! diff \
+    <("${CARGO_PUBLIC_API}" --simplified --target wasm32-unknown-unknown --all-features 2>/dev/null | normalize) \
+    <(normalize < "${BASELINE_WASM}"); then
     echo "FAIL: wasm32 public API has changed from baseline (${BASELINE_WASM})" >&2
     fail=1
 else
