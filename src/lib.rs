@@ -240,7 +240,6 @@ pub enum GlyphSet {
     Custom(Vec<char>),
 }
 
-
 #[derive(Debug, Clone, Copy, Default)]
 /// Options for raster hinting mode.
 pub enum RasterHintingMode {
@@ -402,8 +401,7 @@ impl HaloFalloff {
 }
 
 /// Halo rendering mode.
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum HaloMode {
     /// Soft outside glow (default).
     #[default]
@@ -411,7 +409,6 @@ pub enum HaloMode {
     /// Border-only highlight.
     Border,
 }
-
 
 /// Predefined halo styles for common tutorial/highlight scenarios.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

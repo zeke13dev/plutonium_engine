@@ -23,18 +23,12 @@ BASELINE_WASM="${REPO_ROOT}/api-baseline-wasm.txt"
 
 CARGO_PUBLIC_API="${CARGO_PUBLIC_API:-cargo-public-api}"
 
-# Locate the nightly toolchain binaries.  On systems where rustup is the cargo driver the
-# +toolchain syntax works; on systems where cargo is installed separately (e.g. MacPorts) we fall
-# back to the explicit toolchain binary path.
-if rustup toolchain list 2>/dev/null | grep -q 'nightly'; then
-    NIGHTLY_HOME="$(rustup toolchain list --verbose 2>/dev/null \
-        | awk '/^nightly/{print $2; exit}' || true)"
-    if [[ -z "${NIGHTLY_HOME}" ]]; then
-        # Older rustup: derive path from well-known convention
-        NIGHTLY_HOME="$(rustup show home)"/toolchains/"$(rustup toolchain list | awk '/^nightly/{print $1; exit}')"
-    fi
-    NIGHTLY_RUSTDOC="${NIGHTLY_HOME}/bin/rustdoc"
-    NIGHTLY_RUSTC="${NIGHTLY_HOME}/bin/rustc"
+# Resolve the binaries through rustup instead of parsing `toolchain list --verbose`. The latter
+# inserts status fields such as `(active, default)` before the path, so its column positions are
+# not stable across rustup versions or CI environments.
+if NIGHTLY_RUSTDOC="$(rustup which --toolchain nightly rustdoc 2>/dev/null)" &&
+    NIGHTLY_RUSTC="$(rustup which --toolchain nightly rustc 2>/dev/null)"; then
+    :
 else
     echo "error: nightly toolchain not found." >&2
     echo "Install with: rustup toolchain install nightly" >&2
