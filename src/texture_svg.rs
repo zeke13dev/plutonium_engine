@@ -817,10 +817,9 @@ impl TextureSVG {
     ) -> Option<(wgpu::Texture, Size)> {
         let svg_content = if let Some(data) = svg_data {
             data.to_string()
-        } else if let Some(path) = file_path {
-            fs::read_to_string(path).ok()?
         } else {
-            return None;
+            let path = file_path?;
+            fs::read_to_string(path).ok()?
         };
         let opt = Options::default();
         let rtree = Tree::from_str(&svg_content, &opt).ok()?;

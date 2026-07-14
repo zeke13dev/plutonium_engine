@@ -200,7 +200,7 @@ impl<'a> super::PlutoniumEngine<'a> {
             // Fast path for the common already-layered queue: avoid invoking
             // stable sort (and its scratch allocation) unless z-order changed.
             if !self.render_queue.windows(2).all(|w| w[0].z <= w[1].z) {
-                self.render_queue.sort_by(|a, b| a.z.cmp(&b.z));
+                self.render_queue.sort_by_key(|item| item.z);
             }
 
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

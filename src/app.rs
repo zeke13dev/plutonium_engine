@@ -865,7 +865,7 @@ impl ApplicationHandler<()> for PlutoniumApp {
                         } else {
                             f32::INFINITY
                         };
-                        for (_id, (k, st)) in self.key_repeat_states.iter_mut() {
+                        for (k, st) in self.key_repeat_states.values_mut() {
                             if st.is_down {
                                 st.elapsed += dt;
                                 if st.elapsed >= st.next_fire {

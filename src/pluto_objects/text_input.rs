@@ -222,15 +222,13 @@ impl TextInputInternal {
                     cursor_moved = true;
                 }
             }
-            Key::Named(NamedKey::ArrowDown) => {
-                if current_line_idx + 1 < line_count {
-                    self.cursor_index = self.get_index_from_line_and_column(
-                        &content,
-                        current_line_idx + 1,
-                        current_column,
-                    );
-                    cursor_moved = true;
-                }
+            Key::Named(NamedKey::ArrowDown) if current_line_idx + 1 < line_count => {
+                self.cursor_index = self.get_index_from_line_and_column(
+                    &content,
+                    current_line_idx + 1,
+                    current_column,
+                );
+                cursor_moved = true;
             }
             _ => (),
         }
