@@ -56,8 +56,10 @@ cd "${REPO_ROOT}"
 # under it — reshuffling lines and duplicating the impl header, even though the
 # actual public surface is the same set of items.
 #
-# rustdoc's canonical paths and internal auto-trait spelling can change between compiler versions
-# without changing the callable API. Normalize the known equivalents before comparing snapshots.
+# rustdoc's canonical paths can change between compiler versions without changing the callable
+# API. Its generated Unpin descriptors are also unstable: newer nightly versions expose the
+# internal UnsafeUnpin trait and infer different generic bounds. Exclude only those generated
+# descriptors; Send/Sync guarantees are covered by tests/api_autotraits.rs.
 #
 # `sort -u` makes the comparison set-based:
 #   - duplicated `impl<..> Type` header lines collapse to one (byte-identical),
@@ -68,9 +70,8 @@ cd "${REPO_ROOT}"
 # immunity to the multi-file impl-grouping artifact.
 normalize() {
     sed \
-        -e 's/core::marker::UnsafeUnpin/core::marker::Unpin/g' \
         -e 's/std::io::/core::io::/g' \
-        | grep -v '^[[:space:]]*$' \
+        | grep -Ev '^[[:space:]]*$|^impl.* core::marker::(Unsafe)?Unpin for ' \
         | sort -u
 }
 
